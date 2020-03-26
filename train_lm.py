@@ -463,9 +463,8 @@ def evaluate(args, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, prefi
     return result
 
 
-def main():
+def get_args():
     parser = argparse.ArgumentParser()
-
     # Required parameters
     parser.add_argument(
         "--train_data_file", default=None, type=str, required=True, help="The input training data file (a text file)."
@@ -479,7 +478,6 @@ def main():
     parser.add_argument(
         "--model_type", type=str, required=True, help="The model architecture to be trained or fine-tuned.",
     )
-
     # Other parameters
     parser.add_argument(
         "--eval_data_file",
@@ -501,14 +499,12 @@ def main():
         type=str,
         help="The model checkpoint for weights initialization. Leave None if you want to train a model from scratch.",
     )
-
     parser.add_argument(
         "--mlm", action="store_true", help="Train with masked-language modeling loss instead of language modeling."
     )
     parser.add_argument(
         "--mlm_probability", type=float, default=0.15, help="Ratio of tokens to mask for masked language modeling loss"
     )
-
     parser.add_argument(
         "--config_name",
         default=None,
@@ -532,15 +528,14 @@ def main():
         default=-1,
         type=int,
         help="Optional input sequence length after tokenization."
-        "The training dataset will be truncated in block of this size for training."
-        "Default to the model max input length for single sentence inputs (take into account special tokens).",
+             "The training dataset will be truncated in block of this size for training."
+             "Default to the model max input length for single sentence inputs (take into account special tokens).",
     )
     parser.add_argument("--do_train", action="store_true", help="Whether to run training.")
     parser.add_argument("--do_eval", action="store_true", help="Whether to run eval on the dev set.")
     parser.add_argument(
         "--evaluate_during_training", action="store_true", help="Run evaluation during training at each logging step."
     )
-
     parser.add_argument("--per_gpu_train_batch_size", default=4, type=int, help="Batch size per GPU/CPU for training.")
     parser.add_argument(
         "--per_gpu_eval_batch_size", default=4, type=int, help="Batch size per GPU/CPU for evaluation."
@@ -565,7 +560,6 @@ def main():
         help="If > 0: set total number of training steps to perform. Override num_train_epochs.",
     )
     parser.add_argument("--warmup_steps", default=0, type=int, help="Linear warmup over warmup_steps.")
-
     parser.add_argument("--logging_steps", type=int, default=500, help="Log every X updates steps.")
     parser.add_argument("--save_steps", type=int, default=500, help="Save checkpoint every X updates steps.")
     parser.add_argument(
@@ -587,7 +581,6 @@ def main():
         "--overwrite_cache", action="store_true", help="Overwrite the cached training and evaluation sets"
     )
     parser.add_argument("--seed", type=int, default=42, help="random seed for initialization")
-
     parser.add_argument(
         "--fp16",
         action="store_true",
@@ -598,12 +591,17 @@ def main():
         type=str,
         default="O1",
         help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
-        "See details at https://nvidia.github.io/apex/amp.html",
+             "See details at https://nvidia.github.io/apex/amp.html",
     )
     parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
     parser.add_argument("--server_ip", type=str, default="", help="For distant debugging.")
     parser.add_argument("--server_port", type=str, default="", help="For distant debugging.")
     args = parser.parse_args()
+    return args
+
+
+def main():
+    args = get_args()
 
     if args.model_type in ["bert", "roberta", "distilbert", "camembert"] and not args.mlm:
         raise ValueError(
@@ -779,6 +777,7 @@ def main():
             results.update(result)
 
     return results
+
 
 
 if __name__ == "__main__":

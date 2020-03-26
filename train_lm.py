@@ -15,8 +15,6 @@
 # limitations under the License.
 """
 Fine-tuning the library models for language modeling on a text file (GPT, GPT-2, BERT, RoBERTa).
-GPT and GPT-2 are fine-tuned using a causal language modeling (CLM) loss while BERT and RoBERTa are fine-tuned
-using a masked language modeling (MLM) loss.
 """
 
 """
@@ -180,7 +178,7 @@ def mask_tokens(inputs: torch.Tensor, tokenizer: PreTrainedTokenizer, args) -> T
 
     if tokenizer.mask_token is None:
         raise ValueError(
-            "This tokenizer does not have a mask token which is necessary for masked language modeling. Remove the --mlm flag if you want to use this tokenizer."
+            "This tokenizer does not have a mask token which is necessary for masked language modeling."
         )
 
     labels = inputs.clone()
@@ -325,11 +323,11 @@ def train(args, train_dataset, model: PreTrainedModel, tokenizer: PreTrainedToke
                 steps_trained_in_current_epoch -= 1
                 continue
 
-            inputs, labels = mask_tokens(batch, tokenizer, args) if args.mlm else (batch, batch)
+            inputs, labels = mask_tokens(batch, tokenizer, args)
             inputs = inputs.to(args.device)
             labels = labels.to(args.device)
             model.train()
-            outputs = model(inputs, masked_lm_labels=labels) if args.mlm else model(inputs, labels=labels)
+            outputs = model(inputs, masked_lm_labels=labels)
             loss = outputs[0]  # model outputs are always tuple in transformers (see doc)
 
             if args.n_gpu > 1:
@@ -435,12 +433,12 @@ def evaluate(args, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, prefi
     model.eval()
 
     for batch in tqdm(eval_dataloader, desc="Evaluating"):
-        inputs, labels = mask_tokens(batch, tokenizer, args) if args.mlm else (batch, batch)
+        inputs, labels = mask_tokens(batch, tokenizer, args)
         inputs = inputs.to(args.device)
         labels = labels.to(args.device)
 
         with torch.no_grad():
-            outputs = model(inputs, masked_lm_labels=labels) if args.mlm else model(inputs, labels=labels)
+            outputs = model(inputs, masked_lm_labels=labels)
             lm_loss = outputs[0]
             eval_loss += lm_loss.mean().item()
         nb_eval_steps += 1
@@ -495,9 +493,6 @@ def get_args():
         default=None,
         type=str,
         help="The model checkpoint for weights initialization. Leave None if you want to train a model from scratch.",
-    )
-    parser.add_argument(
-        "--mlm", action="store_true", help="Train with masked-language modeling loss instead of language modeling."
     )
     parser.add_argument(
         "--mlm_probability", type=float, default=0.15, help="Ratio of tokens to mask for masked language modeling loss"
@@ -600,11 +595,6 @@ def get_args():
 def main():
     args = get_args()
 
-    if args.model_type in ["bert", "roberta", "distilbert", "camembert"] and not args.mlm:
-        raise ValueError(
-            "BERT and RoBERTa-like models do not have LM heads but masked LM heads. They must be run using the --mlm "
-            "flag (masked language modeling)."
-        )
     if args.eval_data_file is None and args.do_eval:
         raise ValueError(
             "Cannot do evaluation without an evaluation data file. Either supply a file to --eval_data_file "

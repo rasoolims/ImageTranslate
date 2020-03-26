@@ -1,4 +1,4 @@
-from transformers import *
+from transformers import AlbertModel, AlbertConfig
 
 from textprocessor import TextProcessor
 

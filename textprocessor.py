@@ -26,6 +26,8 @@ class TextProcessor:
             "</s>",
             "<unk>",
             "<mask>",
+            "[CLS]",
+            "[SEP]",
         ])
         self.tokenizer._tokenizer.post_processor = BertProcessing(
             ("</s>", self.tokenizer.token_to_id("</s>")),

@@ -168,9 +168,11 @@ class Trainer:
             os.makedirs(options.model_path)
 
         if options.tokenizer_path is None:
+            print("Training Tokenizer...")
             text_processor = TextProcessor()
             paths = [str(x) for x in Path(options.train_path).glob("*.txt")]
             text_processor.train_tokenizer(paths=paths, vocab_size=options.vocab_size, to_save_dir=options.model_path)
+            print("done!")
         else:
             text_processor = TextProcessor(options.tokenizer_path)
         lm = LM(text_processor=text_processor)

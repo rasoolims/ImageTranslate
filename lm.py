@@ -1,12 +1,21 @@
+import os
+import pickle
+from typing import Optional
+
+import torch
 from transformers import AlbertModel, AlbertConfig
 
 from textprocessor import TextProcessor
 
 
 class LM:
-    def __init__(self, text_processor: TextProcessor):
+    def __init__(self, text_processor: TextProcessor, model: Optional[AlbertModel] = None):
         self.text_processor: TextProcessor = text_processor
-        self.lm: AlbertModel = AlbertModel(self._config(vocab_size=text_processor.tokenizer.get_vocab_size()))
+        if model is None:
+            self.config = self._config(vocab_size=text_processor.tokenizer.get_vocab_size())
+            self.model: AlbertModel = AlbertModel(self.config)
+        else:
+            self.model = model
 
     def _config(self, vocab_size: int) -> AlbertConfig:
         config = {
@@ -31,3 +40,21 @@ class LM:
         }
 
         return AlbertConfig(**config)
+
+    def save(self, out_dir: str):
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        with open(os.path.join(out_dir, "config"), "wb") as fp:
+            pickle.dump(self.config, fp)
+
+        torch.save(self.model.state_dict(), os.path.join(out_dir, "model.state_dict"))
+        self.text_processor.tokenizer.save(directory=out_dir)
+
+    @staticmethod
+    def load(out_dir: str):
+        text_processor = TextProcessor(tok_model_path=out_dir)
+        with open(os.path.join(out_dir, "config"), "rb") as fp:
+            config = pickle.load(fp)
+            model = AlbertModel(config)
+            model.load_state_dict(torch.load(os.path.join(out_dir, "model.state_dict")))
+            return LM(text_processor=text_processor, model=model)

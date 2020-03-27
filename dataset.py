@@ -1,0 +1,83 @@
+import logging
+import math
+import os
+import pickle
+from typing import Dict, List
+
+import torch
+from torch.utils.data import Dataset
+
+from textprocessor import TextProcessor
+
+logger = logging.getLogger(__name__)
+
+
+class TextDataset(Dataset):
+    def __init__(self, text_processor: TextProcessor, save_cache_dir: str, input_data_dir: str = None,
+                 sentence_block_size: int = 10000, max_cache_size: int = 100):
+        """
+        :param text_processor:
+        :param save_cache_dir: directory that has saved pickle files for the data.
+        :param input_data_dir:
+        :param sentence_block_size: Size of each block of text in RAM
+        :param max_cache_size: Max number of items in cache
+        """
+
+        self.current_cache: Dict[Dict[int, torch.LongTensor]] = {}
+        self.current_cache_queue: List[int] = []
+        self.max_cache_size = max_cache_size
+        self.save_cache_dir = save_cache_dir
+
+        if input_data_dir is not None:
+            assert os.path.isdir(input_data_dir)
+            if not os.path.exists(save_cache_dir):
+                os.makedirs(save_cache_dir)
+            self.sentence_block_size = sentence_block_size
+
+            examples = {}
+            self.line_num, file_num = 0, 0
+            for txt_file in os.listdir(input_data_dir):
+                # assuming that all files are txt files
+                with open(os.path.join(input_data_dir, txt_file), "r") as fp:
+                    for line in fp:
+                        if len(line.strip()) == 0: continue
+                        tok_line = text_processor.tokenize_one_sentence(line.strip())
+                        examples[self.line_num] = torch.LongTensor(tok_line)
+                        self.line_num += 1
+                        if len(examples) >= sentence_block_size:
+                            with open(os.path.join(save_cache_dir, str(file_num) + ".pkl"), "wb") as fw:
+                                pickle.dump(examples, fw)
+                            examples, file_num = {}, file_num + 1
+
+            if len(examples) > 0:
+                with open(os.path.join(save_cache_dir, str(file_num) + ".pkl"), "wb") as fw:
+                    pickle.dump(examples, fw)
+                examples, file_num = {}, file_num + 1
+
+            logger.info("wrote % sentences in %s cache files", self.line_num, file_num)
+            with open(os.path.join(save_cache_dir, "info.txt"), "w") as fw:
+                fw.write(str(sentence_block_size) + "\t" + str(self.line_num))
+        else:
+            with open(os.path.join(save_cache_dir, "info.txt"), "r") as fr:
+                spl = fr.read().strip().split("\t")
+                self.sentence_block_size = int(spl[0])
+                self.line_num = int(spl[1])
+
+    def __len__(self):
+        return self.line_num
+
+    def __getitem__(self, item):
+        file_num = math.floor(item / self.sentence_block_size)
+
+        if file_num not in self.current_cache:
+            if len(self.current_cache) >= self.max_cache_size:
+                item_to_delete = self.current_cache_queue.pop()
+                del self.current_cache[item_to_delete]
+            with open(os.path.join(self.save_cache_dir, str(file_num)) + ".pkl", "rb") as fp:
+                examples = pickle.load(fp)
+                self.current_cache_queue.append(file_num)
+                self.current_cache[file_num] = examples
+        else:
+            examples = self.current_cache[file_num]
+
+        return examples[item]

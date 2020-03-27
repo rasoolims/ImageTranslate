@@ -41,13 +41,13 @@ class TestModel(unittest.TestCase):
             processor = TextProcessor()
             processor.train_tokenizer(paths, vocab_size=1000, to_save_dir=tmpdirname)
             lm = LM(text_processor=processor)
-            assert lm.model.base_model.embeddings.word_embeddings.num_embeddings == 1000
+            assert lm.encoder.base_model.embeddings.word_embeddings.num_embeddings == 1000
 
             lm.save(tmpdirname)
 
             new_lm = LM.load(tmpdirname)
 
-            assert new_lm.model.config == lm.config
+            assert new_lm.config == lm.config
 
     def test_data(self):
         path_dir_name = os.path.dirname(os.path.realpath(__file__))

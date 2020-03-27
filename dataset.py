@@ -5,6 +5,7 @@ import pickle
 from typing import Dict, List
 
 import torch
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 
 from textprocessor import TextProcessor
@@ -81,3 +82,13 @@ class TextDataset(Dataset):
             examples = self.current_cache[file_num]
 
         return examples[item]
+
+
+class TextCollator(object):
+    def __init__(self, pad_idx):
+        self.pad_idx = pad_idx
+
+    def __call__(self, batch):
+        padded_text = pad_sequence(batch, batch_first=True, padding_value=self.pad_idx)
+        pad_mask = (padded_text == self.pad_idx)
+        return {"texts": padded_text, "pad_mask": pad_mask}

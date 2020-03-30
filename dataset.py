@@ -46,7 +46,7 @@ class TextDataset(Dataset):
                         tok_line = text_processor.tokenize_one_sentence(line.strip())
                         current_cache.append(tok_line)
 
-                        if len(current_cache) > 100000:
+                        if len(current_cache) >= 100000:
                             sorted_list = sorted(current_cache, key=len)
                             for tok_line in sorted_list:
                                 examples[self.line_num] = torch.LongTensor(tok_line)
@@ -72,7 +72,6 @@ class TextDataset(Dataset):
                         pickle.dump(examples, fw)
                     examples, file_num = {}, file_num + 1
 
-                current_cache = []
                 print("Finished saving", self.line_num, "lines into", file_num, "files")
 
             with open(os.path.join(save_cache_dir, "info.txt"), "w") as fw:

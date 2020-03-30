@@ -46,7 +46,7 @@ class TextDataset(Dataset):
                         tok_line = text_processor.tokenize_one_sentence(line.strip())
                         current_cache.append(tok_line)
 
-                        if len(current_cache) >= 100000:
+                        if len(current_cache) >= 1000000:
                             sorted_list = sorted(current_cache, key=len)
                             for tok_line in sorted_list:
                                 examples[self.line_num] = torch.LongTensor(tok_line)

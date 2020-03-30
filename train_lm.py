@@ -159,7 +159,10 @@ class Trainer:
             if best_valid_loss > float(valid_loss.data):
                 best_valid_loss = float(valid_loss.data)
                 print("saving best valid loss", best_valid_loss)
-                self.model.save(saving_path)
+                model_to_save = (
+                    self.model.module if hasattr(self.model, "module") else self.model
+                )
+                model_to_save.save(saving_path)
         return best_valid_loss
 
     @staticmethod

@@ -113,8 +113,8 @@ class Trainer:
 
                 start, tokens, cur_loss = time.time(), 0, 0
 
+        print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         best_valid_loss = self.validate_and_save(best_valid_loss, saving_path, valid_data_iter)
-
         return total_loss / total_tokens, best_valid_loss
 
     def validate_and_save(self, best_valid_loss, saving_path, valid_data_iter):
@@ -173,6 +173,7 @@ class Trainer:
 
         best_valid_loss = float("inf")
         for i in range(options.num_epochs):
+            print("train epoch", i)
             with torch.autograd.detect_anomaly():
                 _, best_valid_loss = trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader,
                                                          best_valid_loss=best_valid_loss,

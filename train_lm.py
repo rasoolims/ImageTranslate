@@ -128,7 +128,8 @@ class Trainer:
                 if ntokens == 0:  # Nothing to predict!
                     continue
 
-                loss = nn.NLLLoss(predictions.contiguous().view(-1, predictions.size(-1)), target.contiguous().view(-1))
+                loss = self.loss_compute.criterion(predictions.contiguous().view(-1, predictions.size(-1)),
+                                                   target.contiguous().view(-1))
                 total_valid_loss += loss
                 total_valid_tokens += ntokens
 

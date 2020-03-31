@@ -127,7 +127,7 @@ class Trainer:
                 if ntokens == 0:  # Nothing to predict!
                     continue
 
-                loss = self.loss_compute.criterion(predictions, target)
+                loss = self.loss_compute.criterion(predictions, target) * ntokens
                 total_valid_loss += loss
                 total_valid_tokens += ntokens
 

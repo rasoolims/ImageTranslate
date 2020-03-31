@@ -51,7 +51,7 @@ class NoamOpt:
 
 class MaskLoss:
     def __init__(self, model: LM, optimizer=None, clip: int = 1):
-        self.criterion = nn.NLLLoss(ignore_index=self.model.text_processor.pad_token_id())
+        self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
         self.optimizer = optimizer
         self.clip = clip
         self.model = model

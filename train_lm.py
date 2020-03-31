@@ -128,8 +128,7 @@ class Trainer:
                 if ntokens == 0:  # Nothing to predict!
                     continue
 
-                loss = label_smoothed_nll_loss(predictions.contiguous().view(-1, predictions.size(-1)),
-                                               target.contiguous().view(-1), epsilon=0)
+                loss = nn.NLLLoss(predictions.contiguous().view(-1, predictions.size(-1)), target.contiguous().view(-1))
                 total_valid_loss += loss
                 total_valid_tokens += ntokens
 

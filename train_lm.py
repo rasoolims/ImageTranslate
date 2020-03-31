@@ -5,6 +5,7 @@ from optparse import OptionParser
 from pathlib import Path
 
 import torch
+import torch.nn as nn
 import torch.utils.data as data_utils
 from IPython.core import ultratb
 
@@ -13,31 +14,6 @@ from lm import LM
 from textprocessor import TextProcessor
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
-
-
-def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=None, reduce=True):
-    """
-    Got it from
-    https://github.com/pytorch/fairseq/blob/46b773a393c423f653887c382e4d55e69627454d/fairseq/criterions/label_smoothed_cross_entropy.py
-    """
-    if target.dim() == lprobs.dim() - 1:
-        target = target.unsqueeze(-1)
-    nll_loss = -lprobs.gather(dim=-1, index=target)
-    smooth_loss = -lprobs.sum(dim=-1, keepdim=True)
-    if ignore_index is not None:
-        pad_mask = target.eq(ignore_index)
-        if pad_mask.any():
-            nll_loss.masked_fill_(pad_mask, 0.)
-            smooth_loss.masked_fill_(pad_mask, 0.)
-    else:
-        nll_loss = nll_loss.squeeze(-1)
-        smooth_loss = smooth_loss.squeeze(-1)
-    if reduce:
-        nll_loss = nll_loss.sum()
-        smooth_loss = smooth_loss.sum()
-    eps_i = epsilon / lprobs.size(-1)
-    loss = (1. - epsilon) * nll_loss + eps_i * smooth_loss
-    return loss
 
 
 class NoamOpt:
@@ -75,14 +51,14 @@ class NoamOpt:
 
 class MaskLoss:
     def __init__(self, model: LM, optimizer=None, clip: int = 1):
-        self.criterion = label_smoothed_nll_loss
+        self.criterion = nn.NLLLoss(ignore_index=0)
         self.optimizer = optimizer
         self.clip = clip
         self.model = model
 
     def __call__(self, prediction, gold_standard, norm):
         loss = self.criterion(prediction.contiguous().view(-1, prediction.size(-1)),
-                              gold_standard.contiguous().view(-1), epsilon=0)
+                              gold_standard.contiguous().view(-1))
         loss.backward()
         if self.optimizer is not None:
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)

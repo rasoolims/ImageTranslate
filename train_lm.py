@@ -113,7 +113,8 @@ class Trainer:
                     best_valid_loss: float, saving_path: str):
         "Standard Training and Logging Function"
         start = time.time()
-        total_tokens, total_loss, tokens = 0, 0, 0
+        total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
+        cur_loss = 0
 
         for i, batch in enumerate(data_iter):
             predictions, target = self.model(device=self.device, data=batch, mask_prob=self.mask_prob)
@@ -124,17 +125,18 @@ class Trainer:
 
             loss = self.loss_compute(predictions, target, ntokens)
             total_loss += loss
+            cur_loss += loss
             total_tokens += ntokens
             tokens += ntokens
 
             if (i + 1) % 500 == 0:
                 elapsed = time.time() - start
                 print("Epoch Step: %d Loss: %f Tokens per Sec: %f" %
-                      (i + 1, loss / ntokens, tokens / elapsed))
-                if (i+1)%5000==0:
+                      (i + 1, cur_loss / tokens, tokens / elapsed))
+                if (i + 1) % 5000 == 0:
                     best_valid_loss = self.validate_and_save(best_valid_loss, saving_path, valid_data_iter)
 
-                start, tokens = time.time(), 0
+                start, tokens, cur_loss = time.time(), 0, 0
 
         best_valid_loss = self.validate_and_save(best_valid_loss, saving_path, valid_data_iter)
 

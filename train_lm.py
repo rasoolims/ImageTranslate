@@ -57,8 +57,7 @@ class MaskLoss:
         self.model = model
 
     def __call__(self, prediction, gold_standard, norm):
-        loss = self.criterion(prediction.contiguous().view(-1, prediction.size(-1)),
-                              gold_standard.contiguous().view(-1))
+        loss = self.criterion(prediction, gold_standard)
         loss.backward()
         if self.optimizer is not None:
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
@@ -128,8 +127,7 @@ class Trainer:
                 if ntokens == 0:  # Nothing to predict!
                     continue
 
-                loss = self.loss_compute.criterion(predictions.contiguous().view(-1, predictions.size(-1)),
-                                                   target.contiguous().view(-1))
+                loss = self.loss_compute.criterion(predictions, target)
                 total_valid_loss += loss
                 total_valid_tokens += ntokens
 

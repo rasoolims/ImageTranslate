@@ -94,7 +94,7 @@ class TextProcessor:
         :return:
         """
         if len(tokenized) <= self.max_len:
-            return tokenized
+            return [tokenized]
 
         has_lang = self.is_lang(tokenized[0])
         sequence = tokenized[0:] if has_lang else tokenized

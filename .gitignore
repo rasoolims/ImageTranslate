@@ -4,3 +4,4 @@
 *.pyc
 *.0
 .DS_Store
+pytorch_lamb

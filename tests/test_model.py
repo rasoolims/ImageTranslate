@@ -59,7 +59,7 @@ class TestModel(unittest.TestCase):
             processor.train_tokenizer(paths, vocab_size=1000, to_save_dir=tmpdirname)
             dataset = TextDataset(processor, save_cache_dir=tmpdirname, input_data_dir=data_path,
                                   sentence_block_size=10, max_cache_size=3)
-            assert dataset.line_num == 307
+            assert dataset.line_num == 92
 
             dataset.__getitem__(3)
             assert len(dataset.current_cache) == 1
@@ -70,13 +70,13 @@ class TestModel(unittest.TestCase):
             dataset.__getitem__(90)
             assert len(dataset.current_cache) == 2
 
-            dataset.__getitem__(92)
-            assert len(dataset.current_cache) == 2
-
-            dataset.__getitem__(120)
+            dataset.__getitem__(70)
             assert len(dataset.current_cache) == 3
 
-            dataset.__getitem__(300)
+            dataset.__getitem__(80)
+            assert len(dataset.current_cache) == 3
+
+            dataset.__getitem__(50)
             assert len(dataset.current_cache) == 3
 
 

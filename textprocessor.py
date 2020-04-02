@@ -2,7 +2,6 @@ from typing import List, Optional
 
 from tokenizers import Encoding
 from tokenizers import SentencePieceBPETokenizer
-from tokenizers.processors import BertProcessing
 
 
 class TextProcessor:
@@ -14,40 +13,54 @@ class TextProcessor:
                 tok_model_path + "/vocab.json",
                 tok_model_path + "/merges.txt",
             )
-            self.set_postprocess()
 
     def init_properties(self):
         self.max_len = 512
+        self.languages = ["<ab>", "<ast>", "<bg>", "<cbk_zam>", "<cv>", "<en>", "<frp>", "<got>", "<hy>", "<jam>",
+                          "<kn>", "<lbe>", "<mai>", "<mt>", "<nn>", "<pag>", "<pt>", "<sat>", "<so>", "<te>", "<tum>",
+                          "<vls>", "<zh>", "<ace>", "<atj>", "<bh>", "<cdo>", "<cy>", "<eo>", "<frr>", "<gu>", "<ia>",
+                          "<jbo>", "<ko>", "<lez>", "<map_bms>", "<mwl>", "<no>", "<pam>", "<qu>", "<sc>", "<sq>",
+                          "<tet>", "<tw>", "<vo>", "<zh_classical>", "<ady>", "<av>", "<bi>", "<ce>", "<da>", "<es>",
+                          "<fur>", "<gv>", "<id>", "<jv>", "<koi>", "<lfn>", "<mdf>", "<my>", "<nov>", "<pap>", "<rm>",
+                          "<scn>", "<sr>", "<tg>", "<ty>", "<wa>", "<zh_min_nan>", "<af>", "<ay>", "<bjn>", "<ch>",
+                          "<de>", "<et>", "<fy>", "<ha>", "<ie>", "<ka>", "<krc>", "<lg>", "<mg>", "<myv>", "<nrm>",
+                          "<pcd>", "<rmy>", "<sco>", "<srn>", "<th>", "<tyv>", "<war>", "<zh_yue>", "<ak>", "<az>",
+                          "<bm>", "<chr>", "<din>", "<eu>", "<ga>", "<hak>", "<ig>", "<kaa>", "<ks>", "<li>", "<mhr>",
+                          "<mzn>", "<nso>", "<pdc>", "<rn>", "<sd>", "<ss>", "<ti>", "<udm>", "<wo>", "<zu>", "<als>",
+                          "<azb>", "<bn>", "<chy>", "<diq>", "<ext>", "<gag>", "<haw>", "<ik>", "<kab>", "<ksh>",
+                          "<lij>", "<mi>", "<na>", "<nv>", "<pfl>", "<ro>", "<se>", "<st>", "<tk>", "<ug>", "<wuu>",
+                          "<am>", "<ba>", "<bo>", "<ckb>", "<dsb>", "<fa>", "<gan>", "<he>", "<ilo>", "<kbd>", "<ku>",
+                          "<lmo>", "<min>", "<nah>", "<ny>", "<pi>", "<roa_rup>", "<sg>", "<stq>", "<tl>", "<uk>",
+                          "<xal>", "<an>", "<ban>", "<bpy>", "<co>", "<dty>", "<ff>", "<gd>", "<hi>", "<inh>", "<kbp>",
+                          "<kv>", "<ln>", "<mk>", "<nap>", "<oc>", "<pih>", "<roa_tara>", "<sh>", "<su>", "<tn>",
+                          "<ur>", "<xh>", "<ang>", "<bar>", "<br>", "<cr>", "<dv>", "<fi>", "<gl>", "<hif>", "<io>",
+                          "<kg>", "<kw>", "<lo>", "<ml>", "<nds>", "<olo>", "<pl>", "<ru>", "<si>", "<sv>", "<to>",
+                          "<uz>", "<xmf>", "<ar>", "<bat_smg>", "<bs>", "<crh>", "<dz>", "<fiu_vro>", "<glk>", "<hr>",
+                          "<is>", "<ki>", "<ky>", "<lrc>", "<mn>", "<nds_nl>", "<om>", "<pms>", "<rue>", "<sk>", "<sw>",
+                          "<tpi>", "<ve>", "<yi>", "<arc>", "<bcl>", "<bug>", "<cs>", "<ee>", "<fj>", "<gn>", "<hsb>",
+                          "<it>", "<kk>", "<la>", "<lt>", "<mr>", "<ne>", "<or>", "<pnb>", "<rw>", "<sl>", "<szl>",
+                          "<tr>", "<vec>", "<yo>", "<arz>", "<be>", "<bxr>", "<csb>", "<el>", "<fo>", "<gom>", "<ht>",
+                          "<iu>", "<kl>", "<lad>", "<ltg>", "<mrj>", "<new>", "<os>", "<pnt>", "<sa>", "<sm>", "<ta>",
+                          "<ts>", "<vep>", "<za>", "<as>", "<be_x_old>", "<ca>", "<cu>", "<eml>", "<fr>", "<gor>",
+                          "<hu>", "<ja>", "<km>", "<lb>", "<lv>", "<ms>", "<nl>", "<pa>", "<ps>", "<sah>", "<sn>",
+                          "<tcy>", "<tt>", "<vi>", "<zea>"]
+        self.language_set = set(self.languages)
         self.pad_token = "<pad>"
         self.mask_token = "<mask>"
         self.unk_token = "<unk>"
-        self.cls_token = "[CLS]"
-        self.sep_token = "[SEP]"
-
-    def set_postprocess(self):
-        self.tokenizer._tokenizer.post_processor = BertProcessing(
-            (self.sep_token, self.sep_token_id()),
-            (self.cls_token, self.cls_token_id()),
-        )
-        self.tokenizer.enable_truncation(max_length=self.max_len)
+        self.sep_token = "</s>"
+        self.special_tokens = [self.pad_token, self.unk_token, self.mask_token, self.sep_token] + self.languages
 
     def train_tokenizer(self, paths: List[str], vocab_size: int, to_save_dir: str):
         self.tokenizer = SentencePieceBPETokenizer()
         self.init_properties()
-        self.tokenizer.train(files=paths, vocab_size=vocab_size, min_frequency=2, special_tokens=[
-            self.pad_token,
-            self.unk_token,
-            self.mask_token,
-            self.cls_token,
-            self.sep_token,
-        ])
-        self.set_postprocess()
+        self.tokenizer.train(files=paths, vocab_size=vocab_size, min_frequency=5, special_tokens=self.special_tokens)
         self.tokenizer.save(directory=to_save_dir)
 
     def _tokenize(self, line) -> Encoding:
         return self.tokenizer.encode(line)
 
-    def tokenize_one_sentence(self, line) -> List[int]:
+    def tokenize_one_line(self, line) -> List[int]:
         return self._tokenize(line).ids
 
     def tokenize(self, lines) -> List[List[int]]:
@@ -55,50 +68,67 @@ class TextProcessor:
         tokenized = self.tokenizer.encode_batch(lines)
         return [tok.ids for tok in tokenized]
 
-    def pad_token_id(self):
+    def pad_token_id(self) -> int:
         return self.tokenizer.token_to_id(self.pad_token)
 
-    def mask_token_id(self):
+    def mask_token_id(self) -> int:
         return self.tokenizer.token_to_id(self.mask_token)
 
-    def unk_token_id(self):
+    def unk_token_id(self) -> int:
         return self.tokenizer.token_to_id(self.unk_token)
 
-    def cls_token_id(self):
-        return self.tokenizer.token_to_id(self.cls_token)
-
-    def sep_token_id(self):
+    def sep_token_id(self) -> int:
         return self.tokenizer.token_to_id(self.sep_token)
 
-    def vocab_size(self):
+    def vocab_size(self) -> int:
         return self.tokenizer.get_vocab_size()
 
-    def get_special_tokens_mask(
-            self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None,
-            already_has_special_tokens: bool = False
-    ) -> List[int]:
-        """
-        Retrieves sequence ids from a token list that has no special tokens added. This method is called when adding
-        special tokens using the tokenizer ``prepare_for_model`` or ``encode_plus`` methods.
-        Args:
-            token_ids_0 (:obj:`List[int]`):
-                List of ids.
-            token_ids_1 (:obj:`List[int]`, `optional`, defaults to :obj:`None`):
-                Optional second list of IDs for sequence pairs.
-            already_has_special_tokens (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Set to True if the token list is already formatted with special tokens for the model
-        Returns:
-            :obj:`List[int]`: A list of integers in the range [0, 1]: 0 for a special token, 1 for a sequence token.
-        """
+    def is_lang(self, id) -> bool:
+        return self.tokenizer.id_to_token(id) in self.languages
 
-        if already_has_special_tokens:
-            if token_ids_1 is not None:
-                raise ValueError(
-                    "You should not supply a second sequence if the provided sequence of "
-                    "ids is already formatted with special tokens for the model."
-                )
-            return list(map(lambda x: 1 if x in [self.sep_token_id(), self.sep_token_id()] else 0, token_ids_0))
+    def split_tokenized(self, tokenized):
+        """
+        Based on self.max_len, splits very long sequences to smaller ones.
+        Here we assume to not have any overlapping sequences.
+        If the first token is a language, we add it to every new sequence.
+        :return:
+        """
+        if len(tokenized) <= self.max_len:
+            return tokenized
 
-        if token_ids_1 is not None:
-            return [1] + ([0] * len(token_ids_0)) + [1] + ([0] * len(token_ids_1)) + [1]
-        return [1] + ([0] * len(token_ids_0)) + [1]
+        has_lang = self.is_lang(tokenized[0])
+        sequence = tokenized[0:] if has_lang else tokenized
+
+        seq_len = len(sequence)
+        sep_id = self.sep_token_id()
+        max_len = self.max_len - 1 if has_lang else self.max_len
+
+        cur_start = 0
+        sequences = []
+        built_seq = []
+        truncated = False  # Shows if previous sequnece is truncated due to its length.
+        while cur_start < seq_len:
+            if not truncated or not has_lang:
+                cur_end = min(seq_len, cur_start + max_len)
+            else:
+                cur_end = min(seq_len, cur_start + max_len + 1)
+            subseq = sequence[cur_start:cur_end]
+
+            built_seq += subseq
+            sep_positions = [i for i, id in enumerate(built_seq) if id == sep_id]
+            if len(sep_positions) > 0:
+                if sep_positions[-1] == cur_start - 1:
+                    truncated = True
+                else:
+                    built_seq = built_seq[:sep_positions[-1] + 1]
+                    truncated = False
+
+            assert built_seq[-1] == sequence[len(built_seq) - 1]
+
+            if has_lang and len(subseq) < max_len + 1:
+                subseq = [tokenized[0]] + subseq
+
+            sequences.append(subseq)
+
+            cur_start = len(built_seq)
+        return sequences

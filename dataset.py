@@ -43,8 +43,9 @@ class TextDataset(Dataset):
                 with open(os.path.join(input_data_dir, txt_file), "r") as fp:
                     for line in fp:
                         if len(line.strip()) == 0: continue
-                        tok_line = text_processor.tokenize_one_sentence(line.strip())
-                        current_cache.append(tok_line)
+                        tok_line = text_processor.tokenize_one_line(line.strip())
+                        tok_lines = text_processor.split_tokenized(tok_line)
+                        current_cache += tok_lines
 
                         if len(current_cache) >= 1000000:
                             sorted_list = sorted(current_cache, key=len)

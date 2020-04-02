@@ -97,7 +97,6 @@ class TextProcessor:
             return tokenized
 
         has_lang = self.is_lang(tokenized[0])
-        has_lang = False
         sequence = tokenized[0:] if has_lang else tokenized
 
         seq_len = len(sequence)

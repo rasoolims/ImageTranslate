@@ -106,7 +106,7 @@ class TextProcessor:
         cur_start = 0
         sequences = []
         built_seq = []
-        truncated = False  # Shows if previous sequnece is truncated due to its length.
+        truncated = False  # Shows if previous sequence is truncated due to its length.
         while cur_start < seq_len:
             if not truncated or not has_lang:
                 cur_end = min(seq_len, cur_start + max_len)

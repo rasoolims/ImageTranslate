@@ -86,7 +86,7 @@ class TextProcessor:
     def is_lang(self, id) -> bool:
         return self.tokenizer.id_to_token(id) in self.languages
 
-    def split_tokenized(self, tokenized):
+    def split_tokenized(self, tokenized: List[int]) -> List[List[int]]:
         """
         Based on self.max_len, splits very long sequences to smaller ones.
         Here we assume to not have any overlapping sequences.
@@ -97,6 +97,7 @@ class TextProcessor:
             return tokenized
 
         has_lang = self.is_lang(tokenized[0])
+        has_lang = False
         sequence = tokenized[0:] if has_lang else tokenized
 
         seq_len = len(sequence)

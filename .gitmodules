@@ -1,0 +1,3 @@
+[submodule "pytorch_lamb"]
+	path = pytorch_lamb
+	url = https://github.com/cybertronai/pytorch-lamb

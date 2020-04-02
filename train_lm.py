@@ -11,66 +11,19 @@ from IPython.core import ultratb
 
 import dataset
 from lm import LM
+from pytorch_lamb.pytorch_lamb import Lamb
 from textprocessor import TextProcessor
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
 
-class NoamOpt:
-    "Optim wrapper that implements rate."
-
-    """
-    from https://nlp.seas.harvard.edu/2018/04/03/attention.html
-    """
-
-    def __init__(self, model_size, factor, warmup, optimizer):
-        self.optimizer = optimizer
-        self._step = 0
-        self.warmup = warmup
-        self.factor = factor
-        self.model_size = model_size
-        self._rate = 0
-
-    def step(self):
-        "Update parameters and rate"
-        self._step += 1
-        rate = self.rate()
-        for p in self.optimizer.param_groups:
-            p['lr'] = rate
-        self._rate = rate
-        self.optimizer.step()
-
-    def rate(self, step=None):
-        "Implement `lrate` above"
-        if step is None:
-            step = self._step
-        return self.factor * \
-               (self.model_size ** (-0.5) *
-                min(step ** (-0.5), step * self.warmup ** (-1.5)))
-
-
-class MaskLoss:
-    def __init__(self, model: LM, optimizer=None, clip: int = 1):
-        self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
-        self.optimizer = optimizer
-        self.clip = clip
-        self.model = model
-
-    def __call__(self, prediction, gold_standard, norm):
-        loss = self.criterion(prediction, gold_standard)
-        loss.backward()
-        if self.optimizer is not None:
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
-            self.optimizer.step()
-            self.optimizer.optimizer.zero_grad()
-        return loss.data * norm
-
-
 class Trainer:
     def __init__(self, model: LM, mask_prob: float = 0.15, clip: int = 1, optimizer=None):
         self.model = model
-        self.loss_compute = MaskLoss(model, optimizer=optimizer, clip=clip)
+        self.clip = clip
+        self.optimizer = optimizer
         self.mask_prob = mask_prob
+        self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         num_gpu = torch.cuda.device_count()
@@ -80,9 +33,8 @@ class Trainer:
         self.model = self.model.to(self.device)
 
     @staticmethod
-    def get_std_opt(model):
-        return NoamOpt(model.config.hidden_size, 2, 4000,
-                       torch.optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.98), eps=1e-9))
+    def build_optimizer(model, learning_rate, weight_decay):
+        return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader,
                     best_valid_loss: float, saving_path: str):
@@ -92,13 +44,20 @@ class Trainer:
         cur_loss = 0
 
         for i, batch in enumerate(data_iter):
+            if self.optimizer is not None:
+                self.optimizer.zero_grad()
             predictions, target = self.model(device=self.device, data=batch, mask_prob=self.mask_prob)
             ntokens = target.size(0)
 
             if ntokens == 0:  # Nothing to predict!
                 continue
 
-            loss = self.loss_compute(predictions, target, ntokens)
+            loss = self.criterion(predictions, target)
+            loss.backward()
+            if self.optimizer is not None:
+                self.optimizer.step()
+
+            loss = loss.data * ntokens
             total_loss += loss
             cur_loss += loss
             total_tokens += ntokens
@@ -127,7 +86,7 @@ class Trainer:
                 if ntokens == 0:  # Nothing to predict!
                     continue
 
-                loss = self.loss_compute.criterion(predictions, target) * ntokens
+                loss = self.criterion(predictions, target).data * ntokens
                 total_valid_loss += loss
                 total_valid_tokens += ntokens
 
@@ -168,7 +127,8 @@ class Trainer:
         loader = data_utils.DataLoader(train_data, batch_size=options.batch, shuffle=False, collate_fn=collator)
         valid_loader = data_utils.DataLoader(valid_data, batch_size=options.batch, shuffle=False, collate_fn=collator)
 
-        trainer = Trainer(model=lm, mask_prob=options.mask_prob, optimizer=Trainer.get_std_opt(lm.encoder),
+        trainer = Trainer(model=lm, mask_prob=options.mask_prob,
+                          optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
                           clip=options.clip)
 
         best_valid_loss = float("inf")
@@ -200,6 +160,8 @@ def get_options():
     parser.add_option("--batch", dest="batch", help="Batch size", type="int", default=512)
     parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
     parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
+    parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.0025)
+    parser.add_option("--decay", dest="weight_decay", help="Weight decay", type="float", default=0.01)
     parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)
     parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
     parser.add_option("--layer", dest="num_layers", help="Number of Layers in cross-attention", type="int", default=2)

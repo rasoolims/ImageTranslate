@@ -128,9 +128,9 @@ class Trainer:
 
         pin_meory = torch.cuda.is_available()
         loader = data_utils.DataLoader(train_data, batch_size=options.batch, shuffle=False, pin_memory=pin_meory,
-                                       collate_fn=collator, drop_last=True)
+                                       collate_fn=collator)
         valid_loader = data_utils.DataLoader(valid_data, batch_size=options.batch, shuffle=False, pin_memory=pin_meory,
-                                             collate_fn=collator, drop_last=True)
+                                             collate_fn=collator)
 
         trainer = Trainer(model=lm, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),

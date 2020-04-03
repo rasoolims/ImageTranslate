@@ -131,4 +131,6 @@ class TextProcessor:
             sequences.append(subseq)
 
             cur_start = len(built_seq)
+        if len(sequences[-1]) < self.max_len:
+            sequences[-1] = sequences[-1] + (self.max_len - len(sequences[-1])) * [self.pad_token_id()]
         return sequences

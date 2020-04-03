@@ -47,8 +47,8 @@ class TextDataset(Dataset):
                         current_cache += tok_lines
 
                         if len(current_cache) >= 1000000:
-                            sorted_list = sorted(current_cache, key=len)
-                            for tok_line in sorted_list:
+                            for tok_line in current_cache:
+                                # assuming that every list has same length due to correct padding.
                                 examples[self.line_num] = torch.LongTensor(tok_line)
                                 self.line_num += 1
                                 if len(examples) >= sentence_block_size:
@@ -59,8 +59,7 @@ class TextDataset(Dataset):
                             print("dumped", self.line_num, "lines into", self.file_count, "files")
 
             if len(current_cache) > 0:
-                sorted_list = sorted(current_cache, key=len)
-                for tok_line in sorted_list:
+                for tok_line in current_cache:
                     examples[self.line_num] = torch.LongTensor(tok_line)
                     self.line_num += 1
                     if len(examples) >= sentence_block_size:

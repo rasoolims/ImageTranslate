@@ -126,8 +126,11 @@ class Trainer:
                                          sentence_block_size=options.sentence_block, max_cache_size=options.cache_size)
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
 
-        loader = data_utils.DataLoader(train_data, batch_size=options.batch, shuffle=False, collate_fn=collator)
-        valid_loader = data_utils.DataLoader(valid_data, batch_size=options.batch, shuffle=False, collate_fn=collator)
+        pin_meory = torch.cuda.is_available()
+        loader = data_utils.DataLoader(train_data, batch_size=options.batch, shuffle=False, pin_memory=pin_meory,
+                                       collate_fn=collator)
+        valid_loader = data_utils.DataLoader(valid_data, batch_size=options.batch, shuffle=False, pin_memory=pin_meory,
+                                             collate_fn=collator)
 
         trainer = Trainer(model=lm, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),

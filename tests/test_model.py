@@ -3,6 +3,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import torch
+
+from albert_seq2seq import AlbertSeq2Seq
 from dataset import TextDataset
 from lm import LM
 from textprocessor import TextProcessor
@@ -48,6 +51,28 @@ class TestModel(unittest.TestCase):
             new_lm = LM.load(tmpdirname)
 
             assert new_lm.config == lm.config
+
+    def test_albert_seq2seq_init(self):
+        path_dir_name = os.path.dirname(os.path.realpath(__file__))
+        data_path = os.path.join(path_dir_name, "sample_txt/")
+        paths = [str(x) for x in Path(data_path).glob("*.txt")]
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            processor = TextProcessor()
+            processor.train_tokenizer(paths, vocab_size=1000, to_save_dir=tmpdirname)
+            lm = LM(text_processor=processor)
+
+            seq2seq = AlbertSeq2Seq(lm)
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            src_inputs = torch.tensor([[1, 2, 3, 4, 5, processor.pad_token_id(), processor.pad_token_id()],
+                                       [1, 2, 3, 4, 5, 6, processor.pad_token_id()]])
+            tgt_inputs = torch.tensor(
+                [[6, 8, 7, processor.pad_token_id(), processor.pad_token_id()], [6, 8, 7, 8, processor.pad_token_id()]])
+            src_mask = (src_inputs == processor.pad_token_id())
+            tgt_mask = (tgt_inputs == processor.pad_token_id())
+
+            seq_output = seq2seq(device, src_inputs, tgt_inputs, src_mask, tgt_mask)
+            assert list(seq_output[0].size()) == [tgt_inputs.size(0), tgt_inputs.size(1), 768]
 
     def test_data(self):
         path_dir_name = os.path.dirname(os.path.realpath(__file__))

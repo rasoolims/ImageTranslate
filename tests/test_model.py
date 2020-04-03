@@ -62,13 +62,13 @@ class TestModel(unittest.TestCase):
             assert dataset.line_num == 92
 
             dataset.__getitem__(3)
-            assert len(dataset.current_cache) == 1
+            assert len(dataset.current_cache) == 3
 
             dataset.__getitem__(9)
-            assert len(dataset.current_cache) == 1
+            assert len(dataset.current_cache) == 3
 
             dataset.__getitem__(90)
-            assert len(dataset.current_cache) == 2
+            assert len(dataset.current_cache) == 1
 
             dataset.__getitem__(70)
             assert len(dataset.current_cache) == 3

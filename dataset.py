@@ -75,12 +75,13 @@ class TextDataset(Dataset):
                 print("Finished saving", self.line_num, "lines into", self.file_count, "files")
 
             with open(os.path.join(save_cache_dir, "info.txt"), "w") as fw:
-                fw.write(str(sentence_block_size) + "\t" + str(self.line_num))
+                fw.write(str(sentence_block_size) + "\t" + str(self.line_num) + "\t" + str(self.file_count))
         else:
             with open(os.path.join(save_cache_dir, "info.txt"), "r") as fr:
                 spl = fr.read().strip().split("\t")
                 self.sentence_block_size = int(spl[0])
                 self.line_num = int(spl[1])
+                self.file_count = int(spl[2])
 
     def __len__(self):
         return self.line_num

@@ -25,6 +25,9 @@ class LM(nn.Module):
         else:
             self.encoder = encoder
         self.output_layer = nn.Linear(self.config["hidden_size"], self.text_processor.vocab_size(), )
+        self.output_layer.weight.data.normal_(mean=0.0, std=0.02)
+        if self.output_layer.bias is not None:
+            self.output_layer.bias.data.zero_()
 
     def _config(self, vocab_size: int) -> Dict:
         config = {

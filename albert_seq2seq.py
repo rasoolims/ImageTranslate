@@ -11,7 +11,7 @@ class AlbertSeq2Seq(nn.Module):
         self.config = lm.encoder.config
         self.encoder: AlbertModel = lm.encoder
         self.decoder: AlbertDecoderModel = AlbertDecoderModel(self.encoder)
-        self.output_layer = lm.output_layer  # nn.Linear(self.config["hidden_size"], self.text_processor.vocab_size(), )
+        self.output_layer = nn.Linear(self.config.hidden_size, self.text_processor.vocab_size(), )
 
     def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask):
         "Take in and process masked src and target sequences."

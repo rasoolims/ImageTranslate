@@ -94,7 +94,7 @@ class TextProcessor:
         :return:
         """
         if len(tokenized) <= self.max_len:
-            sequences =  [tokenized]
+            sequences = [tokenized]
             sequences[-1] = sequences[-1] + (self.max_len - len(sequences[-1])) * [self.pad_token_id()]
             return sequences
 

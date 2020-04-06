@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers import AlbertModel, AlbertConfig
+from transformers.modeling_albert import AlbertMLMHead
 
 from textprocessor import TextProcessor
 
@@ -20,14 +21,13 @@ class LM(nn.Module):
         else:
             self.config = self._config(vocab_size=text_processor.tokenizer.get_vocab_size())
 
+        albert_config = AlbertConfig(**self.config)
         if encoder is None:
-            self.encoder: AlbertModel = AlbertModel(AlbertConfig(**self.config))
+            self.encoder: AlbertModel = AlbertModel(albert_config)
         else:
             self.encoder = encoder
-        self.output_layer = nn.Linear(self.config["hidden_size"], self.text_processor.vocab_size(), )
-        self.output_layer.weight.data.normal_(mean=0.0, std=0.02)
-        if self.output_layer.bias is not None:
-            self.output_layer.bias.data.zero_()
+
+        self.masked_lm = AlbertMLMHead(albert_config)
 
     def _config(self, vocab_size: int) -> Dict:
         config = {
@@ -69,8 +69,7 @@ class LM(nn.Module):
         texts[mask] = self.text_processor.mask_token_id()
 
         text_hidden, text_cls_head = self.encoder(texts, attention_mask=pads)
-
-        output_predictions = F.log_softmax(self.output_layer(text_hidden[mask]), dim=1)
+        output_predictions = F.log_softmax(self.masked_lm(text_hidden[mask]), dim=1)
         return output_predictions, masked_ids
 
     def save(self, out_dir: str):

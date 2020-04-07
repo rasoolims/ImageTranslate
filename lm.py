@@ -1,5 +1,6 @@
 import os
 import pickle
+import random
 from typing import Dict
 
 import torch
@@ -61,16 +62,33 @@ class LM(nn.Module):
         texts = data["texts"].clone().to(device)
         pads = data["pad_mask"].to(device)
 
+        mask, masked_ids, texts = self.mask_text(device, mask_prob, pads, texts)
+
+        text_hidden, text_cls_head = self.encoder(texts, attention_mask=pads)
+        output_predictions = F.log_softmax(self.masked_lm(text_hidden[mask]), dim=1)
+        return output_predictions, masked_ids
+
+    def mask_text(self, device, mask_prob, pads, texts):
         assert 0 < mask_prob < 1
         mask = torch.empty(texts.size()).uniform_(0, 1) < mask_prob
         mask = mask.to(device)
         mask[pads] = False  # We should not mask pads.
         masked_ids = texts[mask]
-        texts[mask] = self.text_processor.mask_token_id()
-
-        text_hidden, text_cls_head = self.encoder(texts, attention_mask=pads)
-        output_predictions = F.log_softmax(self.masked_lm(text_hidden[mask]), dim=1)
-        return output_predictions, masked_ids
+        replacements = masked_ids.clone()
+        for i in range(len(replacements)):
+            r = random.random()
+            if r < 0.8:
+                replacements[i] = self.text_processor.mask_token_id()
+            elif r < 0.9:
+                # Replace with another random word.
+                random_index = random.randint(len(self.text_processor.special_tokens),
+                                              self.text_processor.vocab_size() - 1)
+                replacements[i] = random_index
+            else:
+                # keep the word
+                pass
+        texts[mask] = replacements
+        return mask, masked_ids, texts
 
     def save(self, out_dir: str):
         if not os.path.exists(out_dir):

@@ -58,7 +58,7 @@ class LM(nn.Module):
         :param data: A minibatch as dictionary that has transformed image and tokenized text as long tensors.
         :return:
         """
-        texts = data["texts"].to(device)
+        texts = data["texts"].clone().to(device)
         pads = data["pad_mask"].to(device)
 
         assert 0 < mask_prob < 1

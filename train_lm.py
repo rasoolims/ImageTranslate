@@ -64,7 +64,7 @@ class Trainer:
             total_tokens += ntokens
             tokens += ntokens
 
-            if (i + 1) % 500 == 0:
+            if (i + 1) % 50 == 0:
                 elapsed = time.time() - start
                 print(datetime.datetime.now(),
                       "Epoch Step: %d Loss: %f Tokens per Sec: %f" % (i + 1, cur_loss / tokens, tokens / elapsed))

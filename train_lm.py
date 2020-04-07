@@ -3,7 +3,6 @@ import os
 import sys
 import time
 from optparse import OptionParser
-from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -117,7 +116,7 @@ class Trainer:
         if options.tokenizer_path is None:
             print("Training Tokenizer...")
             text_processor = TextProcessor()
-            paths = [str(x) for x in Path(options.train_path).glob("*.txt")]
+            paths = [options.train_path]
             text_processor.train_tokenizer(paths=paths, vocab_size=options.vocab_size, to_save_dir=options.model_path)
             print("done!")
         else:
@@ -125,10 +124,10 @@ class Trainer:
         lm = LM(text_processor=text_processor)
 
         train_data = dataset.TextDataset(text_processor=text_processor, save_cache_dir=options.train_cache_path,
-                                         input_data_dir=options.train_path,
+                                         txt_file=options.train_path,
                                          sentence_block_size=options.sentence_block, max_cache_size=options.cache_size)
         valid_data = dataset.TextDataset(text_processor=text_processor, save_cache_dir=options.valid_cache_path,
-                                         input_data_dir=options.valid_path,
+                                         txt_file=options.valid_path,
                                          sentence_block_size=options.sentence_block, max_cache_size=options.cache_size)
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
 

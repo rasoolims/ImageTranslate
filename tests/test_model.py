@@ -17,12 +17,11 @@ class TestModel(unittest.TestCase):
 
     def test_train_tokenizer(self):
         path_dir_name = os.path.dirname(os.path.realpath(__file__))
-        data_path = os.path.join(path_dir_name, "sample_txt/")
-        paths = [str(x) for x in Path(data_path).glob("*.txt")]
+        data_path = os.path.join(path_dir_name, "sample.txt")
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer(paths, vocab_size=1000, to_save_dir=tmpdirname)
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname)
             assert processor.tokenizer.get_vocab_size() == 1000
             sen1 = "Obama signed many landmark bills into law during his first two years in office."
             assert processor._tokenize(sen1) is not None
@@ -37,12 +36,11 @@ class TestModel(unittest.TestCase):
 
     def test_albert_init(self):
         path_dir_name = os.path.dirname(os.path.realpath(__file__))
-        data_path = os.path.join(path_dir_name, "sample_txt/")
-        paths = [str(x) for x in Path(data_path).glob("*.txt")]
+        data_path = os.path.join(path_dir_name, "sample.txt")
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer(paths, vocab_size=1000, to_save_dir=tmpdirname)
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname)
             lm = LM(text_processor=processor)
             assert lm.encoder.base_model.embeddings.word_embeddings.num_embeddings == 1000
 
@@ -76,13 +74,12 @@ class TestModel(unittest.TestCase):
 
     def test_data(self):
         path_dir_name = os.path.dirname(os.path.realpath(__file__))
-        data_path = os.path.join(path_dir_name, "sample_txt/")
-        paths = [str(x) for x in Path(data_path).glob("*.txt")]
+        data_path = os.path.join(path_dir_name, "sample.txt")
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer(paths, vocab_size=1000, to_save_dir=tmpdirname)
-            dataset = TextDataset(processor, save_cache_dir=tmpdirname, input_data_dir=data_path,
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname)
+            dataset = TextDataset(processor, save_cache_dir=tmpdirname, txt_file=data_path,
                                   sentence_block_size=10, max_cache_size=3)
             assert dataset.line_num == 92
 

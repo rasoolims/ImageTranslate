@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 
 class TextDataset(Dataset):
-    def __init__(self, text_processor: TextProcessor, save_cache_dir: str, input_data_dir: str = None,
+    def __init__(self, text_processor: TextProcessor, save_cache_dir: str, txt_file: str = None,
                  sentence_block_size: int = 10000, max_cache_size: int = 100):
         """
         :param text_processor:
         :param save_cache_dir: directory that has saved pickle files for the data.
-        :param input_data_dir:
+        :param txt_file:
         :param sentence_block_size: Size of each block of text in RAM
         :param max_cache_size: Max number of items in cache
         """
@@ -28,8 +28,7 @@ class TextDataset(Dataset):
         self.max_cache_size = max_cache_size
         self.save_cache_dir = save_cache_dir
 
-        if input_data_dir is not None:
-            assert os.path.isdir(input_data_dir)
+        if txt_file is not None:
             if not os.path.exists(save_cache_dir):
                 os.makedirs(save_cache_dir)
             self.sentence_block_size = sentence_block_size
@@ -37,26 +36,24 @@ class TextDataset(Dataset):
             current_cache = []
             examples = {}
             self.line_num, self.file_count = 0, 0
-            for txt_file in os.listdir(input_data_dir):
-                # assuming that all files are txt files
-                with open(os.path.join(input_data_dir, txt_file), "r") as fp:
-                    for line in fp:
-                        if len(line.strip()) == 0: continue
-                        tok_line = text_processor.tokenize_one_line(line.strip())
-                        tok_lines = text_processor.split_tokenized(tok_line)
-                        current_cache += tok_lines
+            with open(os.path.join(txt_file, txt_file), "r") as fp:
+                for line in fp:
+                    if len(line.strip()) == 0: continue
+                    tok_line = text_processor.tokenize_one_line(line.strip())
+                    tok_lines = text_processor.split_tokenized(tok_line)
+                    current_cache += tok_lines
 
-                        if len(current_cache) >= 1000000:
-                            for tok_line in current_cache:
-                                # assuming that every list has same length due to correct padding.
-                                examples[self.line_num] = torch.LongTensor(tok_line)
-                                self.line_num += 1
-                                if len(examples) >= sentence_block_size:
-                                    with open(os.path.join(save_cache_dir, str(self.file_count) + ".pkl"), "wb") as fw:
-                                        pickle.dump(examples, fw)
-                                    examples, self.file_count = {}, self.file_count + 1
-                            current_cache = []
-                            print("dumped", self.line_num, "lines into", self.file_count, "files")
+                    if len(current_cache) >= 1000000:
+                        for tok_line in current_cache:
+                            # assuming that every list has same length due to correct padding.
+                            examples[self.line_num] = torch.LongTensor(tok_line)
+                            self.line_num += 1
+                            if len(examples) >= sentence_block_size:
+                                with open(os.path.join(save_cache_dir, str(self.file_count) + ".pkl"), "wb") as fw:
+                                    pickle.dump(examples, fw)
+                                examples, self.file_count = {}, self.file_count + 1
+                        current_cache = []
+                        print("dumped", self.line_num, "lines into", self.file_count, "files")
 
             if len(current_cache) > 0:
                 for tok_line in current_cache:

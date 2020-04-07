@@ -8,6 +8,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.utils.data as data_utils
+import transformers.optimization as optim
 from IPython.core import ultratb
 
 import dataset
@@ -23,6 +24,10 @@ class Trainer:
         self.model = model
         self.clip = clip
         self.optimizer = optimizer
+        if optimizer is not None:
+            self.scheduler = optim.get_linear_schedule_with_warmup(
+                self.optimizer, num_warmup_steps=3125, num_training_steps=1000000
+            )
         self.mask_prob = mask_prob
         self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
 
@@ -57,6 +62,7 @@ class Trainer:
             loss.backward()
             if self.optimizer is not None:
                 self.optimizer.step()
+                self.scheduler.step()
 
             loss = loss.data * ntokens
             total_loss += loss

@@ -43,7 +43,7 @@ class TextDataset(Dataset):
                     tok_lines = text_processor.split_tokenized(tok_line)
                     current_cache += tok_lines
 
-                    if len(current_cache) >= 1000000:
+                    if len(current_cache) >= 100000:
                         for tok_line in current_cache:
                             # assuming that every list has same length due to correct padding.
                             examples[self.line_num] = torch.LongTensor(tok_line)

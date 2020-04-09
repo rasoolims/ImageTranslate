@@ -93,7 +93,9 @@ class TextDataset(Dataset):
         file_num = math.floor(item / self.sentence_block_size)
 
         if file_num not in self.current_cache:
+            print("Loading data into cache...")
             self.rebuild_cache(file_num)
+            print("Loading data into cache done!")
         examples = self.current_cache[file_num]
         return examples[item]
 

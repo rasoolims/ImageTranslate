@@ -18,7 +18,7 @@ def write(text_processor: TextProcessor, save_cache_dir: str, max_seq_len: int, 
     examples = {}
     line_num, file_count = 0, 0
     with open(os.path.join(txt_file, txt_file), "r") as fp:
-        for line in fp:
+        for ln, line in enumerate(fp):
             if len(line.strip()) == 0: continue
             tok_line = text_processor.tokenize_one_line(line.strip())
             tok_lines = text_processor.split_tokenized(tok_line, max_length=max_seq_len)
@@ -34,7 +34,7 @@ def write(text_processor: TextProcessor, save_cache_dir: str, max_seq_len: int, 
                             pickle.dump(examples, fw)
                         examples, file_count = {}, file_count + 1
                 current_cache = []
-                print("dumped", line_num, "lines into", file_count, "files")
+                print(f"from {ln} actual documents, dumped {line_num} vectors into {file_count} files")
 
     if len(current_cache) > 0:
         for tok_line in current_cache:
@@ -49,7 +49,7 @@ def write(text_processor: TextProcessor, save_cache_dir: str, max_seq_len: int, 
                 pickle.dump(examples, fw)
             examples, file_count = {}, file_count + 1
 
-        print("Finished saving", line_num, "lines into", file_count, "files")
+        print(f"from {ln} actual documents, dumped {line_num} vectors into {file_count} files")
 
     with open(os.path.join(save_cache_dir, "info.txt"), "w") as fw:
         fw.write(str(sentence_block_size) + "\t" + str(line_num) + "\t" + str(file_count))

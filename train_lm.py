@@ -19,14 +19,14 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 class Trainer:
-    def __init__(self, model: LM, mask_prob: float = 0.15, clip: int = 1, optimizer=None):
+    def __init__(self, model: LM, mask_prob: float = 0.15, clip: int = 1, optimizer=None, warmup: float = 0.1,
+                 warmup_steps: int = 125000):
         self.model = model
         self.clip = clip
         self.optimizer = optimizer
         if optimizer is not None:
-            num_train_steps = 125000
             self.scheduler = optim.get_linear_schedule_with_warmup(
-                self.optimizer, num_warmup_steps=int(.2 * num_train_steps), num_training_steps=num_train_steps
+                self.optimizer, num_warmup_steps=int(warmup * warmup_steps), num_training_steps=warmup_steps
             )
         self.mask_prob = mask_prob
         self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
@@ -140,7 +140,7 @@ class Trainer:
 
         trainer = Trainer(model=lm, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
-                          clip=options.clip)
+                          clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps)
 
         best_valid_loss = float("inf")
         for i in range(options.num_epochs):
@@ -172,6 +172,8 @@ def get_options():
     parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
     parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
     parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.0025)
+    parser.add_option("--warmup", dest="warmup", help="Warm up rate", type="float", default=0.1)
+    parser.add_option("--steps", dest="warmup_steps", help="Number of warmup steps", type="int", default=125000)
     parser.add_option("--decay", dest="weight_decay", help="Weight decay", type="float", default=0.01)
     parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)
     parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)

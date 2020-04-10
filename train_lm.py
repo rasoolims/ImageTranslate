@@ -117,10 +117,8 @@ class Trainer:
         text_processor = TextProcessor(options.tokenizer_path)
         lm = LM(text_processor=text_processor)
 
-        train_data = dataset.TextDataset(text_processor=text_processor, save_cache_dir=options.train_cache_path,
-                                         sentence_block_size=options.sentence_block, max_cache_size=options.cache_size)
-        valid_data = dataset.TextDataset(text_processor=text_processor, save_cache_dir=options.valid_cache_path,
-                                         sentence_block_size=options.sentence_block, max_cache_size=options.cache_size)
+        train_data = dataset.TextDataset(save_cache_dir=options.train_cache_path, max_cache_size=options.cache_size)
+        valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size)
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
 
         pin_meory = torch.cuda.is_available()

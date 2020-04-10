@@ -5,6 +5,7 @@ from pathlib import Path
 
 import torch
 
+import create_batches
 from albert_seq2seq import AlbertSeq2Seq
 from dataset import TextDataset
 from lm import LM
@@ -79,8 +80,9 @@ class TestModel(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
             processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname)
-            dataset = TextDataset(processor, save_cache_dir=tmpdirname, txt_file=data_path,
-                                  sentence_block_size=10, max_cache_size=3)
+            create_batches.write(text_processor=processor, save_cache_dir=tmpdirname, max_seq_len=512,
+                                 txt_file=data_path, sentence_block_size=10)
+            dataset = TextDataset(save_cache_dir=tmpdirname, max_cache_size=3)
             assert dataset.line_num == 92
 
             dataset.__getitem__(3)

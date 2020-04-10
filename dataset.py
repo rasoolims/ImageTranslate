@@ -8,19 +8,13 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 
-from textprocessor import TextProcessor
-
 logger = logging.getLogger(__name__)
 
 
 class TextDataset(Dataset):
-    def __init__(self, text_processor: TextProcessor, save_cache_dir: str, txt_file: str = None,
-                 sentence_block_size: int = 10000, max_cache_size: int = 100):
+    def __init__(self, save_cache_dir: str, max_cache_size: int = 100):
         """
-        :param text_processor:
         :param save_cache_dir: directory that has saved pickle files for the data.
-        :param txt_file:
-        :param sentence_block_size: Size of each block of text in RAM
         :param max_cache_size: Max number of items in cache
         """
 
@@ -28,56 +22,11 @@ class TextDataset(Dataset):
         self.max_cache_size = max_cache_size
         self.save_cache_dir = save_cache_dir
 
-        if txt_file is not None:
-            if not os.path.exists(save_cache_dir):
-                os.makedirs(save_cache_dir)
-            self.sentence_block_size = sentence_block_size
-
-            current_cache = []
-            examples = {}
-            self.line_num, self.file_count = 0, 0
-            with open(os.path.join(txt_file, txt_file), "r") as fp:
-                for line in fp:
-                    if len(line.strip()) == 0: continue
-                    tok_line = text_processor.tokenize_one_line(line.strip())
-                    tok_lines = text_processor.split_tokenized(tok_line)
-                    current_cache += tok_lines
-
-                    if len(current_cache) >= 100000:
-                        for tok_line in current_cache:
-                            # assuming that every list has same length due to correct padding.
-                            examples[self.line_num] = torch.LongTensor(tok_line)
-                            self.line_num += 1
-                            if len(examples) >= sentence_block_size:
-                                with open(os.path.join(save_cache_dir, str(self.file_count) + ".pkl"), "wb") as fw:
-                                    pickle.dump(examples, fw)
-                                examples, self.file_count = {}, self.file_count + 1
-                        current_cache = []
-                        print("dumped", self.line_num, "lines into", self.file_count, "files")
-
-            if len(current_cache) > 0:
-                for tok_line in current_cache:
-                    examples[self.line_num] = torch.LongTensor(tok_line)
-                    self.line_num += 1
-                    if len(examples) >= sentence_block_size:
-                        with open(os.path.join(save_cache_dir, str(self.file_count) + ".pkl"), "wb") as fw:
-                            pickle.dump(examples, fw)
-                        examples, self.file_count = {}, self.file_count + 1
-                if len(examples) >= 0:
-                    with open(os.path.join(save_cache_dir, str(self.file_count) + ".pkl"), "wb") as fw:
-                        pickle.dump(examples, fw)
-                    examples, self.file_count = {}, self.file_count + 1
-
-                print("Finished saving", self.line_num, "lines into", self.file_count, "files")
-
-            with open(os.path.join(save_cache_dir, "info.txt"), "w") as fw:
-                fw.write(str(sentence_block_size) + "\t" + str(self.line_num) + "\t" + str(self.file_count))
-        else:
-            with open(os.path.join(save_cache_dir, "info.txt"), "r") as fr:
-                spl = fr.read().strip().split("\t")
-                self.sentence_block_size = int(spl[0])
-                self.line_num = int(spl[1])
-                self.file_count = int(spl[2])
+        with open(os.path.join(save_cache_dir, "info.txt"), "r") as fr:
+            spl = fr.read().strip().split("\t")
+            self.sentence_block_size = int(spl[0])
+            self.line_num = int(spl[1])
+            self.file_count = int(spl[2])
 
     def __len__(self):
         return self.line_num

@@ -86,16 +86,16 @@ class TextProcessor:
     def is_lang(self, id) -> bool:
         return self.tokenizer.id_to_token(id) in self.languages
 
-    def split_tokenized(self, tokenized: List[int]) -> List[List[int]]:
+    def split_tokenized(self, tokenized: List[int], max_length: int = 512) -> List[List[int]]:
         """
         Based on self.max_len, splits very long sequences to smaller ones.
         Here we assume to not have any overlapping sequences.
         If the first token is a language, we add it to every new sequence.
         :return:
         """
-        if len(tokenized) <= self.max_len:
+        if len(tokenized) <= max_length:
             sequences = [tokenized]
-            sequences[-1] = sequences[-1] + (self.max_len - len(sequences[-1])) * [self.pad_token_id()]
+            sequences[-1] = sequences[-1] + (max_length - len(sequences[-1])) * [self.pad_token_id()]
             return sequences
 
         has_lang = self.is_lang(tokenized[0])
@@ -103,12 +103,13 @@ class TextProcessor:
 
         seq_len = len(sequence)
         sep_id = self.sep_token_id()
-        max_len = self.max_len - 1 if has_lang else self.max_len
+        max_len = max_length - 1 if has_lang else max_length
 
         cur_start = 0
         sequences = []
         built_seq = []
         truncated = False  # Shows if previous sequence is truncated due to its length.
+        used_ends = set()
         while cur_start < seq_len:
             if not truncated or not has_lang:
                 cur_end = min(seq_len, cur_start + max_len)
@@ -119,11 +120,13 @@ class TextProcessor:
             built_seq += subseq
             sep_positions = [i for i, id in enumerate(built_seq) if id == sep_id]
             if len(sep_positions) > 0:
-                if sep_positions[-1] == cur_start - 1:
+                if sep_positions[-1] in used_ends:
                     truncated = True
                 else:
                     built_seq = built_seq[:sep_positions[-1] + 1]
                     truncated = False
+            else:
+                truncated = True
 
             assert built_seq[-1] == sequence[len(built_seq) - 1]
 
@@ -133,6 +136,8 @@ class TextProcessor:
             sequences.append(subseq)
 
             cur_start = len(built_seq)
-        if len(sequences[-1]) < self.max_len:
-            sequences[-1] = sequences[-1] + (self.max_len - len(sequences[-1])) * [self.pad_token_id()]
+            used_ends.add(cur_start - 1)
+        if len(sequences[-1]) < max_length:
+            sequences[-1] = sequences[-1] + (max_length - len(sequences[-1])) * [self.pad_token_id()]
+        assert built_seq[-1] == sequence[len(built_seq) - 1]
         return sequences

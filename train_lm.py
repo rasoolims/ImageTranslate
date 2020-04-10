@@ -114,21 +114,12 @@ class Trainer:
         if not os.path.exists(options.model_path):
             os.makedirs(options.model_path)
 
-        if options.tokenizer_path is None:
-            print("Training Tokenizer...")
-            text_processor = TextProcessor()
-            paths = [options.train_path]
-            text_processor.train_tokenizer(paths=paths, vocab_size=options.vocab_size, to_save_dir=options.model_path)
-            print("done!")
-        else:
-            text_processor = TextProcessor(options.tokenizer_path)
+        text_processor = TextProcessor(options.tokenizer_path)
         lm = LM(text_processor=text_processor)
 
         train_data = dataset.TextDataset(text_processor=text_processor, save_cache_dir=options.train_cache_path,
-                                         txt_file=options.train_path,
                                          sentence_block_size=options.sentence_block, max_cache_size=options.cache_size)
         valid_data = dataset.TextDataset(text_processor=text_processor, save_cache_dir=options.valid_cache_path,
-                                         txt_file=options.valid_path,
                                          sentence_block_size=options.sentence_block, max_cache_size=options.cache_size)
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
 
@@ -154,12 +145,10 @@ class Trainer:
 def get_options():
     global options
     parser = OptionParser()
-    parser.add_option("--train", dest="train_path", help="Path to the train data folder", metavar="FILE", default=None)
     parser.add_option("--train_cache", dest="train_cache_path",
                       help="Path to the train data pickle files for large data", metavar="FILE", default=None)
     parser.add_option("--valid_cache", dest="valid_cache_path",
                       help="Path to the train data pickle files for large data", metavar="FILE", default=None)
-    parser.add_option("--valid", dest="valid_path", help="Path to the dev data folder", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--block", dest="sentence_block", help="Sentence block size", type="int", default=10000)
     parser.add_option("--cache_size", dest="cache_size", help="Number of blocks in cache", type="int", default=100)

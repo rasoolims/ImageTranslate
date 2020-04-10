@@ -22,6 +22,7 @@ class Trainer:
     def __init__(self, model: LM, mask_prob: float = 0.15, clip: int = 1, optimizer=None, warmup: float = 0.1,
                  warmup_steps: int = 125000):
         self.model = model
+
         self.clip = clip
         self.optimizer = optimizer
         if optimizer is not None:
@@ -115,7 +116,11 @@ class Trainer:
             os.makedirs(options.model_path)
 
         text_processor = TextProcessor(options.tokenizer_path)
-        lm = LM(text_processor=text_processor)
+
+        if options.pretrained_path is None:
+            lm = LM(text_processor=text_processor)
+        else:
+            lm = LM.load(options.pretrained_path)
 
         train_data = dataset.TextDataset(save_cache_dir=options.train_cache_path, max_cache_size=options.cache_size)
         valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size)
@@ -153,6 +158,8 @@ def get_options():
     parser.add_option("--vocab_size", dest="vocab_size", help="Vocabulary size", type="int", default=30000)
     parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
                       default=None)
+    parser.add_option("--pretrained", dest="pretrained_path", help="Directory of pretrained model", metavar="FILE",
+                      default=None)
     parser.add_option("--epoch", dest="num_epochs", help="Number of training epochs", type="int", default=25)
     parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
     parser.add_option("--batch", dest="batch", help="Batch size", type="int", default=512)
@@ -173,4 +180,5 @@ def get_options():
 
 if __name__ == "__main__":
     options = get_options()
+    print(options)
     Trainer.train(options=options)

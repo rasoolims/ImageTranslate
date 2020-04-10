@@ -25,7 +25,7 @@ class Trainer:
         self.optimizer = optimizer
         if optimizer is not None:
             self.scheduler = optim.get_linear_schedule_with_warmup(
-                self.optimizer, num_warmup_steps=3125, num_training_steps=1000000
+                self.optimizer, num_warmup_steps=3125, num_training_steps=125000
             )
         self.mask_prob = mask_prob
         self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())

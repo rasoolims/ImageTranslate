@@ -55,8 +55,12 @@ class Trainer:
         for i, batch in enumerate(data_iter):
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
-            predictions, target = self.model(device=self.device, data=batch, mask_prob=self.mask_prob)
-            ntokens = target.size(0)
+            if isinstance(self.criterion, DataParallelCriterion):
+                predictions, target = zip(*self.model(device=self.device, data=batch, mask_prob=self.mask_prob))
+                ntokens = sum([t.size(0) for t in target])
+            else:
+                predictions, target = self.model(device=self.device, data=batch, mask_prob=self.mask_prob)
+                ntokens = target.size(0)
 
             if ntokens == 0:  # Nothing to predict!
                 continue
@@ -91,8 +95,12 @@ class Trainer:
         with torch.no_grad():
             total_valid_loss, total_valid_tokens = 0, 0
             for batch in valid_data_iter:
-                predictions, target = self.model(device=self.device, data=batch, mask_prob=self.mask_prob)
-                ntokens = target.size(0)
+                if isinstance(self.criterion, DataParallelCriterion):
+                    predictions, target = zip(*self.model(device=self.device, data=batch, mask_prob=self.mask_prob))
+                    ntokens = sum([t.size(0) for t in target])
+                else:
+                    predictions, target = self.model(device=self.device, data=batch, mask_prob=self.mask_prob)
+                    ntokens = target.size(0)
 
                 if ntokens == 0:  # Nothing to predict!
                     continue

@@ -12,7 +12,6 @@ from IPython.core import ultratb
 
 import dataset
 from lm import LM
-from parallel import DataParallelModel, DataParallelCriterion
 from pytorch_lamb.pytorch_lamb import Lamb
 from textprocessor import TextProcessor
 
@@ -37,8 +36,7 @@ class Trainer:
         num_gpu = torch.cuda.device_count()
         if num_gpu > 1:
             print("Let's use", num_gpu, "GPUs!")
-            self.model = DataParallelModel(self.model)
-            self.criterion = DataParallelCriterion(self.criterion)
+            self.model = torch.nn.DataParallel(self.model)
         self.model = self.model.to(self.device)
 
     @staticmethod

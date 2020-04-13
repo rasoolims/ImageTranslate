@@ -130,7 +130,11 @@ class DataParallelCriterion(DataParallel):
         # scattering the targets instead
         if not self.device_ids:
             return self.module(inputs, *targets, **kwargs)
-        targets, kwargs = self.scatter(targets, kwargs, self.device_ids)
+        # targets, kwargs = self.scatter(targets, kwargs, self.device_ids)
+        start_index = 0
+
+        targets = self.scatter_targets(inputs, start_index, targets)
+
         if len(self.device_ids) == 1:
             return self.module(inputs, *targets[0], **kwargs[0])
         replicas = self.replicate(self.module, self.device_ids[:len(inputs)])
@@ -138,6 +142,15 @@ class DataParallelCriterion(DataParallel):
         # return Reduce.apply(*outputs) / len(outputs)
         # return self.gather(outputs, self.output_device).mean()
         return self.gather(outputs, self.output_device)
+
+    def scatter_targets(self, inputs, start_index, targets):
+        scattered_target = []
+        for input in inputs:
+            end_index = input.size(0)
+            scattered_target.append(tuple((targets[start_index:end_index].to(input.device)), ))
+            start_index = end_index
+        targets = tuple(targets)
+        return targets
 
 
 def _criterion_parallel_apply(modules, inputs, targets, kwargs_tup=None, devices=None):

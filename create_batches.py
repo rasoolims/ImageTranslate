@@ -124,8 +124,14 @@ def get_options():
 
 if __name__ == "__main__":
     options = get_options()
+    if not os.path.exists(options.model_path):
+        os.makedirs(options.model_path)
     tokenizer = get_tokenizer(tokenizer_path=options.tokenizer_path, train_path=options.data_path,
                               model_path=options.model_path, vocab_size=options.vocab_size)
+    if not os.path.exists(options.small_cache_path):
+        os.makedirs(options.small_cache_path)
+    if not os.path.exists(options.large_cache_path):
+        os.makedirs(options.large_cache_path)
 
     print("writing batch of 128/512")
     write(text_processor=tokenizer, small_cache_dir=options.small_cache_path, big_cache_dir=options.large_cache_path,

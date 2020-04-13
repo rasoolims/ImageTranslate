@@ -118,7 +118,7 @@ class Trainer:
         text_processor = TextProcessor(options.tokenizer_path)
 
         if options.pretrained_path is None:
-            lm = LM(text_processor=text_processor)
+            lm = LM(text_processor=text_processor, size=options.model_size)
         else:
             lm = LM.load(options.pretrained_path)
 
@@ -174,6 +174,8 @@ def get_options():
     parser.add_option("--layer", dest="num_layers", help="Number of Layers in cross-attention", type="int", default=2)
     parser.add_option("--heads", dest="num_heads", help="Number of attention heads", type="int", default=8)
     parser.add_option("--freeze", action="store_true", dest="freeze_image", default=False)
+    parser.add_option("--size", dest="model_size", help="Model size: 1 (base), 2 (medium), 3 (small)", type="int",
+                      default=3)
     (options, args) = parser.parse_args()
     return options
 

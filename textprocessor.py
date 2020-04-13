@@ -80,6 +80,9 @@ class TextProcessor:
     def sep_token_id(self) -> int:
         return self.tokenizer.token_to_id(self.sep_token)
 
+    def token_id(self, token: str) -> int:
+        return self.tokenizer.token_to_id(token)
+
     def vocab_size(self) -> int:
         return self.tokenizer.get_vocab_size()
 

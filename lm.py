@@ -13,14 +13,31 @@ from textprocessor import TextProcessor
 
 
 class LM(nn.Module):
-    def __init__(self, text_processor: TextProcessor, config: Dict = None, encoder: AlbertModel = None):
+    def __init__(self, text_processor: TextProcessor, config: Dict = None, encoder: AlbertModel = None, size: int = 1):
+        """
+        :param size: config size: 1 big, 2 medium, 3 small.
+        """
         super(LM, self).__init__()
         self.text_processor: TextProcessor = text_processor
 
         if config is not None:
             self.config = config
         else:
-            self.config = self._config(vocab_size=text_processor.tokenizer.get_vocab_size())
+            if size == 1:
+                self.config = self._base_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
+                                                pad_token_id=text_processor.pad_token_id(),
+                                                bos_token_id=text_processor.token_id("<en>"),
+                                                eos_token_id=text_processor.token_id("</s>"))
+            elif size == 2:
+                self.config = self._medium_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
+                                                  pad_token_id=text_processor.pad_token_id(),
+                                                  bos_token_id=text_processor.token_id("<en>"),
+                                                  eos_token_id=text_processor.token_id("</s>"))
+            else:
+                self.config = self._small_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
+                                                 pad_token_id=text_processor.pad_token_id(),
+                                                 bos_token_id=text_processor.token_id("<en>"),
+                                                 eos_token_id=text_processor.token_id("</s>"))
 
         albert_config = AlbertConfig(**self.config)
         if encoder is None:
@@ -30,10 +47,64 @@ class LM(nn.Module):
 
         self.masked_lm = AlbertMLMHead(albert_config)
 
-    def _config(self, vocab_size: int) -> Dict:
+    def _base_config(self, vocab_size: int, pad_token_id: int, bos_token_id: int, eos_token_id: int) -> Dict:
         config = {
             "attention_probs_dropout_prob": 0.1,
-            "hidden_act": "gelu",
+            "hidden_act": "gelu_new",
+            "hidden_dropout_prob": 0.1,
+            "embedding_size": 128,
+            "hidden_size": 4096,
+            "initializer_range": 0.02,
+            "intermediate_size": 16384,
+            "max_position_embeddings": 512,
+            "num_attention_heads": 64,  # smaller than usual
+            "num_hidden_layers": 12,  # smaller than usual
+            "num_hidden_groups": 1,
+            "net_structure_type": 0,
+            "gap_size": 0,
+            "num_memory_blocks": 0,
+            "inner_group_num": 1,
+            "down_scale_factor": 1,
+            "type_vocab_size": 2,
+            "vocab_size": vocab_size,
+            "pad_token_id": pad_token_id,
+            "bos_token_id": bos_token_id,
+            "eos_token_id": eos_token_id,
+        }
+
+        return config
+
+    def _medium_config(self, vocab_size: int, pad_token_id: int, bos_token_id: int, eos_token_id: int) -> Dict:
+        config = {
+            "attention_probs_dropout_prob": 0.1,
+            "hidden_act": "gelu_new",
+            "hidden_dropout_prob": 0.1,
+            "embedding_size": 128,
+            "hidden_size": 768,
+            "initializer_range": 0.02,
+            "intermediate_size": 3072,
+            "max_position_embeddings": 512,
+            "num_attention_heads": 4,  # smaller than usual
+            "num_hidden_layers": 4,  # smaller than usual
+            "num_hidden_groups": 1,
+            "net_structure_type": 0,
+            "gap_size": 0,
+            "num_memory_blocks": 0,
+            "inner_group_num": 1,
+            "down_scale_factor": 1,
+            "type_vocab_size": 2,
+            "vocab_size": vocab_size,
+            "pad_token_id": pad_token_id,
+            "bos_token_id": bos_token_id,
+            "eos_token_id": eos_token_id,
+        }
+
+        return config
+
+    def _small_config(self, vocab_size: int, pad_token_id: int, bos_token_id: int, eos_token_id: int) -> Dict:
+        config = {
+            "attention_probs_dropout_prob": 0.1,
+            "hidden_act": "gelu_new",
             "hidden_dropout_prob": 0.1,
             "embedding_size": 100,
             "hidden_size": 256,
@@ -49,7 +120,10 @@ class LM(nn.Module):
             "inner_group_num": 1,
             "down_scale_factor": 1,
             "type_vocab_size": 2,
-            "vocab_size": vocab_size
+            "vocab_size": vocab_size,
+            "pad_token_id": pad_token_id,
+            "bos_token_id": bos_token_id,
+            "eos_token_id": eos_token_id,
         }
 
         return config

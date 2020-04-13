@@ -59,7 +59,7 @@ class TestModel(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
             processor.train_tokenizer(paths, vocab_size=1000, to_save_dir=tmpdirname)
-            lm = LM(text_processor=processor)
+            lm = LM(text_processor=processor, size=2)
 
             seq2seq = AlbertSeq2Seq(lm)
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -77,10 +77,11 @@ class TestModel(unittest.TestCase):
         path_dir_name = os.path.dirname(os.path.realpath(__file__))
         data_path = os.path.join(path_dir_name, "sample.txt")
 
-        with tempfile.TemporaryDirectory() as tmpdirname:
+        with tempfile.TemporaryDirectory() as tmpdirname, tempfile.TemporaryDirectory() as tmpdirname2:
             processor = TextProcessor()
             processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname)
             create_batches.write(text_processor=processor, small_cache_dir=tmpdirname, max_small_seq_len=512,
+                                 big_cache_dir=tmpdirname2, max_big_seq_len=512,
                                  txt_file=data_path, sentence_small_block_size=10)
             dataset = TextDataset(save_cache_dir=tmpdirname, max_cache_size=3)
             assert dataset.line_num == 92

@@ -133,19 +133,19 @@ class LM(nn.Module):
         :param data: A minibatch as dictionary that has transformed image and tokenized text as long tensors.
         :return:
         """
-        texts = data["texts"].clone().to(device)
-        pads = data["pad_mask"].to(device)
-
-        mask, masked_ids, texts = self.mask_text(device, mask_prob, pads, texts)
+        texts = data["texts"].clone()
+        pads = data["pad_mask"]
+        mask, masked_ids, texts = self.mask_text(mask_prob, pads, texts)
+        texts = texts.to(device)
+        pads = pads.to(device)
 
         text_hidden, text_cls_head = self.encoder(texts, attention_mask=pads)
         output_predictions = F.log_softmax(self.masked_lm(text_hidden[mask]), dim=1)
         return output_predictions, masked_ids
 
-    def mask_text(self, device, mask_prob, pads, texts):
+    def mask_text(self, mask_prob, pads, texts):
         assert 0 < mask_prob < 1
         mask = torch.empty(texts.size()).uniform_(0, 1) < mask_prob
-        mask = mask.to(device)
         mask[pads] = False  # We should not mask pads.
         masked_ids = texts[mask]
         replacements = masked_ids.clone()

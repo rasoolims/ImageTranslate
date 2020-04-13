@@ -53,7 +53,8 @@ class Trainer:
         for i, batch in enumerate(data_iter):
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
-            predictions, target = self.model(device=self.device, data=batch, mask_prob=self.mask_prob)
+            mask, target, texts = self.model.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"].clone())
+            predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
             ntokens = target.size(0)
 
             if ntokens == 0:  # Nothing to predict!
@@ -89,7 +90,9 @@ class Trainer:
         with torch.no_grad():
             total_valid_loss, total_valid_tokens = 0, 0
             for batch in valid_data_iter:
-                predictions, target = self.model(device=self.device, data=batch, mask_prob=self.mask_prob)
+                mask, target, texts = self.model.mask_text(self.mask_prob, batch["pad_mask"],
+                                                           batch["texts"].clone())
+                predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
                 ntokens = target.size(0)
 
                 if ntokens == 0:  # Nothing to predict!

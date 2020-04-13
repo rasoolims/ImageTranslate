@@ -128,20 +128,14 @@ class LM(nn.Module):
 
         return config
 
-    def forward(self, device, data: Dict[str, torch.Tensor], mask_prob: float = 0.15):
+    def forward(self, device, mask: torch.Tensor, texts: torch.Tensor, pads: torch.Tensor):
         """
         :param data: A minibatch as dictionary that has transformed image and tokenized text as long tensors.
         :return:
         """
-        texts = data["texts"].clone()
-        pads = data["pad_mask"]
-        mask, masked_ids, texts = self.mask_text(mask_prob, pads, texts)
-        texts = texts.to(device)
-        pads = pads.to(device)
-
         text_hidden, text_cls_head = self.encoder(texts, attention_mask=pads)
         output_predictions = F.log_softmax(self.masked_lm(text_hidden[mask]), dim=1)
-        return output_predictions, masked_ids
+        return output_predictions
 
     def mask_text(self, mask_prob, pads, texts):
         assert 0 < mask_prob < 1

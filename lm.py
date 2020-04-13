@@ -106,7 +106,7 @@ class LM(nn.Module):
             "attention_probs_dropout_prob": 0.1,
             "hidden_act": "gelu_new",
             "hidden_dropout_prob": 0.1,
-            "embedding_size": 100,
+            "embedding_size": 64,
             "hidden_size": 256,
             "initializer_range": 0.02,
             "intermediate_size": 1024,

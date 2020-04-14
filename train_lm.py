@@ -56,7 +56,7 @@ class Trainer:
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
             model_to_call = self.model.module if hasattr(self.model, "module") else self.model
-            mask, target, texts = model_to_call.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"].clone())
+            mask, target, texts = model_to_call.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"])
             predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
             ntokens = target.size(0)
 

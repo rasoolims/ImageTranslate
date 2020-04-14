@@ -69,7 +69,7 @@ class Trainer:
                 self.optimizer.step()
                 self.scheduler.step()
 
-            loss = loss.data * ntokens
+            loss = float(loss.data) * ntokens
             total_loss += loss
             cur_loss += loss
             total_tokens += ntokens
@@ -102,13 +102,13 @@ class Trainer:
                     continue
 
                 loss = self.criterion(predictions, target).mean().data * ntokens
-                total_valid_loss += loss
+                total_valid_loss += float(loss)
                 total_valid_tokens += ntokens
 
             valid_loss = total_valid_loss / total_valid_tokens
-            print("Current valid loss", valid_loss.data)
-            if best_valid_loss > float(valid_loss.data):
-                best_valid_loss = float(valid_loss.data)
+            print("Current valid loss", valid_loss)
+            if best_valid_loss > float(valid_loss):
+                best_valid_loss = float(valid_loss)
                 print("saving best valid loss", best_valid_loss)
                 model_to_save = (
                     self.model.module if hasattr(self.model, "module") else self.model

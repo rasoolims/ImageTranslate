@@ -45,7 +45,7 @@ class Trainer:
     def build_optimizer(model, learning_rate, weight_decay):
         return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
-    def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader,
+    def train_epoch(self, data_iter: dataset.TextDataLoader, valid_data_iter: dataset.TextDataLoader,
                     best_valid_loss: float, saving_path: str):
         "Standard Training and Logging Function"
         start = time.time()
@@ -130,13 +130,8 @@ class Trainer:
 
         train_data = dataset.TextDataset(save_cache_dir=options.train_cache_path, max_cache_size=options.cache_size)
         valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size)
-        collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
-
-        pin_meory = torch.cuda.is_available()
-        loader = data_utils.DataLoader(train_data, batch_size=options.batch, shuffle=False, pin_memory=pin_meory,
-                                       collate_fn=collator)
-        valid_loader = data_utils.DataLoader(valid_data, batch_size=options.batch, shuffle=False, pin_memory=pin_meory,
-                                             collate_fn=collator)
+        loader = dataset.TextDataLoader(text_dataset=train_data, batch_size=options.batch, pad_idx=text_processor.pad_token_id())
+        valid_loader = dataset.TextDataLoader(text_dataset=valid_data, batch_size=options.batch, pad_idx=text_processor.pad_token_id())
 
         trainer = Trainer(model=lm, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),

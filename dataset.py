@@ -57,3 +57,46 @@ class TextCollator(object):
         padded_text = pad_sequence(batch, batch_first=True, padding_value=self.pad_idx)
         pad_mask = (padded_text == self.pad_idx)
         return {"texts": padded_text, "pad_mask": pad_mask}
+
+class TextDataLoader(object):
+    def __init__(self, text_dataset:TextDataset, batch_size: int, pad_idx):
+        self.text_dataset = text_dataset
+        self.batch_size = batch_size
+        self.num_batches = math.ceil(len(text_dataset)/batch_size)
+        self.pad_idx = pad_idx
+        self.cur_index = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.cur_index >= len(self.text_dataset):
+            self.cur_index = 0
+            raise StopIteration
+
+        low_index = math.floor(self.cur_index / self.text_dataset.sentence_block_size)
+        last_item = self.cur_index + self.batch_size
+        high_index = math.floor(last_item / self.text_dataset.sentence_block_size)
+        batch = []
+
+        for idx in range(low_index, high_index+1):
+            if idx not in self.text_dataset.current_cache:
+                print("Loading data into cache...")
+                self.text_dataset.rebuild_cache(idx)
+                print("Loading data into cache done!")
+            d = self.text_dataset.current_cache[idx]
+            keys = list(d.keys())
+            first_key, last_key = keys[0], keys[-1]
+            index_offset = self.cur_index - first_key
+            start_key = keys[index_offset]
+            end_index = min(last_item - start_key, last_key + 1 - start_key) + index_offset
+            values = list(d.values())[index_offset:end_index]
+            batch += values
+
+        self.cur_index  = last_item
+        batch = torch.stack(batch) # We know that everything is prepadded! So we don't do padding
+        pad_mask = (batch == self.pad_idx)
+        return {"texts": batch, "pad_mask": pad_mask}
+
+    def __len__(self):
+        return self.num_batches

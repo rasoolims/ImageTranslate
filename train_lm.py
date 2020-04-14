@@ -145,10 +145,9 @@ class Trainer:
         best_valid_loss = float("inf")
         for i in range(options.num_epochs):
             print("train epoch", i)
-            with torch.autograd.detect_anomaly():
-                _, best_valid_loss = trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader,
-                                                         best_valid_loss=best_valid_loss,
-                                                         saving_path=options.model_path)
+            train_data.current_cache = {} # make sure that we don't use previously masked data!
+            _, best_valid_loss = trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader,
+                                                     best_valid_loss=best_valid_loss, saving_path=options.model_path)
 
 
 def get_options():

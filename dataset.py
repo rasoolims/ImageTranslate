@@ -7,13 +7,11 @@ from typing import Dict
 import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
-import threading
 
 logger = logging.getLogger(__name__)
 
 
 class TextDataset(Dataset):
-    _lock = threading.Lock()
     def __init__(self, save_cache_dir: str, max_cache_size: int = 100):
         """
         :param save_cache_dir: directory that has saved pickle files for the data.
@@ -23,7 +21,6 @@ class TextDataset(Dataset):
         self.current_cache: Dict[Dict[int, torch.LongTensor]] = {}
         self.max_cache_size = max_cache_size
         self.save_cache_dir = save_cache_dir
-        self.reading = False
 
         with open(os.path.join(save_cache_dir, "info.txt"), "r") as fr:
             spl = fr.read().strip().split("\t")
@@ -34,26 +31,20 @@ class TextDataset(Dataset):
     def __len__(self):
         return self.line_num
 
-    def rebuild_cache(self, start_file_num, item):
-        with TextDataset._lock:
-            if self.reading:
-                return
-            print("Loading data into cache...", self.reading, start_file_num, item, id(self), id(TextDataset._lock))
-            self.reading = True
-
-            self.current_cache = {}
-            for file_num in range(start_file_num, min(self.file_count, start_file_num + self.max_cache_size)):
-                with open(os.path.join(self.save_cache_dir, str(file_num)) + ".pkl", "rb") as fp:
-                    examples = pickle.load(fp)
-                    self.current_cache[file_num] = examples
-            print("Loading data into cache done!")
-            self.reading = False
+    def rebuild_cache(self, start_file_num):
+        self.current_cache = {}
+        for file_num in range(start_file_num, min(self.file_count, start_file_num + self.max_cache_size)):
+            with open(os.path.join(self.save_cache_dir, str(file_num)) + ".pkl", "rb") as fp:
+                examples = pickle.load(fp)
+                self.current_cache[file_num] = examples
 
     def __getitem__(self, item):
         file_num = math.floor(item / self.sentence_block_size)
 
         if file_num not in self.current_cache:
-            self.rebuild_cache(file_num, item)
+            print("Loading data into cache...")
+            self.rebuild_cache(file_num)
+            print("Loading data into cache done!")
         examples = self.current_cache[file_num]
         return examples[item]
 

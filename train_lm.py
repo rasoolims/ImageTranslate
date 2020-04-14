@@ -35,6 +35,7 @@ class Trainer:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         num_gpu = torch.cuda.device_count()
+        self.num_data_workers = 4 * num_gpu
         if num_gpu > 1:
             print("Let's use", num_gpu, "GPUs!")
             self.model = DataParallelModel(self.model)
@@ -128,19 +129,20 @@ class Trainer:
         else:
             lm = LM.load(options.pretrained_path)
 
+        trainer = Trainer(model=lm, mask_prob=options.mask_prob,
+                          optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
+                          clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps)
+
         train_data = dataset.TextDataset(save_cache_dir=options.train_cache_path, max_cache_size=options.cache_size)
         valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size)
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
 
         pin_meory = torch.cuda.is_available()
         loader = data_utils.DataLoader(train_data, batch_size=options.batch, shuffle=False, pin_memory=pin_meory,
-                                       collate_fn=collator)
+                                       collate_fn=collator, num_workers=trainer.num_data_workers)
         valid_loader = data_utils.DataLoader(valid_data, batch_size=options.batch, shuffle=False, pin_memory=pin_meory,
-                                             collate_fn=collator)
+                                             collate_fn=collator, num_workers=trainer.num_data_workers)
 
-        trainer = Trainer(model=lm, mask_prob=options.mask_prob,
-                          optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
-                          clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps)
 
         best_valid_loss = float("inf")
         for i in range(options.num_epochs):

@@ -63,7 +63,7 @@ class Trainer:
             if ntokens == 0:  # Nothing to predict!
                 continue
 
-            loss = self.criterion(predictions, target)
+            loss = self.criterion(predictions, target).mean()
             loss.backward()
             if self.optimizer is not None:
                 self.optimizer.step()
@@ -101,7 +101,7 @@ class Trainer:
                 if ntokens == 0:  # Nothing to predict!
                     continue
 
-                loss = self.criterion(predictions, target).data * ntokens
+                loss = self.criterion(predictions, target).mean().data * ntokens
                 total_valid_loss += loss
                 total_valid_tokens += ntokens
 

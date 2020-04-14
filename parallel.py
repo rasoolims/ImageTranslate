@@ -146,10 +146,10 @@ class DataParallelCriterion(DataParallel):
     def scatter_targets(self, inputs, start_index, targets):
         scattered_target = []
         for input in inputs:
-            end_index = input.size(0)
-            scattered_target.append(tuple((targets[start_index:end_index].to(input.device)), ))
+            end_index = start_index + input.size(0)
+            scattered_target.append(targets[0][start_index:end_index].to(input.device))
             start_index = end_index
-        targets = tuple(targets)
+        targets = tuple(scattered_target)
         return targets
 
 

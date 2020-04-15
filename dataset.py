@@ -1,5 +1,6 @@
 import logging
 import math
+import multiprocessing
 import os
 import pickle
 from typing import Dict
@@ -11,8 +12,13 @@ from torch.utils.data import Dataset
 logger = logging.getLogger(__name__)
 
 
+def read_cache(file_path):
+    with open(file_path, "rb") as fp:
+        return pickle.load(fp)
+
+
 class TextDataset(Dataset):
-    def __init__(self, save_cache_dir: str, max_cache_size: int = 100):
+    def __init__(self, save_cache_dir: str, max_cache_size: int = 100, num_workers: int = 8):
         """
         :param save_cache_dir: directory that has saved pickle files for the data.
         :param max_cache_size: Max number of items in cache
@@ -21,6 +27,7 @@ class TextDataset(Dataset):
         self.current_cache: Dict[Dict[int, torch.LongTensor]] = {}
         self.max_cache_size = max_cache_size
         self.save_cache_dir = save_cache_dir
+        self.worker = multiprocessing.Pool(processes=num_workers)
 
         with open(os.path.join(save_cache_dir, "info.txt"), "r") as fr:
             spl = fr.read().strip().split("\t")
@@ -33,10 +40,13 @@ class TextDataset(Dataset):
 
     def rebuild_cache(self, start_file_num):
         self.current_cache = {}
+        files = []
         for file_num in range(start_file_num, min(self.file_count, start_file_num + self.max_cache_size)):
-            with open(os.path.join(self.save_cache_dir, str(file_num)) + ".pkl", "rb") as fp:
-                examples = pickle.load(fp)
-                self.current_cache[file_num] = examples
+            files.append(os.path.join(self.save_cache_dir, str(file_num)) + ".pkl")
+        outputs = self.worker.map(read_cache, files)
+
+        for file_num in range(start_file_num, min(self.file_count, start_file_num + self.max_cache_size)):
+            self.current_cache[file_num] = outputs[file_num - start_file_num]
 
     def __getitem__(self, item):
         file_num = math.floor(item / self.sentence_block_size)
@@ -54,6 +64,7 @@ class TextCollator(object):
         self.pad_idx = pad_idx
 
     def __call__(self, batch):
-        padded_text = pad_sequence(batch, batch_first=True, padding_value=self.pad_idx)
+        padded_text = torch.stack(batch) # Assuming all have same size.
         pad_mask = (padded_text == self.pad_idx)
         return {"texts": padded_text, "pad_mask": pad_mask}
+

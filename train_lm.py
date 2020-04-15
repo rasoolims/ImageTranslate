@@ -28,6 +28,9 @@ class Trainer:
         self.optimizer = optimizer
         self.fp16 = fp16
 
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = self.model.to(self.device)
+
         if fp16:
             try:
                 from apex import amp
@@ -42,13 +45,11 @@ class Trainer:
         self.mask_prob = mask_prob
         self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         num_gpu = torch.cuda.device_count()
         if num_gpu > 1:
             print("Let's use", num_gpu, "GPUs!")
             self.model = DataParallelModel(self.model)
             self.criterion = DataParallelCriterion(self.criterion)
-        self.model = self.model.to(self.device)
 
     @staticmethod
     def build_optimizer(model, learning_rate, weight_decay):
@@ -56,6 +57,12 @@ class Trainer:
 
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader,
                     best_valid_loss: float, saving_path: str):
+        if self.fp16:
+            try:
+                from apex import amp
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
+
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0

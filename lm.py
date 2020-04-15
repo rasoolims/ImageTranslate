@@ -133,6 +133,8 @@ class LM(nn.Module):
         :param data: A minibatch as dictionary that has transformed image and tokenized text as long tensors.
         :return:
         """
+        texts = texts.to(device)
+        pads = pads.to(device)
         text_hidden, text_cls_head = self.encoder(texts, attention_mask=pads)
         output_predictions = F.log_softmax(self.masked_lm(text_hidden[mask]), dim=1)
         return output_predictions

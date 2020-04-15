@@ -33,10 +33,10 @@ class Trainer:
 
         if fp16:
             try:
-                from apex import amp
+                import apex
             except ImportError:
                 raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-            self.model, optimizer = amp.initialize(self.model, self.optimizer, opt_level=fp16_opt_level)
+            self.model, optimizer = apex.amp.initialize(self.model, self.optimizer, opt_level=fp16_opt_level)
 
         if optimizer is not None:
             self.scheduler = optim.get_linear_schedule_with_warmup(
@@ -57,12 +57,6 @@ class Trainer:
 
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader,
                     best_valid_loss: float, saving_path: str):
-        if self.fp16:
-            try:
-                from apex import amp
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -81,7 +75,7 @@ class Trainer:
 
             loss = self.criterion(predictions, target).mean()
             if self.fp16:
-                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
                     scaled_loss.backward()
             else:
                 loss.backward()

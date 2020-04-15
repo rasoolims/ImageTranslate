@@ -158,8 +158,7 @@ def get_options():
     parser.add_option("--valid_cache", dest="valid_cache_path",
                       help="Path to the train data pickle files for large data", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
-    parser.add_option("--block", dest="sentence_block", help="Sentence block size", type="int", default=10000)
-    parser.add_option("--cache_size", dest="cache_size", help="Number of blocks in cache", type="int", default=100)
+    parser.add_option("--cache_size", dest="cache_size", help="Number of blocks in cache", type="int", default=300)
     parser.add_option("--vocab_size", dest="vocab_size", help="Vocabulary size", type="int", default=30000)
     parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
                       default=None)

@@ -36,9 +36,9 @@ class Trainer:
                 import apex
             except ImportError:
                 raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-            self.model, optimizer = apex.amp.initialize(self.model, self.optimizer, opt_level=fp16_opt_level)
+            self.model, self.optimizer = apex.amp.initialize(self.model, self.optimizer, opt_level=fp16_opt_level)
 
-        if optimizer is not None:
+        if self.optimizer is not None:
             self.scheduler = optim.get_linear_schedule_with_warmup(
                 self.optimizer, num_warmup_steps=int(warmup * warmup_steps), num_training_steps=warmup_steps
             )
@@ -62,7 +62,7 @@ class Trainer:
                 import apex
             except ImportError:
                 raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-            
+
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0

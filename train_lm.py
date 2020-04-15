@@ -155,7 +155,7 @@ class Trainer:
         trainer = Trainer(model=lm, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
                           clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps,
-                          fp16=options.fp16, fp16_opt_level=fp16_opt_level)
+                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level)
 
         if options.fp16:
             try:

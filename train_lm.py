@@ -21,11 +21,20 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 class Trainer:
     def __init__(self, model: LM, mask_prob: float = 0.15, clip: int = 1, optimizer=None, warmup: float = 0.1,
-                 warmup_steps: int = 125000):
+                 warmup_steps: int = 125000, fp16: bool = False, fp16_opt_level: str = "01"):
         self.model = model
 
         self.clip = clip
         self.optimizer = optimizer
+        self.fp16 = fp16
+
+        if fp16:
+            try:
+                from apex import amp
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
+            self.model, optimizer = amp.initialize(self.model, self.optimizer, opt_level=fp16_opt_level)
+
         if optimizer is not None:
             self.scheduler = optim.get_linear_schedule_with_warmup(
                 self.optimizer, num_warmup_steps=int(warmup * warmup_steps), num_training_steps=warmup_steps
@@ -64,7 +73,12 @@ class Trainer:
                 continue
 
             loss = self.criterion(predictions, target).mean()
-            loss.backward()
+            if self.fp16:
+                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                loss.backward()
+
             if self.optimizer is not None:
                 self.optimizer.step()
                 self.scheduler.step()
@@ -140,12 +154,19 @@ class Trainer:
 
         trainer = Trainer(model=lm, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
-                          clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps)
+                          clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps,
+                          fp16=options.fp16, fp16_opt_level=fp16_opt_level)
+
+        if options.fp16:
+            try:
+                from apex import amp
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
 
         best_valid_loss = float("inf")
         for i in range(options.num_epochs):
             print("train epoch", i)
-            train_data.current_cache = {} # make sure that we don't use previously masked data!
+            train_data.current_cache = {}  # make sure that we don't use previously masked data!
             _, best_valid_loss = trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader,
                                                      best_valid_loss=best_valid_loss, saving_path=options.model_path)
 
@@ -178,8 +199,16 @@ def get_options():
     parser.add_option("--layer", dest="num_layers", help="Number of Layers in cross-attention", type="int", default=2)
     parser.add_option("--heads", dest="num_heads", help="Number of attention heads", type="int", default=8)
     parser.add_option("--freeze", action="store_true", dest="freeze_image", default=False)
+    parser.add_option("--fp16", action="store_true", dest="fp16", help="use fp16; should be compatible", default=False)
     parser.add_option("--size", dest="model_size", help="Model size: 1 (base), 2 (medium), 3 (small)", type="int",
                       default=3)
+    parser.add_option(
+        "--fp16_opt_level",
+        type=str,
+        default="O1",
+        help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
+             "See details at https://nvidia.github.io/apex/amp.html",
+    )
     (options, args) = parser.parse_args()
     return options
 

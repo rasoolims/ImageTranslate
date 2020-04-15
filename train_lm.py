@@ -57,6 +57,12 @@ class Trainer:
 
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader,
                     best_valid_loss: float, saving_path: str):
+        if self.fp16:
+            try:
+                import apex
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
+            
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0

@@ -56,7 +56,7 @@ class Trainer:
         return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader,
-                    best_valid_loss: float, saving_path: str):
+                    best_valid_loss: float, saving_path: str, max_grad_norm: float = 1.0):
         if self.fp16:
             try:
                 import apex
@@ -87,6 +87,11 @@ class Trainer:
                 loss.backward()
 
             if self.optimizer is not None:
+                if self.fp16:
+                    torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
+                else:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+
                 self.optimizer.step()
                 self.scheduler.step()
 
@@ -201,6 +206,7 @@ def get_options():
     parser.add_option("--warmup", dest="warmup", help="Warm up rate", type="float", default=0.1)
     parser.add_option("--steps", dest="warmup_steps", help="Number of warmup steps", type="int", default=125000)
     parser.add_option("--decay", dest="weight_decay", help="Weight decay", type="float", default=0.01)
+    parser.add_option("--max_grad_norm", dest="max_grad_norm", help="Max grad norm", type="float", default=1.0)
     parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)
     parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
     parser.add_option("--layer", dest="num_layers", help="Number of Layers in cross-attention", type="int", default=2)

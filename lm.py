@@ -38,14 +38,14 @@ class LM(nn.Module):
                                                  pad_token_id=text_processor.pad_token_id(),
                                                  bos_token_id=text_processor.token_id("<en>"),
                                                  eos_token_id=text_processor.token_id("</s>"))
-
         albert_config = AlbertConfig(**self.config)
+        self.masked_lm = AlbertMLMHead(albert_config)
         if encoder is None:
             self.encoder: AlbertModel = AlbertModel(albert_config)
+            self.encoder.init_weights()
+            self.encoder._tie_or_clone_weights(self.masked_lm.decoder, self.encoder.embeddings.word_embeddings)
         else:
             self.encoder = encoder
-
-        self.masked_lm = AlbertMLMHead(albert_config)
 
     def _base_config(self, vocab_size: int, pad_token_id: int, bos_token_id: int, eos_token_id: int) -> Dict:
         config = {

@@ -112,6 +112,11 @@ class Trainer:
                 start, tokens, cur_loss = time.time(), 0, 0
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
+        model_to_save = (
+            self.model.module if hasattr(self.model, "module") else self.model
+        )
+        model_to_save.save(saving_path+".latest")
+
         best_valid_loss = self.validate_and_save(best_valid_loss, saving_path, valid_data_iter)
         return total_loss / total_tokens, best_valid_loss
 
@@ -191,13 +196,13 @@ def get_options():
     parser.add_option("--valid_cache", dest="valid_cache_path",
                       help="Path to the train data pickle files for large data", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
-    parser.add_option("--cache_size", dest="cache_size", help="Number of blocks in cache", type="int", default=100)
+    parser.add_option("--cache_size", dest="cache_size", help="Number of blocks in cache", type="int", default=30)
     parser.add_option("--vocab_size", dest="vocab_size", help="Vocabulary size", type="int", default=30000)
     parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
                       default=None)
     parser.add_option("--pretrained", dest="pretrained_path", help="Directory of pretrained model", metavar="FILE",
                       default=None)
-    parser.add_option("--epoch", dest="num_epochs", help="Number of training epochs", type="int", default=25)
+    parser.add_option("--epoch", dest="num_epochs", help="Number of training epochs", type="int", default=100)
     parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
     parser.add_option("--batch", dest="batch", help="Batch size", type="int", default=512)
     parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)

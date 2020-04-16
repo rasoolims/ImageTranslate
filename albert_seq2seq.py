@@ -21,7 +21,9 @@ class AlbertSeq2Seq(nn.Module):
         tgt_mask = tgt_mask.to(device)
 
         encoder_states = self.encoder(src_inputs, attention_mask=src_mask)
-        return self.decoder(encoder_states[0], tgt_inputs, src_mask, tgt_mask)
+        decoder_states = self.decoder(encoder_states[0], tgt_inputs, src_mask, tgt_mask)
+        outputs = self.output_layer(decoder_states[-1])
+        return outputs
 
 
 class AlbertDecoderAttention(nn.Module):

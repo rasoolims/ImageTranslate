@@ -23,7 +23,7 @@ def write(text_processor: TextProcessor, small_cache_dir: str, big_cache_dir: st
     big_examples = {}
     big_line_num, big_file_count = 0, 0
 
-    with open(os.path.join(txt_file, txt_file), "r") as fp:
+    with open(txt_file, "r") as fp:
         for ln, line in enumerate(fp):
             if len(line.strip()) == 0: continue
             tok_line = text_processor.tokenize_one_line(line.strip())

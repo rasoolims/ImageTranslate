@@ -115,13 +115,17 @@ class Trainer:
         model_to_save = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
-        model_to_save.save(saving_path+".latest")
+        model_to_save.save(saving_path + ".latest")
 
         best_valid_loss = self.validate_and_save(best_valid_loss, saving_path, valid_data_iter)
         return total_loss / total_tokens, best_valid_loss
 
     def validate_and_save(self, best_valid_loss, saving_path, valid_data_iter):
         with torch.no_grad():
+            model = (
+                self.model.module if hasattr(self.model, "module") else self.model
+            )
+            model.eval()
             total_valid_loss, total_valid_tokens = 0, 0
             for batch in valid_data_iter:
                 model_to_call = self.model.module if hasattr(self.model, "module") else self.model
@@ -145,6 +149,7 @@ class Trainer:
                     self.model.module if hasattr(self.model, "module") else self.model
                 )
                 model_to_save.save(saving_path)
+            model.train()
         return best_valid_loss
 
     @staticmethod

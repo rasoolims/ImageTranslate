@@ -27,7 +27,7 @@ def write(text_processor: TextProcessor, cache_dir: str, src_txt_file: str, dst_
                     examples[line_num] = (torch.LongTensor(src_tok_line), torch.LongTensor(dst_tok_line))
                     line_num += 1
                     if len(examples) >= block_size:
-                        with open(os.path.join(cache_dir, "mt." + str(file_count) + ".pkl"), "wb") as fw:
+                        with open(os.path.join(cache_dir, str(file_count) + ".pkl"), "wb") as fw:
                             pickle.dump(examples, fw)
                         examples, file_count = {}, file_count + 1
                 current_src_cache, current_dst_cache = [], []
@@ -45,13 +45,13 @@ def write(text_processor: TextProcessor, cache_dir: str, src_txt_file: str, dst_
                 examples, file_count = {}, file_count + 1
 
         if len(examples) >= 0:
-            with open(os.path.join(cache_dir, "mt." + str(file_count) + ".pkl"), "wb") as fw:
+            with open(os.path.join(cache_dir, str(file_count) + ".pkl"), "wb") as fw:
                 pickle.dump(examples, fw)
             examples, file_count = {}, file_count + 1
 
         print(f"Dumped {line_num} small vectors into {file_count} files")
 
-    with open(os.path.join(cache_dir, "mt.info.txt"), "w") as fw:
+    with open(os.path.join(cache_dir, "info.txt"), "w") as fw:
         fw.write(str(block_size) + "\t" + str(line_num) + "\t" + str(file_count))
 
 

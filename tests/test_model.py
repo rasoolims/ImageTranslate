@@ -70,8 +70,11 @@ class TestModel(unittest.TestCase):
             src_mask = (src_inputs == processor.pad_token_id())
             tgt_mask = (tgt_inputs == processor.pad_token_id())
 
+            seq_output = seq2seq(device, src_inputs, tgt_inputs, src_mask, tgt_mask, log_softmax=True, flatten=True)
+            assert list(seq_output.size()) == [tgt_inputs.size(0) * (tgt_inputs.size(1) - 1), processor.vocab_size()]
+
             seq_output = seq2seq(device, src_inputs, tgt_inputs, src_mask, tgt_mask)
-            assert list(seq_output.size()) == [tgt_inputs.size(0), processor.vocab_size()]
+            assert list(seq_output.size()) == [tgt_inputs.size(0), tgt_inputs.size(1) - 1, processor.vocab_size()]
 
     def test_data(self):
         path_dir_name = os.path.dirname(os.path.realpath(__file__))

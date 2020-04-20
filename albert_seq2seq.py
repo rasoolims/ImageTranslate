@@ -1,3 +1,7 @@
+import copy
+import pickle
+
+import torch.nn.functional as F
 from transformers.modeling_albert import *
 
 from lm import LM
@@ -9,27 +13,57 @@ class AlbertSeq2Seq(nn.Module):
         super(AlbertSeq2Seq, self).__init__()
         self.text_processor: TextProcessor = lm.text_processor
         self.config = lm.encoder.config
-        self.encoder: AlbertModel = lm.encoder
+        self.encoder: AlbertModel = copy.deepcopy(lm.encoder)
         self.decoder: AlbertDecoderModel = AlbertDecoderModel(self.encoder)
         self.output_layer = lm.masked_lm
 
-    def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask):
-        "Take in and process masked src and target sequences."
+    def encode(self, device, src_inputs, src_mask):
         src_inputs = src_inputs.to(device)
-        tgt_inputs = tgt_inputs.to(device)
         src_mask = src_mask.to(device)
+        encoder_states = self.encoder(src_inputs, attention_mask=src_mask)
+        return encoder_states
+
+    def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask, log_softmax: bool = False,
+                flatten: bool = False):
+        "Take in and process masked src and target sequences."
+        encoder_states = self.encode(device, src_inputs, src_mask)
+        tgt_inputs = tgt_inputs.to(device)
         tgt_mask = tgt_mask.to(device)
 
-        encoder_states = self.encoder(src_inputs, attention_mask=src_mask)
-        decoder_states = self.decoder(encoder_states[0], tgt_inputs, src_mask, tgt_mask)
-        outputs = self.output_layer(decoder_states[-1])
+        outputs = []
+        for i in range(1, tgt_inputs.size(1)):
+            decoder_states = self.decoder(encoder_states[0], tgt_inputs[:, :i], src_mask, tgt_mask[:, :i])
+            output = self.output_layer(decoder_states[:, -1, :])
+            if log_softmax:
+                output = F.log_softmax(output, dim=1)
+            outputs.append(output)
+        outputs = torch.stack(outputs, dim=1)
+        if flatten:
+            outputs = outputs.view(-1, outputs.size(2))
         return outputs
+
+    def save(self, out_dir: str):
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        with open(os.path.join(out_dir, "mt_config"), "wb") as fp:
+            pickle.dump(self.config, fp)
+
+        torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
+        self.text_processor.tokenizer.save(directory=out_dir)
+
+    @staticmethod
+    def load(out_dir: str):
+        text_processor = TextProcessor(tok_model_path=out_dir)
+        with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
+            config = pickle.load(fp)
+            lm = LM(text_processor=text_processor, config=config)
+            lm.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
+            return lm
 
 
 class AlbertDecoderAttention(nn.Module):
     def __init__(self, albert_attention: AlbertAttention):
         super().__init__()
-        self.albert_attention = albert_attention
         self.output_attentions = albert_attention.output_attentions  # config.output_attentions
         self.dropout = albert_attention.dropout
         self.num_attention_heads = albert_attention.num_attention_heads
@@ -37,16 +71,37 @@ class AlbertDecoderAttention(nn.Module):
         self.attention_head_size = albert_attention.attention_head_size
         self.all_head_size = albert_attention.all_head_size
 
-        self.query = albert_attention.query  # nn.Linear(config.hidden_size, self.all_head_size)
-        self.key = albert_attention.key  # nn.Linear(config.hidden_size, self.all_head_size)
-        self.value = albert_attention.value  # nn.Linear(config.hidden_size, self.all_head_size)
+        self.query = copy.deepcopy(albert_attention.query)  # nn.Linear(config.hidden_size, self.all_head_size)
+        self.key = copy.deepcopy(albert_attention.key)  # nn.Linear(config.hidden_size, self.all_head_size)
+        self.value = copy.deepcopy(albert_attention.value)  # nn.Linear(config.hidden_size, self.all_head_size)
 
-        self.dense = albert_attention.dense  # nn.Linear(config.hidden_size, config.hidden_size)
-        self.LayerNorm = albert_attention.LayerNorm  # nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.dense = copy.deepcopy(albert_attention.dense)  # nn.Linear(config.hidden_size, config.hidden_size)
+        self.LayerNorm = copy.deepcopy(
+            albert_attention.LayerNorm)  # nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.pruned_heads = set()
 
     def prune_heads(self, heads):
-        return self.albert_attention(heads)
+        if len(heads) == 0:
+            return
+        mask = torch.ones(self.num_attention_heads, self.attention_head_size)
+        heads = set(heads) - self.pruned_heads  # Convert to set and emove already pruned heads
+        for head in heads:
+            # Compute how many pruned heads are before the head and move the index accordingly
+            head = head - sum(1 if h < head else 0 for h in self.pruned_heads)
+            mask[head] = 0
+        mask = mask.view(-1).contiguous().eq(1)
+        index = torch.arange(len(mask))[mask].long()
+
+        # Prune linear layers
+        self.query = prune_linear_layer(self.query, index)
+        self.key = prune_linear_layer(self.key, index)
+        self.value = prune_linear_layer(self.value, index)
+        self.dense = prune_linear_layer(self.dense, index, dim=1)
+
+        # Update hyper params and store pruned heads
+        self.num_attention_heads = self.num_attention_heads - len(heads)
+        self.all_head_size = self.attention_head_size * self.num_attention_heads
+        self.pruned_heads = self.pruned_heads.union(heads)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -133,31 +188,15 @@ class AlbertDecoderLayer(nn.Module):
 class AlbertDecoderLayerGroup(nn.Module):
     def __init__(self, layer_groups: AlbertLayerGroup):
         super().__init__()
-
-        self.output_attentions = layer_groups.output_attentions
-        self.output_hidden_states = layer_groups.output_hidden_states
         self.albert_layers = nn.ModuleList([AlbertDecoderLayer(layer) for layer in layer_groups.albert_layers])
 
     def forward(self, encoder_states, hidden_states, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
-        layer_hidden_states = ()
-        layer_attentions = ()
-
         for layer_index, albert_layer in enumerate(self.albert_layers):
             layer_output = albert_layer(encoder_states, hidden_states, src_attention_mask, tgt_attention_mask,
                                         head_mask[layer_index])
             hidden_states = layer_output[0]
 
-            if self.output_attentions:
-                layer_attentions = layer_attentions + (layer_output[1],)
-
-            if self.output_hidden_states:
-                layer_hidden_states = layer_hidden_states + (hidden_states,)
-
         outputs = (hidden_states,)
-        if self.output_hidden_states:
-            outputs = outputs + (layer_hidden_states,)
-        if self.output_attentions:
-            outputs = outputs + (layer_attentions,)
         return outputs  # last-layer hidden state, (layer hidden states), (layer attentions)
 
 
@@ -166,8 +205,6 @@ class AlbertDecoderTransformer(nn.Module):
         super().__init__()
 
         self.config = albert_transformer.config
-        self.output_attentions = self.config.output_attentions
-        self.output_hidden_states = self.config.output_hidden_states
         self.embedding_hidden_mapping_in = albert_transformer.embedding_hidden_mapping_in
         self.albert_layer_groups = nn.ModuleList(
             [AlbertDecoderLayerGroup(albert_transformer.albert_layer_groups[i]) for i in
@@ -175,12 +212,6 @@ class AlbertDecoderTransformer(nn.Module):
 
     def forward(self, encoder_states, hidden_states, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
         hidden_states = self.embedding_hidden_mapping_in(hidden_states)
-
-        all_attentions = ()
-
-        all_hidden_states = None
-        if self.output_hidden_states:
-            all_hidden_states = (hidden_states,)
 
         for i in range(self.config.num_hidden_layers):
             # Number of layers in a hidden group
@@ -198,18 +229,7 @@ class AlbertDecoderTransformer(nn.Module):
             )
             hidden_states = layer_group_output[0]
 
-            if self.output_attentions:
-                all_attentions = all_attentions + layer_group_output[-1]
-
-            if self.output_hidden_states:
-                all_hidden_states = all_hidden_states + (hidden_states,)
-
-        outputs = (hidden_states,)
-        if self.output_hidden_states:
-            outputs = outputs + (all_hidden_states,)
-        if self.output_attentions:
-            outputs = outputs + (all_attentions,)
-        return outputs
+        return hidden_states
 
 
 class AlbertDecoderModel(AlbertPreTrainedModel):
@@ -222,9 +242,6 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
         self.config = encoder_layer.config
         self.embeddings = encoder_layer.embeddings
         self.decoder = AlbertDecoderTransformer(encoder_layer.encoder)
-        self.pooler = encoder_layer.pooler  # nn.Linear(self.config.hidden_size, self.config.hidden_size)
-        self.pooler_activation = encoder_layer.pooler_activation  # nn.Tanh()
-
         self.init_weights()
 
     def get_input_embeddings(self):
@@ -308,13 +325,7 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
         embedding_output = self.embeddings(
             input_ids, position_ids=position_ids, token_type_ids=token_type_ids, inputs_embeds=inputs_embeds
         )
-        encoder_outputs = self.decoder(encoder_states, embedding_output, extended_src_attention_mask,
-                                       extended_tgt_attention_mask, head_mask=head_mask)
+        outputs = self.decoder(encoder_states, embedding_output, extended_src_attention_mask,
+                               extended_tgt_attention_mask, head_mask=head_mask)
 
-        sequence_output = encoder_outputs[0]
-
-        pooled_output = self.pooler_activation(self.pooler(sequence_output[:, 0]))
-
-        # add hidden_states and attentions if they are here
-        outputs = (sequence_output, pooled_output) + encoder_outputs[1:]
         return outputs

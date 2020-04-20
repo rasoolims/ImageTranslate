@@ -56,7 +56,8 @@ class LM(nn.Module):
             "hidden_size": 4096,
             "initializer_range": 0.02,
             "intermediate_size": 16384,
-            "max_position_embeddings": 512,
+            # We don't use more than 512 in practice, but for generation, we don't want to restrict the model.
+            "max_position_embeddings": 8192,
             "num_attention_heads": 64,  # smaller than usual
             "num_hidden_layers": 12,  # smaller than usual
             "num_hidden_groups": 1,
@@ -83,7 +84,8 @@ class LM(nn.Module):
             "hidden_size": 768,
             "initializer_range": 0.02,
             "intermediate_size": 3072,
-            "max_position_embeddings": 512,
+            # We don't use more than 512 in practice, but for generation, we don't want to restrict the model.
+            "max_position_embeddings": 8192,
             "num_attention_heads": 4,  # smaller than usual
             "num_hidden_layers": 4,  # smaller than usual
             "num_hidden_groups": 1,
@@ -110,7 +112,8 @@ class LM(nn.Module):
             "hidden_size": 256,
             "initializer_range": 0.02,
             "intermediate_size": 1024,
-            "max_position_embeddings": 512,
+            # We don't use more than 512 in practice, but for generation, we don't want to restrict the model.
+            "max_position_embeddings": 8192,
             "num_attention_heads": 2,  # smaller than usual
             "num_hidden_layers": 2,  # smaller than usual
             "num_hidden_groups": 1,

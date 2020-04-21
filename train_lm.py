@@ -2,6 +2,7 @@ import datetime
 import os
 import sys
 import time
+from collections import defaultdict
 from optparse import OptionParser
 
 import torch
@@ -51,12 +52,19 @@ class Trainer:
             self.model = DataParallelModel(self.model)
             self.criterion = DataParallelCriterion(self.criterion)
 
+        self.best_valid_loss = float("inf")
+        self.best_train_loss = float("inf")
+
     @staticmethod
     def build_optimizer(model, learning_rate, weight_decay):
         return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
+    def rest_optimizer(self):
+        self.optimizer.state = defaultdict(dict)
+        self.scheduler.last_epoch = -1
+
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader,
-                    best_valid_loss: float, saving_path: str, max_grad_norm: float = 1.0):
+                    saving_path: str, max_grad_norm: float = 1.0):
         if self.fp16:
             try:
                 import apex
@@ -107,20 +115,26 @@ class Trainer:
                       "Epoch Step: %d Loss: %f Tokens per Sec: %f" % (i + 1, cur_loss / tokens, tokens / elapsed))
 
                 if (i + 1) % 5000 == 0:
-                    best_valid_loss = self.validate_and_save(best_valid_loss, saving_path, valid_data_iter)
+                    self.validate_and_save(saving_path, valid_data_iter)
 
                 start, tokens, cur_loss = time.time(), 0, 0
 
-        print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-        model_to_save = (
-            self.model.module if hasattr(self.model, "module") else self.model
-        )
-        model_to_save.save(saving_path + ".latest")
+        current_loss = total_loss / total_tokens
+        print("Total loss in this epoch: %f" % current_loss)
+        if current_loss < self.best_train_loss:
+            self.best_train_loss = current_loss
+            model_to_save = (
+                self.model.module if hasattr(self.model, "module") else self.model
+            )
+            model_to_save.save(saving_path + ".latest")
+        else:
+            # Restart optimizer state to see if anything changes
+            print("Restarting optimizer!")
+            self.rest_optimizer()
 
-        best_valid_loss = self.validate_and_save(best_valid_loss, saving_path, valid_data_iter)
-        return total_loss / total_tokens, best_valid_loss
+        self.validate_and_save(saving_path, valid_data_iter)
 
-    def validate_and_save(self, best_valid_loss, saving_path, valid_data_iter):
+    def validate_and_save(self, saving_path, valid_data_iter):
         with torch.no_grad():
             model = (
                 self.model.module if hasattr(self.model, "module") else self.model
@@ -142,15 +156,14 @@ class Trainer:
 
             valid_loss = total_valid_loss / total_valid_tokens
             print("Current valid loss", valid_loss)
-            if best_valid_loss > float(valid_loss):
-                best_valid_loss = float(valid_loss)
-                print("saving best valid loss", best_valid_loss)
+            if self.best_valid_loss > float(valid_loss):
+                self.best_valid_loss = float(valid_loss)
+                print("saving best valid loss", self.best_valid_loss)
                 model_to_save = (
                     self.model.module if hasattr(self.model, "module") else self.model
                 )
                 model_to_save.save(saving_path)
             model.train()
-        return best_valid_loss
 
     @staticmethod
     def train(options):
@@ -168,10 +181,10 @@ class Trainer:
         valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size)
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
 
-        pin_meory = torch.cuda.is_available()
-        loader = data_utils.DataLoader(train_data, batch_size=options.batch, shuffle=False, pin_memory=pin_meory,
+        pin_memory = torch.cuda.is_available()
+        loader = data_utils.DataLoader(train_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
                                        collate_fn=collator)
-        valid_loader = data_utils.DataLoader(valid_data, batch_size=options.batch, shuffle=False, pin_memory=pin_meory,
+        valid_loader = data_utils.DataLoader(valid_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
                                              collate_fn=collator)
 
         trainer = Trainer(model=lm, mask_prob=options.mask_prob,
@@ -185,12 +198,10 @@ class Trainer:
             except ImportError:
                 raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
 
-        best_valid_loss = float("inf")
         for i in range(options.num_epochs):
             print("train epoch", i)
             train_data.current_cache = {}  # make sure that we don't use previously masked data!
-            _, best_valid_loss = trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader,
-                                                     best_valid_loss=best_valid_loss, saving_path=options.model_path)
+            trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader, saving_path=options.model_path)
 
 
 def get_options():

@@ -59,7 +59,7 @@ class Trainer:
     def build_optimizer(model, learning_rate, weight_decay):
         return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
-    def rest_optimizer(self):
+    def reset_optimizer(self):
         self.optimizer.state = defaultdict(dict)
         self.scheduler.last_epoch = -1
 
@@ -130,7 +130,7 @@ class Trainer:
         else:
             # Restart optimizer state to see if anything changes
             print("Restarting optimizer!")
-            self.rest_optimizer()
+            self.reset_optimizer()
 
         self.validate_and_save(saving_path, valid_data_iter)
 

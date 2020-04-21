@@ -106,7 +106,7 @@ def get_tokenizer(tokenizer_path: Optional[str] = None, train_path: Optional[str
                         spl[0] = " ".join(spl[0].strip().split(" ")[1:])
                     wf.write("\n".join(spl))
                     wf.write("\n")
-                    if (i + 1) % 10000 == 0:
+                    if (i + 1) % 100000 == 0:
                         print(i + 1)
         print("Writing raw text done!")
 

@@ -61,7 +61,16 @@ class TextProcessor:
         return self.tokenizer.encode(line)
 
     def tokenize_one_line(self, line) -> List[int]:
-        return self._tokenize(line).ids
+        tokenized = []
+        spl = [sen for sen in line.split("</s>") if len(sen.strip()) > 0]
+        if spl[0].startswith("<"):
+            words = spl[0].strip().split(" ")
+            spl[0] = " ".join(words[1:])
+            tokenized += [self.token_id(words[0])]
+
+        for sen in spl:
+            tokenized += self._tokenize(sen).ids + [self.sep_token_id()]
+        return tokenized
 
     def tokenize(self, lines) -> List[List[int]]:
         lines = [line.strip() for line in lines.strip().split("\n") if len(line.strip()) > 0]
@@ -82,6 +91,9 @@ class TextProcessor:
 
     def token_id(self, token: str) -> int:
         return self.tokenizer.token_to_id(token)
+
+    def id2token(self, id: int) -> str:
+        return self.tokenizer.id_to_token(id)
 
     def vocab_size(self) -> int:
         return self.tokenizer.get_vocab_size()

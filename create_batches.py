@@ -97,7 +97,22 @@ def get_tokenizer(tokenizer_path: Optional[str] = None, train_path: Optional[str
     if tokenizer_path is None:
         print("Training Tokenizer...")
         text_processor = TextProcessor()
-        text_processor.train_tokenizer(paths=[train_path], vocab_size=vocab_size, to_save_dir=model_path)
+        print("Writing raw text...")
+        with open(train_path + ".tmp", "w") as wf:
+            with open(train_path, "r") as rf:
+                for i, line in enumerate(rf):
+                    spl = [sen for sen in line.split("</s>") if len(sen.strip()) > 0]
+                    if spl[0].startswith("<"):
+                        spl[0] = " ".join(spl[0].strip().split(" ")[1:])
+                    wf.write("\n".join(spl))
+                    wf.write("\n")
+                    if (i + 1) % 10000 == 0:
+                        print(i + 1)
+        print("Writing raw text done!")
+
+        text_processor.train_tokenizer(paths=[train_path + ".tmp"], vocab_size=vocab_size, to_save_dir=model_path)
+        print("Removing temporary file!")
+        os.system("rm " + train_path + ".tmp &")
         print("done!")
     else:
         text_processor = TextProcessor(tokenizer_path)

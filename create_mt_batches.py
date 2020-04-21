@@ -18,8 +18,8 @@ def write(text_processor: TextProcessor, cache_dir: str, src_txt_file: str, dst_
     with open(src_txt_file, "r") as s_fp, open(dst_txt_file, "r") as d_fp:
         for src_line, dst_line in zip(s_fp, d_fp):
             if len(src_line.strip()) == 0 or len(dst_line.strip()) == 0: continue
-            current_src_cache += [text_processor.tokenize_one_line(src_line.strip())]
-            current_dst_cache += [text_processor.tokenize_one_line(dst_line.strip())]
+            current_src_cache += [text_processor.tokenize_one_line(src_line.strip(), ignore_middle_eos=True)]
+            current_dst_cache += [text_processor.tokenize_one_line(dst_line.strip(), ignore_middle_eos=True)]
 
             if len(current_src_cache) >= 100000:
                 for src_tok_line, dst_tok_line in zip(current_src_cache, current_dst_cache):

@@ -101,7 +101,7 @@ def get_tokenizer(tokenizer_path: Optional[str] = None, train_path: Optional[str
         with open(train_path + ".tmp", "w") as wf:
             with open(train_path, "r") as rf:
                 for i, line in enumerate(rf):
-                    spl = [sen for sen in line.split("</s>") if len(sen.strip()) > 0]
+                    spl = [sen.strip() for sen in line.split("</s>") if len(sen.strip()) > 0]
                     if spl[0].startswith("<"):
                         spl[0] = " ".join(spl[0].strip().split(" ")[1:])
                     wf.write("\n".join(spl))

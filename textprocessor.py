@@ -60,7 +60,7 @@ class TextProcessor:
     def _tokenize(self, line) -> Encoding:
         return self.tokenizer.encode(line)
 
-    def tokenize_one_line(self, line) -> List[int]:
+    def tokenize_one_line(self, line, ignore_middle_eos: bool = False) -> List[int]:
         tokenized = []
         spl = [sen for sen in line.split("</s>") if len(sen.strip()) > 0]
         if spl[0].startswith("<"):
@@ -69,7 +69,11 @@ class TextProcessor:
             tokenized += [self.token_id(words[0])]
 
         for sen in spl:
-            tokenized += self._tokenize(sen).ids + [self.sep_token_id()]
+            tokenized += self._tokenize(sen).ids
+            if not ignore_middle_eos:
+                tokenized += [self.sep_token_id()]
+        if ignore_middle_eos:
+            tokenized += [self.sep_token_id()]
         return tokenized
 
     def tokenize(self, lines) -> List[List[int]]:

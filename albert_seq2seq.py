@@ -23,23 +23,38 @@ class AlbertSeq2Seq(nn.Module):
         encoder_states = self.encoder(src_inputs, attention_mask=src_mask)
         return encoder_states
 
-    def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask, log_softmax: bool = False,
+    def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask, generate: bool = False,
+                log_softmax: bool = False,
                 flatten: bool = False):
         "Take in and process masked src and target sequences."
         encoder_states = self.encode(device, src_inputs, src_mask)
-        tgt_inputs = tgt_inputs.to(device)
-        tgt_mask = tgt_mask.to(device)
+        if generate:
+            eos = self.text_processor.sep_token_id()
+            outputs = tgt_inputs[:, 0].unsqueeze(1)
+            seen_eos = torch.zeros(outputs.size(0), dtype=torch.bool).to(outputs.device)
+            for i in range(1, self.encoder.embeddings.position_embeddings.num_embeddings):
+                output_mask = outputs == self.text_processor.pad_token_id()
+                decoder_states = self.decoder(encoder_states[0], outputs, src_mask, output_mask)
+                output = self.output_layer(decoder_states[:, -1, :])
+                best_outputs = torch.argmax(output, dim=1)
+                outputs = torch.cat([outputs, best_outputs.unsqueeze(1)], dim=1)
+                seen_eos |= best_outputs == eos
+                if torch.all(seen_eos):
+                    break
+        else:
+            tgt_inputs = tgt_inputs.to(device)
+            tgt_mask = tgt_mask.to(device)
 
-        outputs = []
-        for i in range(1, tgt_inputs.size(1)):
-            decoder_states = self.decoder(encoder_states[0], tgt_inputs[:, :i], src_mask, tgt_mask[:, :i])
-            output = self.output_layer(decoder_states[:, -1, :])
-            if log_softmax:
-                output = F.log_softmax(output, dim=1)
-            outputs.append(output)
-        outputs = torch.stack(outputs, dim=1)
-        if flatten:
-            outputs = outputs.view(-1, outputs.size(2))
+            outputs = []
+            for i in range(1, tgt_inputs.size(1)):
+                decoder_states = self.decoder(encoder_states[0], tgt_inputs[:, :i], src_mask, tgt_mask[:, :i])
+                output = self.output_layer(decoder_states[:, -1, :])
+                if log_softmax:
+                    output = F.log_softmax(output, dim=1)
+                outputs.append(output)
+            outputs = torch.stack(outputs, dim=1)
+            if flatten:
+                outputs = outputs.view(-1, outputs.size(2))
         return outputs
 
     def save(self, out_dir: str):

@@ -8,7 +8,7 @@ from textprocessor import TextProcessor
 
 def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, dst_txt_file: str):
     examples = {}
-    line_num, file_count = 0, 0
+    line_num = 0
 
     lens = {}
     with open(src_txt_file, "r") as s_fp, open(dst_txt_file, "r") as d_fp:
@@ -39,8 +39,6 @@ def get_options():
     parser.add_option("--dst", dest="dst_data_path", help="Path to the target txt file", metavar="FILE", default=None)
     parser.add_option("--output", dest="output_path", help="Output pickle file ", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
-    parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
-                      default=None)
     (options, args) = parser.parse_args()
     return options
 

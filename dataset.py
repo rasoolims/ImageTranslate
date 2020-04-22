@@ -84,7 +84,7 @@ class MTDataset(Dataset):
             dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
             self.batches.append((src_batch, dst_batch))
 
-        print("loaded %d bitext sentences if %d batches!" % (len(examples), len(self.batches)))
+        print("loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
 
     def __len__(self):
         return len(self.batches)

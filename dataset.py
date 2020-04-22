@@ -2,7 +2,7 @@ import logging
 import math
 import os
 import pickle
-from typing import Dict
+from typing import Dict, List, Tuple
 
 import torch
 from torch.nn.utils.rnn import pad_sequence
@@ -49,6 +49,50 @@ class TextDataset(Dataset):
         return examples[item]
 
 
+class MTDataset(Dataset):
+    def __init__(self, batch_pickle_dir: str, max_tokens_per_batch: int, pad_idx: int, max_seq_len: int = 512):
+        self.current_cache: Dict[Dict[int, torch.LongTensor]] = {}
+
+        self.batches = []
+        with open(batch_pickle_dir, "rb") as fr:
+            examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
+
+            cur_src_batch, cur_dst_batch, cur_len, cur_max_len = [], [], 0, 0
+            for example in examples:
+                src = example[0][:max_seq_len]  # trim if longer than expected!
+                dst = example[1][:max_seq_len]  # trim if longer than expected!
+
+                example_len = int(src.size(0) + dst.size(0))
+                cur_max_len = max(cur_max_len, example_len)
+
+                cur_src_batch.append(src)
+                cur_dst_batch.append(dst)
+
+                cur_len = cur_max_len * len(cur_src_batch)
+
+                if cur_len >= max_tokens_per_batch:
+                    src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
+                    dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
+                    src_pad_mask = (src_batch == pad_idx)
+                    dst_pad_mask = (dst_batch == pad_idx)
+                    self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
+                                         "dst_pad_mask": dst_pad_mask})
+                    cur_src_batch, cur_dst_batch, cur_len, cur_max_len = [], [], 0, 0
+
+        if cur_len > 0:
+            src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
+            dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
+            self.batches.append((src_batch, dst_batch))
+
+        print("loaded %d bitext sentences if %d batches!" % (len(examples), len(self.batches)))
+
+    def __len__(self):
+        return len(self.batches)
+
+    def __getitem__(self, item):
+        return self.batches[item]
+
+
 class TextCollator(object):
     def __init__(self, pad_idx):
         self.pad_idx = pad_idx
@@ -57,30 +101,3 @@ class TextCollator(object):
         padded_text = pad_sequence(batch, batch_first=True, padding_value=self.pad_idx)
         pad_mask = (padded_text == self.pad_idx)
         return {"texts": padded_text, "pad_mask": pad_mask}
-
-
-class MTTextCollator(object):
-    def __init__(self, pad_idx, max_seq_len: int = 8192):
-        self.pad_idx = pad_idx
-        self.max_seq_len = max_seq_len
-
-    def __call__(self, batch):
-        src_batch, dst_batch = [], []
-        for batch_item in batch:
-            src_batch.append(batch_item[0])
-            dst_batch.append(batch_item[1])
-
-        src_text = pad_sequence(src_batch, batch_first=True, padding_value=self.pad_idx)
-        if src_text.size(1) > self.max_seq_len:
-            print("WARNING: very long source sequence: will trim it!")
-            src_text = src_text[:, :self.max_seq_len]
-
-        dst_text = pad_sequence(dst_batch, batch_first=True, padding_value=self.pad_idx)
-        if dst_text.size(1) > self.max_seq_len:
-            print("WARNING: very long target sequence: will trim it!")
-            dst_text = dst_text[:, :self.max_seq_len]
-
-        src_pad_mask = (src_text == self.pad_idx)
-        dst_pad_mask = (dst_text == self.pad_idx)
-        return {"src_texts": src_text, "src_pad_mask": src_pad_mask, "dst_texts": dst_text,
-                "dst_pad_mask": dst_pad_mask}

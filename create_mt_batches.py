@@ -1,4 +1,3 @@
-import os
 import pickle
 from optparse import OptionParser
 
@@ -7,38 +6,31 @@ import torch
 from textprocessor import TextProcessor
 
 
-def write(text_processor: TextProcessor, cache_dir: str, src_txt_file: str, dst_txt_file: str, block_size: int = 40000):
-    if not os.path.exists(cache_dir):
-        os.makedirs(cache_dir)
-    block_size = block_size
-    current_src_cache, current_dst_cache = [], []
+def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, dst_txt_file: str):
     examples = {}
     line_num, file_count = 0, 0
 
+    lens = {}
     with open(src_txt_file, "r") as s_fp, open(dst_txt_file, "r") as d_fp:
         for src_line, dst_line in zip(s_fp, d_fp):
             if len(src_line.strip()) == 0 or len(dst_line.strip()) == 0: continue
-            current_src_cache += [text_processor.tokenize_one_line(src_line.strip(), ignore_middle_eos=True)]
-            current_dst_cache += [text_processor.tokenize_one_line(dst_line.strip(), ignore_middle_eos=True)]
+            src_tok_line = text_processor.tokenize_one_line(src_line.strip(), ignore_middle_eos=True)
+            dst_tok_line = text_processor.tokenize_one_line(dst_line.strip(), ignore_middle_eos=True)
+            total_len = len(src_tok_line) + len(dst_tok_line)
+            examples[line_num] = (torch.LongTensor(src_tok_line), torch.LongTensor(dst_tok_line))
+            lens[line_num] = total_len
+            line_num += 1
 
-    for src_tok_line, dst_tok_line in zip(current_src_cache, current_dst_cache):
-        # assuming that every list has same length due to correct padding.
-        examples[line_num] = (torch.LongTensor(src_tok_line), torch.LongTensor(dst_tok_line))
-        line_num += 1
-        if len(examples) >= block_size:
-            with open(os.path.join(cache_dir, str(file_count) + ".pkl"), "wb") as fw:
-                pickle.dump(examples, fw)
-            examples, file_count = {}, file_count + 1
+    sorted_lens = sorted(lens.items(), key=lambda item: item[1])
+    sorted_examples = []
+    for len_item in sorted_lens:
+        line_num = len(sorted_examples)
+        sorted_examples.append(examples[len_item[0]])
 
-    if len(examples) >= 0:
-        with open(os.path.join(cache_dir, str(file_count) + ".pkl"), "wb") as fw:
-            pickle.dump(examples, fw)
-        examples, file_count = {}, file_count + 1
+    with open(output_file, "wb") as fw:
+        pickle.dump(sorted_examples, fw)
 
-    print(f"Dumped {line_num} small vectors into {file_count} files")
-
-    with open(os.path.join(cache_dir, "info.txt"), "w") as fw:
-        fw.write(str(block_size) + "\t" + str(line_num) + "\t" + str(file_count))
+    print(f"Dumped {line_num} small vectors!")
 
 
 def get_options():
@@ -46,11 +38,8 @@ def get_options():
     parser = OptionParser()
     parser.add_option("--src", dest="src_data_path", help="Path to the source txt file", metavar="FILE", default=None)
     parser.add_option("--dst", dest="dst_data_path", help="Path to the target txt file", metavar="FILE", default=None)
-    parser.add_option("--cache", dest="cache_path",
-                      help="Path to the data pickle files for data with large sequence length", metavar="FILE",
-                      default=None)
+    parser.add_option("--output", dest="output_path", help="Output pickle file ", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
-    parser.add_option("--block", dest="sentence_block", help="Sentence block size", type="int", default=10000)
     parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
                       default=None)
     (options, args) = parser.parse_args()
@@ -61,10 +50,7 @@ if __name__ == "__main__":
     options = get_options()
     tokenizer = TextProcessor(options.tokenizer_path)
 
-    if not os.path.exists(options.cache_path):
-        os.makedirs(options.cache_path)
-
     print("writing batch")
-    write(text_processor=tokenizer, cache_dir=options.cache_path, src_txt_file=options.src_data_path,
-          dst_txt_file=options.dst_data_path, block_size=4 * options.sentence_block)
+    write(text_processor=tokenizer, output_file=options.output_path, src_txt_file=options.src_data_path,
+          dst_txt_file=options.dst_data_path)
     print("finished")

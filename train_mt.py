@@ -77,10 +77,10 @@ class Trainer:
         for i, batch in enumerate(data_iter):
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
-            src_inputs = batch["src_texts"]
-            src_mask = batch["src_pad_mask"]
-            tgt_inputs = batch["dst_texts"]
-            tgt_mask = batch["dst_pad_mask"]
+            src_inputs = batch["src_texts"].squeeze()
+            src_mask = batch["src_pad_mask"].squeeze()
+            tgt_inputs = batch["dst_texts"].squeeze()
+            tgt_mask = batch["dst_pad_mask"].squeeze()
 
             predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                      src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
@@ -141,10 +141,10 @@ class Trainer:
         with torch.no_grad():
             total_valid_loss, total_valid_tokens = 0, 0
             for batch in valid_data_iter:
-                src_inputs = batch["src_texts"]
-                src_mask = batch["src_pad_mask"]
-                tgt_inputs = batch["dst_texts"]
-                tgt_mask = batch["dst_pad_mask"]
+                src_inputs = batch["src_texts"].squeeze()
+                src_mask = batch["src_pad_mask"].squeeze()
+                tgt_inputs = batch["dst_texts"].squeeze()
+                tgt_mask = batch["dst_pad_mask"].squeeze()
 
                 predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                          src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
@@ -191,16 +191,14 @@ class Trainer:
 
         mt_model = AlbertSeq2Seq(lm=lm, sep_encoder_decoder=options.sep_encoder)
 
-        train_data = dataset.TextDataset(save_cache_dir=options.train_cache_path, max_cache_size=options.cache_size)
-        valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size)
-        collator = dataset.MTTextCollator(pad_idx=text_processor.pad_token_id(),
-                                          max_seq_len=lm.encoder.embeddings.position_embeddings.num_embeddings)
+        train_data = dataset.MTDataset(batch_pickle_dir=options.train__path, max_tokens_per_batch=options.batch,
+                                       pad_idx=lm.text_processor.pad_token_id())
+        valid_data = dataset.MTDataset(batch_pickle_dir=options.valid__path, max_tokens_per_batch=options.batch,
+                                       pad_idx=lm.text_processor.pad_token_id())
 
-        pin_meory = torch.cuda.is_available()
-        loader = data_utils.DataLoader(train_data, batch_size=options.batch, shuffle=False, pin_memory=pin_meory,
-                                       collate_fn=collator)
-        valid_loader = data_utils.DataLoader(valid_data, batch_size=options.batch, shuffle=False, pin_memory=pin_meory,
-                                             collate_fn=collator)
+        pin_memory = torch.cuda.is_available()
+        loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+        valid_loader = data_utils.DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
         trainer = Trainer(model=mt_model, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
@@ -223,12 +221,11 @@ class Trainer:
 def get_options():
     global options
     parser = OptionParser()
-    parser.add_option("--train_cache", dest="train_cache_path",
+    parser.add_option("--train", dest="train__path",
                       help="Path to the train data pickle files for large data", metavar="FILE", default=None)
-    parser.add_option("--valid_cache", dest="valid_cache_path",
+    parser.add_option("--valid", dest="valid__path",
                       help="Path to the train data pickle files for large data", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
-    parser.add_option("--cache_size", dest="cache_size", help="Number of blocks in cache", type="int", default=300)
     parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
                       default=None)
     parser.add_option("--pretrained", dest="pretrained_path", help="Directory of pretrained model", metavar="FILE",

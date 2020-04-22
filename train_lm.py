@@ -54,6 +54,7 @@ class Trainer:
 
         self.best_valid_loss = float("inf")
         self.best_train_loss = float("inf")
+        self.last_train_loss = float("inf")
 
     @staticmethod
     def build_optimizer(model, learning_rate, weight_decay):
@@ -127,10 +128,12 @@ class Trainer:
                 self.model.module if hasattr(self.model, "module") else self.model
             )
             model_to_save.save(saving_path + ".latest")
-        else:
+        elif current_loss > self.last_train_loss:
             # Restart optimizer state to see if anything changes
             print("Restarting optimizer!")
             self.reset_optimizer()
+
+        self.last_train_loss = current_loss
 
         self.validate_and_save(saving_path, valid_data_iter)
 

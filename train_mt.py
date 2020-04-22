@@ -191,9 +191,9 @@ class Trainer:
 
         mt_model = AlbertSeq2Seq(lm=lm, sep_encoder_decoder=options.sep_encoder)
 
-        train_data = dataset.MTDataset(batch_pickle_dir=options.train__path, max_tokens_per_batch=options.batch,
+        train_data = dataset.MTDataset(batch_pickle_dir=options.train__path, max_batch_capcity=options.capacity,
                                        pad_idx=lm.text_processor.pad_token_id())
-        valid_data = dataset.MTDataset(batch_pickle_dir=options.valid__path, max_tokens_per_batch=options.batch,
+        valid_data = dataset.MTDataset(batch_pickle_dir=options.valid__path, max_batch_capcity=options.capacity,
                                        pad_idx=lm.text_processor.pad_token_id())
 
         pin_memory = torch.cuda.is_available()
@@ -232,7 +232,8 @@ def get_options():
                       default=None)
     parser.add_option("--epoch", dest="num_epochs", help="Number of training epochs", type="int", default=100)
     parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
-    parser.add_option("--batch", dest="batch", help="Batch size", type="int", default=512)
+    parser.add_option("--capacity", dest="capacity", help="Batch capcity (batch_size*len**2)", type="int",
+                      default=150000)
     parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
     parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
     parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.002)

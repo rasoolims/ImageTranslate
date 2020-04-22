@@ -50,14 +50,14 @@ class TextDataset(Dataset):
 
 
 class MTDataset(Dataset):
-    def __init__(self, batch_pickle_dir: str, max_tokens_per_batch: int, pad_idx: int, max_seq_len: int = 512):
+    def __init__(self, batch_pickle_dir: str, max_batch_capcity: int, pad_idx: int, max_seq_len: int = 512):
         self.current_cache: Dict[Dict[int, torch.LongTensor]] = {}
 
         self.batches = []
         with open(batch_pickle_dir, "rb") as fr:
             examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
 
-            cur_src_batch, cur_dst_batch, cur_len, cur_max_src_len, cur_max_dst_len = [], [], 0, 0, 0
+            cur_src_batch, cur_dst_batch, cur_max_src_len, cur_max_dst_len = [], [], 0, 0
             for example in examples:
                 src = example[0][:max_seq_len]  # trim if longer than expected!
                 dst = example[1][:max_seq_len]  # trim if longer than expected!
@@ -68,21 +68,25 @@ class MTDataset(Dataset):
                 cur_src_batch.append(src)
                 cur_dst_batch.append(dst)
 
-                cur_len = (cur_max_src_len + cur_max_dst_len) * len(cur_src_batch)
+                batch_capacity = max(cur_max_src_len ** 2 * len(cur_src_batch),
+                                     cur_max_dst_len ** 2 * len(cur_dst_batch))
 
-                if cur_len >= max_tokens_per_batch:
+                if batch_capacity >= max_batch_capcity:
                     src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
                     dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
                     src_pad_mask = (src_batch == pad_idx)
                     dst_pad_mask = (dst_batch == pad_idx)
                     self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                                          "dst_pad_mask": dst_pad_mask})
-                    cur_src_batch, cur_dst_batch, cur_len, cur_max_src_len, cur_max_dst_len = [], [], 0, 0, 0
+                    cur_src_batch, cur_dst_batch, cur_max_src_len, cur_max_dst_len = [], [], 0, 0
 
-        if cur_len > 0:
+        if len(cur_src_batch) > 0:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
             dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
-            self.batches.append((src_batch, dst_batch))
+            src_pad_mask = (src_batch == pad_idx)
+            dst_pad_mask = (dst_batch == pad_idx)
+            self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
+                                 "dst_pad_mask": dst_pad_mask})
 
         print("loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
 

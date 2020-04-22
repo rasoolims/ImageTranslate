@@ -57,18 +57,18 @@ class MTDataset(Dataset):
         with open(batch_pickle_dir, "rb") as fr:
             examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
 
-            cur_src_batch, cur_dst_batch, cur_len, cur_max_len = [], [], 0, 0
+            cur_src_batch, cur_dst_batch, cur_len, cur_max_src_len, cur_max_dst_len = [], [], 0, 0, 0
             for example in examples:
                 src = example[0][:max_seq_len]  # trim if longer than expected!
                 dst = example[1][:max_seq_len]  # trim if longer than expected!
 
-                example_len = int(src.size(0) + dst.size(0))
-                cur_max_len = max(cur_max_len, example_len)
+                cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
+                cur_max_dst_len = max(cur_max_dst_len, int(dst.size(0)))
 
                 cur_src_batch.append(src)
                 cur_dst_batch.append(dst)
 
-                cur_len = cur_max_len * len(cur_src_batch)
+                cur_len = (cur_max_src_len + cur_max_dst_len) * len(cur_src_batch)
 
                 if cur_len >= max_tokens_per_batch:
                     src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
@@ -77,7 +77,7 @@ class MTDataset(Dataset):
                     dst_pad_mask = (dst_batch == pad_idx)
                     self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                                          "dst_pad_mask": dst_pad_mask})
-                    cur_src_batch, cur_dst_batch, cur_len, cur_max_len = [], [], 0, 0
+                    cur_src_batch, cur_dst_batch, cur_len, cur_max_src_len, cur_max_dst_len = [], [], 0, 0, 0
 
         if cur_len > 0:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)

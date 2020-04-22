@@ -234,7 +234,7 @@ def get_options():
     parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
     parser.add_option("--capacity", dest="capacity", help="Batch capcity (batch_size*len**2)", type="int",
                       default=150000)
-    parser.add_option("--batch", dest="batch", help="Batch num_tokens", type="int", default=16384)
+    parser.add_option("--batch", dest="batch", help="Batch num_tokens", type="int", default=25000)
     parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
     parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
     parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.002)

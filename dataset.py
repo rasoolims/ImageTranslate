@@ -73,14 +73,15 @@ class MTDataset(Dataset):
                                      cur_max_dst_len ** 2 * len(cur_dst_batch))
                 batch_size = (cur_max_src_len + cur_max_dst_len) * len(cur_src_batch)
 
-                if batch_capacity >= max_batch_capcity or batch_size >= max_batch:
-                    src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
-                    dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
+                if batch_capacity > max_batch_capcity or batch_size > max_batch:
+                    src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
+                    dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
                     src_pad_mask = (src_batch == pad_idx)
                     dst_pad_mask = (dst_batch == pad_idx)
                     self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                                          "dst_pad_mask": dst_pad_mask})
-                    cur_src_batch, cur_dst_batch, cur_max_src_len, cur_max_dst_len = [], [], 0, 0
+                    cur_src_batch, cur_dst_batch = cur_src_batch[:-1], cur_dst_batch[:-1]
+                    cur_max_src_len, cur_max_dst_len = 0, 0
 
         if len(cur_src_batch) > 0:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)

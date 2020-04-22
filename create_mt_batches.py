@@ -30,7 +30,7 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
     with open(output_file, "wb") as fw:
         pickle.dump(sorted_examples, fw)
 
-    print(f"Dumped {line_num} small vectors!")
+    print(f"Dumped {line_num + 1} small vectors!")
 
 
 def get_options():

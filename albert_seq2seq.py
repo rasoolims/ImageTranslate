@@ -9,7 +9,7 @@ from textprocessor import TextProcessor
 
 
 class AlbertSeq2Seq(nn.Module):
-    def __init__(self, lm: LM, sep_encoder_decoder:bool=True):
+    def __init__(self, lm: LM, sep_encoder_decoder: bool = True):
         super(AlbertSeq2Seq, self).__init__()
         self.text_processor: TextProcessor = lm.text_processor
         self.config = lm.encoder.config

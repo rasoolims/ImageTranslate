@@ -32,7 +32,7 @@ def write(text_processor: TextProcessor, cache_dir: str, src_txt_file: str, dst_
                         examples, file_count = {}, file_count + 1
                 current_src_cache, current_dst_cache = [], []
                 print(
-                    f"Dumped {line_num} small vectors into {file_count} files")
+                    f"Dumped {line_num} vectors into {file_count} files")
 
     if len(current_src_cache) > 0:
         for src_tok_line, dst_tok_line in zip(current_src_cache, current_dst_cache):

@@ -117,7 +117,7 @@ class Trainer:
                 elapsed = time.time() - start
                 print(datetime.datetime.now(),
                       "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
-                      i + 1, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
+                          i + 1, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
                 if (i + 1) % 5000 == 0:
                     best_valid_loss = self.validate_and_save(best_valid_loss, saving_path, valid_data_iter)

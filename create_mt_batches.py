@@ -21,35 +21,21 @@ def write(text_processor: TextProcessor, cache_dir: str, src_txt_file: str, dst_
             current_src_cache += [text_processor.tokenize_one_line(src_line.strip(), ignore_middle_eos=True)]
             current_dst_cache += [text_processor.tokenize_one_line(dst_line.strip(), ignore_middle_eos=True)]
 
-            if len(current_src_cache) >= 100000:
-                for src_tok_line, dst_tok_line in zip(current_src_cache, current_dst_cache):
-                    # assuming that every list has same length due to correct padding.
-                    examples[line_num] = (torch.LongTensor(src_tok_line), torch.LongTensor(dst_tok_line))
-                    line_num += 1
-                    if len(examples) >= block_size:
-                        with open(os.path.join(cache_dir, str(file_count) + ".pkl"), "wb") as fw:
-                            pickle.dump(examples, fw)
-                        examples, file_count = {}, file_count + 1
-                current_src_cache, current_dst_cache = [], []
-                print(
-                    f"Dumped {line_num} vectors into {file_count} files")
-
-    if len(current_src_cache) > 0:
-        for src_tok_line, dst_tok_line in zip(current_src_cache, current_dst_cache):
-            # assuming that every list has same length due to correct padding.
-            examples[line_num] = (torch.LongTensor(src_tok_line), torch.LongTensor(dst_tok_line))
-            line_num += 1
-            if len(examples) >= block_size:
-                with open(os.path.join(cache_dir, str(file_count) + ".pkl"), "wb") as fw:
-                    pickle.dump(examples, fw)
-                examples, file_count = {}, file_count + 1
-
-        if len(examples) >= 0:
+    for src_tok_line, dst_tok_line in zip(current_src_cache, current_dst_cache):
+        # assuming that every list has same length due to correct padding.
+        examples[line_num] = (torch.LongTensor(src_tok_line), torch.LongTensor(dst_tok_line))
+        line_num += 1
+        if len(examples) >= block_size:
             with open(os.path.join(cache_dir, str(file_count) + ".pkl"), "wb") as fw:
                 pickle.dump(examples, fw)
             examples, file_count = {}, file_count + 1
 
-        print(f"Dumped {line_num} small vectors into {file_count} files")
+    if len(examples) >= 0:
+        with open(os.path.join(cache_dir, str(file_count) + ".pkl"), "wb") as fw:
+            pickle.dump(examples, fw)
+        examples, file_count = {}, file_count + 1
+
+    print(f"Dumped {line_num} small vectors into {file_count} files")
 
     with open(os.path.join(cache_dir, "info.txt"), "w") as fw:
         fw.write(str(block_size) + "\t" + str(line_num) + "\t" + str(file_count))

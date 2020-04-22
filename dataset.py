@@ -80,7 +80,7 @@ class MTDataset(Dataset):
                     dst_pad_mask = (dst_batch == pad_idx)
                     self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                                          "dst_pad_mask": dst_pad_mask})
-                    cur_src_batch, cur_dst_batch = cur_src_batch[-1], cur_dst_batch[-1]
+                    cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
                     cur_max_src_len, cur_max_dst_len = 0, 0
 
         if len(cur_src_batch) > 0:

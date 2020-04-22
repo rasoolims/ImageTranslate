@@ -78,11 +78,11 @@ class MTDataset(Dataset):
                     dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
                     src_pad_mask = (src_batch == pad_idx)
                     dst_pad_mask = (dst_batch == pad_idx)
+                    print(src_batch.size(), dst_batch.size(), batch_capacity, batch_size, batch_capacity_size, len(cur_src_batch[:-1]), len(cur_dst_batch[:-1]))
                     self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                                          "dst_pad_mask": dst_pad_mask})
                     cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
                     cur_max_src_len, cur_max_dst_len = 0, 0
-                    print(src_batch.size(), dst_batch.size(), batch_capacity, batch_size, batch_capacity_size)
 
         if len(cur_src_batch) > 0:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)

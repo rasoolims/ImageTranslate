@@ -16,9 +16,8 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
             if len(src_line.strip()) == 0 or len(dst_line.strip()) == 0: continue
             src_tok_line = text_processor.tokenize_one_line(src_line.strip(), ignore_middle_eos=True)
             dst_tok_line = text_processor.tokenize_one_line(dst_line.strip(), ignore_middle_eos=True)
-            total_len = len(src_tok_line) + len(dst_tok_line)
             examples[line_num] = (torch.LongTensor(src_tok_line), torch.LongTensor(dst_tok_line))
-            lens[line_num] = total_len
+            lens[line_num] = len(src_tok_line)
             line_num += 1
 
     sorted_lens = sorted(lens.items(), key=lambda item: item[1])

@@ -82,7 +82,7 @@ class MTDataset(Dataset):
                                          "dst_pad_mask": dst_pad_mask})
                     cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
                     cur_max_src_len, cur_max_dst_len = 0, 0
-                    print(src_batch.size(), dst_batch.size())
+                    print(src_batch.size(), dst_batch.size(), batch_capacity, batch_size, batch_capacity_size)
 
         if len(cur_src_batch) > 0:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)

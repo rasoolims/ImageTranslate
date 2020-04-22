@@ -111,12 +111,12 @@ class Trainer:
             total_tokens += ntokens
             tokens += ntokens
 
-            if (i + 1) % 1 == 0:
+            if (i + 1) % 50 == 0:
                 elapsed = time.time() - start
                 print(datetime.datetime.now(),
                       "Epoch Step: %d Loss: %f Tokens per Sec: %f" % (i + 1, cur_loss / tokens, tokens / elapsed))
 
-                if (i + 1) % 1 == 0:
+                if (i + 1) % 5000 == 0:
                     best_valid_loss = self.validate_and_save(best_valid_loss, saving_path, valid_data_iter)
 
                 start, tokens, cur_loss = time.time(), 0, 0
@@ -235,8 +235,8 @@ def get_options():
     parser.add_option("--batch", dest="batch", help="Batch size", type="int", default=512)
     parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
     parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
-    parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.0025)
-    parser.add_option("--warmup", dest="warmup", help="Warm up rate", type="float", default=0.1)
+    parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.002)
+    parser.add_option("--warmup", dest="warmup", help="Warm up rate", type="float", default=0.00001)
     parser.add_option("--steps", dest="warmup_steps", help="Number of warmup steps", type="int", default=125000)
     parser.add_option("--decay", dest="weight_decay", help="Weight decay", type="float", default=0.01)
     parser.add_option("--max_grad_norm", dest="max_grad_norm", help="Max grad norm", type="float", default=1.0)

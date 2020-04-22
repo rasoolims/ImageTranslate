@@ -15,6 +15,7 @@ from albert_seq2seq import AlbertSeq2Seq
 from lm import LM
 from parallel import DataParallelModel, DataParallelCriterion
 from pytorch_lamb.pytorch_lamb import Lamb
+from seq_gen import BeamDecoder
 from textprocessor import TextProcessor
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
@@ -52,6 +53,8 @@ class Trainer:
             print("Let's use", num_gpu, "GPUs!")
             self.model = DataParallelModel(self.model)
             self.criterion = DataParallelCriterion(self.criterion)
+
+        self.generator = BeamDecoder(model)
 
     @staticmethod
     def build_optimizer(model, learning_rate, weight_decay):
@@ -142,6 +145,12 @@ class Trainer:
 
                 predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                          src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
+                if best_valid_loss < 1:
+                    outputs = self.generator(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                                             src_mask=src_mask, tgt_mask=tgt_mask)
+                    for output in outputs:
+                        print(self.generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
+
                 targets = tgt_inputs[:, 1:].contiguous().view(-1)
                 ntokens = targets.size(0)
 
@@ -160,6 +169,7 @@ class Trainer:
                 model_to_save = (
                     self.model.module if hasattr(self.model, "module") else self.model
                 )
+
                 model_to_save.save(saving_path)
             model.train()
         return best_valid_loss
@@ -176,7 +186,7 @@ class Trainer:
         else:
             lm = LM.load(options.pretrained_path)
 
-        mt_model = AlbertSeq2Seq(lm=lm)
+        mt_model = AlbertSeq2Seq(lm=lm, sep_encoder_decoder=options.sep_encoder)
 
         train_data = dataset.TextDataset(save_cache_dir=options.train_cache_path, max_cache_size=options.cache_size)
         valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size)
@@ -235,6 +245,7 @@ def get_options():
     parser.add_option("--layer", dest="num_layers", help="Number of Layers in cross-attention", type="int", default=2)
     parser.add_option("--heads", dest="num_heads", help="Number of attention heads", type="int", default=8)
     parser.add_option("--fp16", action="store_true", dest="fp16", help="use fp16; should be compatible", default=False)
+    parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Don't share encoder and decoder", default=False)
     parser.add_option("--size", dest="model_size", help="Model size: 1 (base), 2 (medium), 3 (small)", type="int",
                       default=3)
     parser.add_option(

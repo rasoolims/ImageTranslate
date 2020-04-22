@@ -9,11 +9,11 @@ from textprocessor import TextProcessor
 
 
 class AlbertSeq2Seq(nn.Module):
-    def __init__(self, lm: LM):
+    def __init__(self, lm: LM, sep_encoder_decoder:bool=True):
         super(AlbertSeq2Seq, self).__init__()
         self.text_processor: TextProcessor = lm.text_processor
         self.config = lm.encoder.config
-        self.encoder: AlbertModel = copy.deepcopy(lm.encoder)
+        self.encoder: AlbertModel = lm.encoder if not sep_encoder_decoder else copy.deepcopy(lm.encoder)
         self.decoder: AlbertDecoderModel = AlbertDecoderModel(self.encoder)
         self.output_layer = lm.masked_lm
 
@@ -24,8 +24,7 @@ class AlbertSeq2Seq(nn.Module):
         return encoder_states
 
     def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask, generate: bool = False,
-                log_softmax: bool = False,
-                flatten: bool = False):
+                log_softmax: bool = False, flatten: bool = False):
         "Take in and process masked src and target sequences."
         encoder_states = self.encode(device, src_inputs, src_mask)
         if generate:

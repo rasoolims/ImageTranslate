@@ -13,7 +13,7 @@ def write(text_processor: TextProcessor, output_file: str, txt_file: str, output
                 tokenized = [text_processor.id2token(tok) for tok in tok_line]
             else:
                 tokenized = [str(tok) for tok in tok_line]
-            writer.write("\n".join(tokenized) + "\n")
+            writer.write(" ".join(tokenized) + "\n")
 
 
 def get_options():
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     options = get_options()
     tokenizer = TextProcessor(options.tokenizer_path)
 
-    print("writing batch")
+    print("writing")
     write(text_processor=tokenizer, output_file=options.output_path, txt_file=options.data_path,
           output_txt=options.output_text)
     print("finished")

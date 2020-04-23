@@ -199,7 +199,7 @@ class Trainer:
                                        pad_idx=lm.text_processor.pad_token_id())
 
         pin_memory = torch.cuda.is_available()
-        loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+        loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
         valid_loader = data_utils.DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
         trainer = Trainer(model=mt_model, mask_prob=options.mask_prob,

@@ -1,33 +1,19 @@
-import pickle
 from optparse import OptionParser
-
-import torch
 
 from textprocessor import TextProcessor
 
 
 def write(text_processor: TextProcessor, output_file: str, txt_file: str, output_txt: bool = False):
-    examples = {}
-
-    with open(txt_file, "r") as fp:
+    with open(txt_file, "r") as fp, open(output_file, "w") as writer:
         for line in fp:
-            if len(line.strip()) == 0 or len(dst_line.strip()) == 0: continue
-            src_tok_line = text_processor.tokenize_one_line(line.strip(), ignore_middle_eos=True)
-            dst_tok_line = text_processor.tokenize_one_line(dst_line.strip(), ignore_middle_eos=True)
-            examples[line_num] = (torch.LongTensor(src_tok_line), torch.LongTensor(dst_tok_line))
-            lens[line_num] = len(src_tok_line)
-            line_num += 1
+            if len(line.strip()) == 0 or len(line.strip()) == 0: continue
+            tok_line = text_processor.tokenize_one_line(line.strip(), ignore_middle_eos=True)
 
-    sorted_lens = sorted(lens.items(), key=lambda item: item[1])
-    sorted_examples = []
-    for len_item in sorted_lens:
-        line_num = len(sorted_examples)
-        sorted_examples.append(examples[len_item[0]])
-
-    with open(output_file, "wb") as fw:
-        pickle.dump(sorted_examples, fw)
-
-    print(f"Dumped {line_num + 1} small vectors!")
+            if output_txt:
+                tokenized = [text_processor.id2token(tok) for tok in tok_line]
+            else:
+                tokenized = [str(tok) for tok in tok_line]
+            writer.write("\n".join(tokenized) + "\n")
 
 
 def get_options():
@@ -48,5 +34,5 @@ if __name__ == "__main__":
 
     print("writing batch")
     write(text_processor=tokenizer, output_file=options.output_path, txt_file=options.data_path,
-          dst_txt_file=options.dst_data_path)
+          output_txt=options.output_text)
     print("finished")

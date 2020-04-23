@@ -183,10 +183,15 @@ class Trainer:
         else:
             lm = LM.load(options.pretrained_path)
 
+        trainer = Trainer(model=lm, mask_prob=options.mask_prob,
+                          optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
+                          clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps,
+                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, distributed=options.distributed,
+                          local_rank=options.local_rank)
+
         train_data = dataset.TextDataset(save_cache_dir=options.train_cache_path, max_cache_size=options.cache_size)
         valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size)
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
-
         train_sampler, valid_sampler = None, None
         if options.distributed:
             train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
@@ -197,18 +202,6 @@ class Trainer:
                                        collate_fn=collator, sampler=train_sampler)
         valid_loader = data_utils.DataLoader(valid_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
                                              collate_fn=collator, sampler=valid_sampler)
-
-        trainer = Trainer(model=lm, mask_prob=options.mask_prob,
-                          optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
-                          clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps,
-                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, distributed=options.distributed,
-                          local_rank=options.local_rank)
-
-        if options.fp16:
-            try:
-                from apex import amp
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
 
         for i in range(options.num_epochs):
             print("train epoch", i)

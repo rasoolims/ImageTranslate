@@ -29,7 +29,9 @@ class TextDataset(Dataset):
             self.file_count = int(spl[2])
 
         if load_all:
+            print("Loading all data at once...")
             self.rebuild_cache(0, self.file_count)
+            print("Done!")
 
     def __len__(self):
         return self.line_num

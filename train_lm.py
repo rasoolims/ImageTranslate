@@ -60,10 +60,6 @@ class Trainer:
     def build_optimizer(model, learning_rate, weight_decay):
         return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
-    def reset_optimizer(self):
-        self.optimizer.state = defaultdict(dict)
-        self.scheduler.last_epoch = -1
-
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader,
                     saving_path: str, max_grad_norm: float = 1.0):
         if self.fp16:
@@ -128,11 +124,6 @@ class Trainer:
                 self.model.module if hasattr(self.model, "module") else self.model
             )
             model_to_save.save(saving_path + ".latest")
-        elif current_loss > self.last_train_loss:
-            # Restart optimizer state to see if anything changes
-            print("Restarting optimizer!")
-            self.reset_optimizer()
-
         self.last_train_loss = current_loss
 
         self.validate_and_save(saving_path, valid_data_iter)

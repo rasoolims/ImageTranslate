@@ -160,6 +160,10 @@ class LM(nn.Module):
         texts[mask] = replacements
         return mask, masked_ids, texts
 
+    def unmask_text(self, mask, masked_ids, texts):
+        # Return back the original masked elements!
+        texts[mask] = masked_ids
+
     def save(self, out_dir: str):
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)

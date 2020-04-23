@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class TextDataset(Dataset):
-    def __init__(self, save_cache_dir: str, max_cache_size: int = 100):
+    def __init__(self, save_cache_dir: str, max_cache_size: int = 100, load_all: bool = False):
         """
         :param save_cache_dir: directory that has saved pickle files for the data.
         :param max_cache_size: Max number of items in cache
@@ -28,12 +28,15 @@ class TextDataset(Dataset):
             self.line_num = int(spl[1])
             self.file_count = int(spl[2])
 
+        if load_all:
+            self.rebuild_cache(0, self.file_count)
+
     def __len__(self):
         return self.line_num
 
-    def rebuild_cache(self, start_file_num):
+    def rebuild_cache(self, start_file_num, end_file_num):
         self.current_cache = {}
-        for file_num in range(start_file_num, min(self.file_count, start_file_num + self.max_cache_size)):
+        for file_num in range(start_file_num, end_file_num):
             with open(os.path.join(self.save_cache_dir, str(file_num)) + ".pkl", "rb") as fp:
                 examples = pickle.load(fp)
                 self.current_cache[file_num] = examples
@@ -43,7 +46,7 @@ class TextDataset(Dataset):
 
         if file_num not in self.current_cache:
             print("Loading data into cache...")
-            self.rebuild_cache(file_num)
+            self.rebuild_cache(file_num, min(self.file_count, file_num + self.max_cache_size))
             print("Loading data into cache done!")
         examples = self.current_cache[file_num]
         return examples[item]

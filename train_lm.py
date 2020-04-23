@@ -58,7 +58,7 @@ class Trainer:
                 os.environ['MASTER_ADDR'] = "127.0.0.1"
                 os.environ['MASTER_PORT'] = "29500"
                 torch.distributed.init_process_group(backend='nccl', init_method='env://', rank=local_rank,
-                                                     world_size=num_gpu)
+                                                     world_size=1)
                 self.model = apex.parallel.DistributedDataParallel(self.model)
             else:
                 self.model = DataParallelModel(self.model)
@@ -91,11 +91,14 @@ class Trainer:
             model_to_call = self.model.module if hasattr(self.model, "module") else self.model
             mask, target, texts = model_to_call.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"])
             predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
+            model_to_call.unmask_text(mask, target, texts)
             ntokens = target.size(0)
 
             if ntokens == 0:  # Nothing to predict!
                 continue
 
+            if self.distributed:
+                target = target.to(predictions.device)
             loss = self.criterion(predictions, target).mean()
             if self.fp16 or self.distributed:
                 with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
@@ -151,11 +154,13 @@ class Trainer:
                 model_to_call = self.model.module if hasattr(self.model, "module") else self.model
                 mask, target, texts = model_to_call.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"].clone())
                 predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
+                model_to_call.unmask_text(mask, target, texts)
                 ntokens = target.size(0)
 
                 if ntokens == 0:  # Nothing to predict!
                     continue
-
+                if self.distributed:
+                    target = target.to(predictions.device)
                 loss = self.criterion(predictions, target).mean().data * ntokens
                 total_valid_loss += float(loss)
                 total_valid_tokens += ntokens
@@ -189,8 +194,10 @@ class Trainer:
                           fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, distributed=options.distributed,
                           local_rank=options.local_rank)
 
-        train_data = dataset.TextDataset(save_cache_dir=options.train_cache_path, max_cache_size=options.cache_size)
-        valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size)
+        train_data = dataset.TextDataset(save_cache_dir=options.train_cache_path, max_cache_size=options.cache_size,
+                                         load_all=options.distributed)
+        valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size,
+                                         load_all=True)
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
         train_sampler, valid_sampler = None, None
         if options.distributed:
@@ -205,7 +212,6 @@ class Trainer:
 
         for i in range(options.num_epochs):
             print("train epoch", i)
-            train_data.current_cache = {}  # make sure that we don't use previously masked data!
             trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader, saving_path=options.model_path)
 
 

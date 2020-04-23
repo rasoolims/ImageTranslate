@@ -21,7 +21,8 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 class Trainer:
     def __init__(self, model: LM, mask_prob: float = 0.15, clip: int = 1, optimizer=None, warmup: float = 0.1,
-                 warmup_steps: int = 125000, fp16: bool = False, fp16_opt_level: str = "01", distributed:bool=False, local_rank:int=0):
+                 warmup_steps: int = 125000, fp16: bool = False, fp16_opt_level: str = "01", distributed: bool = False,
+                 local_rank: int = 0):
         self.model = model
 
         self.clip = clip
@@ -52,8 +53,11 @@ class Trainer:
             print("Let's use", num_gpu, "GPUs!")
             if distributed:
                 torch.cuda.set_device(local_rank)
-                torch.distributed.init_process_group(backend='nccl', init_method='env://')
-                self.model = apex.amp.DistributedDataParallel(self.model)
+                os.environ['MASTER_ADDR'] = "127.0.0.1"
+                os.environ['MASTER_PORT'] = "29500"
+                torch.distributed.init_process_group(backend='nccl', init_method='env://', rank=local_rank,
+                                                     world_size=num_gpu)
+                self.model = apex.parallel.DistributedDataParallel(self.model)
             else:
                 self.model = DataParallelModel(self.model)
                 self.criterion = DataParallelCriterion(self.criterion)
@@ -190,7 +194,8 @@ class Trainer:
         trainer = Trainer(model=lm, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
                           clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps,
-                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, distributed=options.distributed, local_rank=options.local_rank)
+                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, distributed=options.distributed,
+                          local_rank=options.local_rank)
 
         if options.fp16:
             try:
@@ -234,7 +239,8 @@ def get_options():
     parser.add_option("--heads", dest="num_heads", help="Number of attention heads", type="int", default=8)
     parser.add_option("--local_rank", dest="local_rank", help="For distributed training", type="int", default=0)
     parser.add_option("--fp16", action="store_true", dest="fp16", help="use fp16; should be compatible", default=False)
-    parser.add_option("--distributed", action="store_true", dest="distributed", help="Use distributed data parallelism using the Apex library.", default=False)
+    parser.add_option("--distributed", action="store_true", dest="distributed",
+                      help="Use distributed data parallelism using the Apex library.", default=False)
     parser.add_option("--size", dest="model_size", help="Model size: 1 (base), 2 (medium), 3 (small)", type="int",
                       default=3)
     parser.add_option(

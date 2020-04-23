@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
+import torch.backends.cudnn as cudnn
 
 import dataset
 from lm import LM
@@ -35,6 +36,7 @@ class Trainer:
         self.model = self.model.to(self.device)
 
         if fp16 or distributed:
+            cudnn.enabled = True
             try:
                 import apex
             except ImportError:

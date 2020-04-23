@@ -188,16 +188,17 @@ class Trainer:
         else:
             lm = LM.load(options.pretrained_path)
 
+        train_data = dataset.TextDataset(save_cache_dir=options.train_cache_path, max_cache_size=options.cache_size,
+                                         load_all=options.distributed)
+        valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size,
+                                         load_all=True)
+
         trainer = Trainer(model=lm, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
                           clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps,
                           fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, distributed=options.distributed,
                           local_rank=options.local_rank)
 
-        train_data = dataset.TextDataset(save_cache_dir=options.train_cache_path, max_cache_size=options.cache_size,
-                                         load_all=options.distributed)
-        valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size,
-                                         load_all=True)
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
         train_sampler, valid_sampler = None, None
         if options.distributed:

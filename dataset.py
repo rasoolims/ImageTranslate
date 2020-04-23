@@ -78,8 +78,9 @@ class MTDataset(Dataset):
                     dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
                     src_pad_mask = (src_batch == pad_idx)
                     dst_pad_mask = (dst_batch == pad_idx)
-                    self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                                         "dst_pad_mask": dst_pad_mask})
+                    minibatch = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
+                                         "dst_pad_mask": dst_pad_mask}
+                    self.batches = [minibatch] + self.batches
                     cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
                     cur_max_src_len, cur_max_dst_len = int(cur_src_batch[0].size(0)), int(cur_dst_batch[0].size(0))
 
@@ -88,8 +89,9 @@ class MTDataset(Dataset):
             dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
             src_pad_mask = (src_batch == pad_idx)
             dst_pad_mask = (dst_batch == pad_idx)
-            self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                                 "dst_pad_mask": dst_pad_mask})
+            minibatch = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
+                         "dst_pad_mask": dst_pad_mask}
+            self.batches = [minibatch] + self.batches
             print(src_batch.size(), dst_batch.size())
 
         print("loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))

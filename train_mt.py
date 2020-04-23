@@ -81,7 +81,6 @@ class Trainer:
             src_mask = batch["src_pad_mask"].squeeze()
             tgt_inputs = batch["dst_texts"].squeeze()
             tgt_mask = batch["dst_pad_mask"].squeeze()
-            print(src_inputs.size(), tgt_inputs.size())
 
             predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                      src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)

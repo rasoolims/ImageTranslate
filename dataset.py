@@ -95,7 +95,6 @@ class MTDataset(Dataset):
             dst_pad_mask = (dst_batch == pad_idx)
             self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                                  "dst_pad_mask": dst_pad_mask})
-            print(src_batch.size(), dst_batch.size())
 
         print("loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
 

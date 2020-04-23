@@ -5,11 +5,11 @@ import time
 from optparse import OptionParser
 
 import torch
+import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
-import torch.backends.cudnn as cudnn
 
 import dataset
 from lm import LM
@@ -187,11 +187,16 @@ class Trainer:
         valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size)
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
 
+        train_sampler, valid_sampler = None, None
+        if options.distributed:
+            train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
+            valid_sampler = torch.utils.data.distributed.DistributedSampler(valid_data)
+
         pin_memory = torch.cuda.is_available()
         loader = data_utils.DataLoader(train_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
-                                       collate_fn=collator)
+                                       collate_fn=collator, sampler=train_sampler)
         valid_loader = data_utils.DataLoader(valid_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
-                                             collate_fn=collator)
+                                             collate_fn=collator, sampler=valid_sampler)
 
         trainer = Trainer(model=lm, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),

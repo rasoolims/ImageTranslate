@@ -2,7 +2,6 @@ import datetime
 import os
 import sys
 import time
-from collections import defaultdict
 from optparse import OptionParser
 
 import torch
@@ -22,17 +21,19 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 class Trainer:
     def __init__(self, model: LM, mask_prob: float = 0.15, clip: int = 1, optimizer=None, warmup: float = 0.1,
-                 warmup_steps: int = 125000, fp16: bool = False, fp16_opt_level: str = "01"):
+                 warmup_steps: int = 125000, fp16: bool = False, fp16_opt_level: str = "01", distributed:bool=False, local_rank:int=0):
         self.model = model
 
         self.clip = clip
         self.optimizer = optimizer
         self.fp16 = fp16
+        self.distributed = distributed
+        self.local_rank = local_rank
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.model.to(self.device)
 
-        if fp16:
+        if fp16 or distributed:
             try:
                 import apex
             except ImportError:
@@ -49,8 +50,13 @@ class Trainer:
         num_gpu = torch.cuda.device_count()
         if num_gpu > 1:
             print("Let's use", num_gpu, "GPUs!")
-            self.model = DataParallelModel(self.model)
-            self.criterion = DataParallelCriterion(self.criterion)
+            if distributed:
+                torch.cuda.set_device(local_rank)
+                torch.distributed.init_process_group(backend='nccl', init_method='env://')
+                self.model = apex.amp.DistributedDataParallel(self.model)
+            else:
+                self.model = DataParallelModel(self.model)
+                self.criterion = DataParallelCriterion(self.criterion)
 
         self.best_valid_loss = float("inf")
         self.best_train_loss = float("inf")
@@ -62,7 +68,7 @@ class Trainer:
 
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader,
                     saving_path: str, max_grad_norm: float = 1.0):
-        if self.fp16:
+        if self.fp16 or self.distributed:
             try:
                 import apex
             except ImportError:
@@ -85,7 +91,7 @@ class Trainer:
                 continue
 
             loss = self.criterion(predictions, target).mean()
-            if self.fp16:
+            if self.fp16 or self.distributed:
                 with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
                     scaled_loss.backward()
             else:
@@ -184,7 +190,7 @@ class Trainer:
         trainer = Trainer(model=lm, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
                           clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps,
-                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level)
+                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, distributed=options.distributed, local_rank=options.local_rank)
 
         if options.fp16:
             try:
@@ -226,7 +232,9 @@ def get_options():
     parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
     parser.add_option("--layer", dest="num_layers", help="Number of Layers in cross-attention", type="int", default=2)
     parser.add_option("--heads", dest="num_heads", help="Number of attention heads", type="int", default=8)
+    parser.add_option("--local_rank", dest="local_rank", help="For distributed training", type="int", default=0)
     parser.add_option("--fp16", action="store_true", dest="fp16", help="use fp16; should be compatible", default=False)
+    parser.add_option("--distributed", action="store_true", dest="distributed", help="Use distributed data parallelism using the Apex library.", default=False)
     parser.add_option("--size", dest="model_size", help="Model size: 1 (base), 2 (medium), 3 (small)", type="int",
                       default=3)
     parser.add_option(

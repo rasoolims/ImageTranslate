@@ -4,10 +4,12 @@ import unittest
 from pathlib import Path
 
 import torch
+from torchvision import transforms
 
+import binarize_image_doc_data
 import create_batches
 from albert_seq2seq import AlbertSeq2Seq
-from dataset import TextDataset
+from dataset import TextDataset, ImageDocDataset
 from lm import LM
 from textprocessor import TextProcessor
 
@@ -106,6 +108,28 @@ class TestModel(unittest.TestCase):
 
             dataset.__getitem__(50)
             assert len(dataset.current_cache) == 3
+
+    def test_image_data(self):
+        transform = transforms.Compose([  # [1]
+            transforms.Resize(256),  # [2]
+            transforms.CenterCrop(224),  # [3]
+            transforms.ToTensor(),  # [4]
+            transforms.Normalize(  # [5]
+                mean=[0.485, 0.456, 0.406],  # [6]
+                std=[0.229, 0.224, 0.225]  # [7]
+            )])
+
+        path_dir_name = os.path.dirname(os.path.realpath(__file__))
+        text_data_path = os.path.join(path_dir_name, "sample.txt")
+        data_path = os.path.join(path_dir_name, "image_jsons")
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            processor = TextProcessor()
+            processor.train_tokenizer([text_data_path], vocab_size=1000, to_save_dir=tmpdirname)
+            binarize_image_doc_data.write(text_processor=processor, output_file=os.path.join(tmpdirname, "image.bin"),
+                                          max_seq_len=512, json_dir=data_path, files_to_use="mzn,glk")
+            image_data = ImageDocDataset(os.path.join(tmpdirname, "image.bin"), transform)
+            assert len(image_data) == 637
 
 
 if __name__ == '__main__':

@@ -60,7 +60,7 @@ def write(text_processor: TextProcessor, output_file: str,
 
             print(len(doc_dicts), "max caption length", max_caption_len)
     print("%d images, %d docs, %d captions, max doc vec %d" % (
-    len(unique_images), len(unique_docs), len(caption_dict), max_doc_size))
+        len(unique_images), len(unique_docs), len(caption_dict), max_doc_size))
     with open(output_file, "wb") as fp:
         pickle.dump((unique_docs, unique_images, caption_dict), fp)
 

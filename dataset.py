@@ -5,6 +5,7 @@ import pickle
 from typing import Dict, List, Tuple
 
 import torch
+from PIL import Image
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 
@@ -103,6 +104,27 @@ class MTDataset(Dataset):
 
     def __getitem__(self, item):
         return self.batches[item]
+
+
+class ImageDocDataset(Dataset):
+    def __init__(self, data_bin_file: str, transform):
+        with open(data_bin_file, "rb") as fp:
+            self.docs, self.images, self.captions = pickle.load(fp)
+
+            print("loaded %d images, %d captions, %d docs!" % (len(self.images), len(self.captions), len(self.docs)))
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.captions)
+
+    def __getitem__(self, item):
+        image_id = self.captions[item]["image_id"]
+        image = Image.open(self.images[image_id]).convert("RGB")  # make sure not to deal with rgba or grayscale images.
+        if self.transform is not None:
+            image = self.transform(image)
+
+        return {"image": image, "caption": self.captions[item]["caption"], "doc": self.captions[item]["doc"],
+                "language": self.captions[item]["language"]}
 
 
 class TextCollator(object):

@@ -1,7 +1,6 @@
 import json
 import os
 import pickle
-from collections import defaultdict
 from optparse import OptionParser
 
 from textprocessor import TextProcessor
@@ -14,7 +13,11 @@ def write(text_processor: TextProcessor, output_file: str,
         relevant_files = {f + ".json" for f in files_to_use.strip().split(",")}
 
     num_captions, num_docs, max_doc_size = 0, 0, 0
-    image_data = defaultdict(list)
+    unique_docs = {}
+    unique_images = {}
+    caption_dict = {}
+    image_path_dict = {}
+
     for file in os.listdir(json_dir):
         if not file.endswith(".json"):
             continue
@@ -22,6 +25,7 @@ def write(text_processor: TextProcessor, output_file: str,
             continue
 
         print(file)
+
         with open(os.path.join(json_dir, file), "rb") as fp:
             doc_dicts = json.load(fp)
             max_caption_len = 0
@@ -30,20 +34,35 @@ def write(text_processor: TextProcessor, output_file: str,
                 lang = doc["lang"]
                 tok_line = text_processor.tokenize_one_line(content.strip())
                 tok_lines = text_processor.split_tokenized(tok_line, max_length=max_seq_len)
+
+                doc_id = len(unique_docs)
+                unique_docs[doc_id] = tok_lines
+
                 max_doc_size = max(max_doc_size, len(tok_lines))
-                num_docs += 1
                 num_captions += len(doc["images"])
                 for image in doc["images"]:
                     path = image["img_path"]
+
+                    if path not in image_path_dict:
+                        image_id = len(unique_images)
+                        unique_images[image_id] = path
+                        image_path_dict[path] = image_id
+                    else:
+                        image_id = image_path_dict[path]
+                        unique_images[image_id] = path
+
                     caption = text_processor.tokenize_one_line(image["caption"], ignore_middle_eos=True)
+
+                    caption_id = len(caption_dict)
+                    caption_dict[caption_id] = {"caption": caption, "language": lang, "doc_id": doc_id,
+                                                "image_id": image_id}
                     max_caption_len = max(len(caption), max_caption_len)
-                    entry = {"caption": caption, "language": lang, "content": tok_lines}
-                    image_data[path].append(entry)
 
             print(len(doc_dicts), "max caption length", max_caption_len)
-    print("%d images, %d docs, %d captions, max doc vec %d" % (len(image_data), num_docs, num_captions, max_doc_size))
+    print("%d images, %d docs, %d captions, max doc vec %d" % (
+    len(unique_images), len(unique_docs), len(caption_dict), max_doc_size))
     with open(output_file, "wb") as fp:
-        pickle.dump(image_data, fp)
+        pickle.dump((unique_docs, unique_images, caption_dict), fp)
 
 
 def get_options():

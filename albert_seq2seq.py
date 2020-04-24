@@ -33,7 +33,6 @@ class AlbertSeq2Seq(nn.Module):
 
         outputs = []
         for i in range(1, tgt_inputs.size(1)):
-            dec_states = self.encode(device, tgt_inputs[:, :i], tgt_mask[:, :i])
             decoder_states = self.decoder(encoder_states[0], tgt_inputs[:, :i], src_mask, tgt_mask[:, :i])
             output = self.output_layer(decoder_states[:, -1, :])
             if log_softmax:

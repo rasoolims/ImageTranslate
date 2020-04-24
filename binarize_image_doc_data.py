@@ -37,9 +37,9 @@ def write(text_processor: TextProcessor, output_file: str,
                 tok_lines = text_processor.tokenize_lines(content.strip())
 
                 doc_id = len(unique_docs)
-                unique_docs[doc_id] = torch.stack([torch.LongTensor(t) for t in tok_lines])
+                unique_docs[doc_id] = [torch.LongTensor(t) for t in tok_lines]
 
-                max_doc_size = max(max_doc_size, unique_docs[doc_id].size(0))
+                max_doc_size = max(max_doc_size, len(unique_docs[doc_id]))
                 num_captions += len(doc["images"])
                 for image in doc["images"]:
                     path = image["img_path"]

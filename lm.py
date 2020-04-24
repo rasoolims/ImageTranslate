@@ -85,7 +85,7 @@ class LM(nn.Module):
             "intermediate_size": 4096,
             "max_position_embeddings": 512,
             "num_attention_heads": 8,  # smaller than usual
-            "num_hidden_layers": 4,  # smaller than usual
+            "num_hidden_layers": 3,  # smaller than usual
             "num_hidden_groups": 1,
             "net_structure_type": 0,
             "gap_size": 0,

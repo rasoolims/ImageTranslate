@@ -24,7 +24,7 @@ def write(text_processor: TextProcessor, output_file: str,
         print(file)
         with open(os.path.join(json_dir, file), "rb") as fp:
             doc_dicts = json.load(fp)
-
+            max_caption_len = 0
             for doc in doc_dicts:
                 content = doc["content"]
                 lang = doc["lang"]
@@ -35,14 +35,13 @@ def write(text_processor: TextProcessor, output_file: str,
                 num_captions += len(doc["images"])
                 for image in doc["images"]:
                     path = image["img_path"]
-                    caption = image["caption"]
-
+                    caption = text_processor.tokenize_one_line(image["caption"], ignore_middle_eos=True)
+                    max_caption_len = max(len(caption), max_caption_len)
                     entry = {"caption": caption, "language": lang, "content": tok_lines}
                     image_data[path].append(entry)
 
-            print(len(doc_dicts))
-    print(
-        "num images %d, docs %d, captions %d, max doc vec %d" % (len(image_data), num_docs, num_captions, max_doc_size))
+            print(len(doc_dicts), "max caption length", max_caption_len)
+    print("%d images, %d docs, %d captions, max doc vec %d" % (len(image_data), num_docs, num_captions, max_doc_size))
     with open(output_file, "wb") as fp:
         pickle.dump(image_data, fp)
 

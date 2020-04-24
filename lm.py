@@ -80,11 +80,11 @@ class LM(nn.Module):
             "hidden_act": "gelu_new",
             "hidden_dropout_prob": 0.1,
             "embedding_size": 128,
-            "hidden_size": 768,
+            "hidden_size": 1024,
             "initializer_range": 0.02,
-            "intermediate_size": 3072,
+            "intermediate_size": 4096,
             "max_position_embeddings": 512,
-            "num_attention_heads": 4,  # smaller than usual
+            "num_attention_heads": 8,  # smaller than usual
             "num_hidden_layers": 4,  # smaller than usual
             "num_hidden_groups": 1,
             "net_structure_type": 0,

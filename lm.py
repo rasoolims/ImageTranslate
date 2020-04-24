@@ -57,8 +57,8 @@ class LM(nn.Module):
             "initializer_range": 0.02,
             "intermediate_size": 16384,
             "max_position_embeddings": 512,
-            "num_attention_heads": 64,
-            "num_hidden_layers": 12,
+            "num_attention_heads": 64,  # smaller than usual
+            "num_hidden_layers": 12,  # smaller than usual
             "num_hidden_groups": 1,
             "net_structure_type": 0,
             "gap_size": 0,
@@ -80,12 +80,12 @@ class LM(nn.Module):
             "hidden_act": "gelu_new",
             "hidden_dropout_prob": 0.1,
             "embedding_size": 128,
-            "hidden_size": 2048,
+            "hidden_size": 768,
             "initializer_range": 0.02,
-            "intermediate_size": 8192,
+            "intermediate_size": 3072,
             "max_position_embeddings": 512,
-            "num_attention_heads": 32,
-            "num_hidden_layers": 3,
+            "num_attention_heads": 4,  # smaller than usual
+            "num_hidden_layers": 4,  # smaller than usual
             "num_hidden_groups": 1,
             "net_structure_type": 0,
             "gap_size": 0,

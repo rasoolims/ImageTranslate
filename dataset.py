@@ -58,8 +58,6 @@ class TextDataset(Dataset):
 class MTDataset(Dataset):
     def __init__(self, batch_pickle_dir: str, max_batch_capcity: int, max_batch_total_capcity: int, max_batch: int,
                  pad_idx: int, max_seq_len: int = 512):
-        self.current_cache: Dict[Dict[int, torch.LongTensor]] = {}
-
         self.batches = []
         with open(batch_pickle_dir, "rb") as fr:
             examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
@@ -107,24 +105,68 @@ class MTDataset(Dataset):
 
 
 class ImageDocDataset(Dataset):
-    def __init__(self, data_bin_file: str, transform):
-        with open(data_bin_file, "rb") as fp:
-            self.docs, self.images, self.captions = pickle.load(fp)
-
-            print("loaded %d images, %d captions, %d docs!" % (len(self.images), len(self.captions), len(self.docs)))
+    def __init__(self, data_bin_file: str, transform, max_doc_batch_capacity: int, pad_index: int):
         self.transform = transform
 
+        self.batches = []
+        max_doc_batch_capacity *= 1000000
+        with open(data_bin_file, "rb") as fp:
+            doc_ids, images, captions = pickle.load(fp)
+            cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices = [], [], [], []
+            cur_max_doc_cap = 0
+
+            # We can sort the captions based on their corresponding document sentence length (second dim) to
+            # maximize GPU utilization.
+            caption_len_dict = {id: doc_ids[captions[id]["doc_id"]][0].size(0) for id in captions.keys()}
+            sorted_caption_lens = sorted(caption_len_dict.items(), key=lambda x: x[1])
+
+            for id, _ in sorted_caption_lens:
+                docs = doc_ids[captions[id]["doc_id"]]
+                caption = captions[id]["caption"]
+                doc_len = len(docs) * (docs[0].size(0) ** 2)  # based on transformer's memory consumption!
+
+                if cur_max_doc_cap > 0 and max(cur_max_doc_cap, doc_len) * (
+                        len(cur_caption_batch) + 1) > max_doc_batch_capacity:
+                    all_docs = pad_sequence(cur_doc_batch, batch_first=True, padding_value=pad_index)
+                    all_captions = pad_sequence(cur_caption_batch, batch_first=True, padding_value=pad_index)
+                    assert len(doc_indices) == all_docs.size(0)
+                    assert len(cur_image_batch) == all_captions.size(0)
+                    entry = {"docs": all_docs, "captions": all_captions, "images": cur_image_batch,
+                             "doc_idx": doc_indices}
+                    self.batches.append(entry)
+                    cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices = [], [], [], []
+                    cur_max_doc_cap = 0
+                else:
+                    cur_max_doc_cap = max(cur_max_doc_cap, doc_len)
+                    cur_image_batch.append(images[captions[id]["image_id"]])
+                    caption_id = len(cur_caption_batch)
+                    doc_indices += [caption_id] * len(docs)
+                    cur_caption_batch.append(torch.LongTensor(caption))
+                    cur_doc_batch += docs
+
+            if len(cur_image_batch) > 0:
+                all_docs = pad_sequence(cur_caption_batch, batch_first=True, padding_value=pad_index)
+                all_captions = pad_sequence(cur_caption_batch, batch_first=True, padding_value=pad_index)
+                entry = {"docs": all_docs, "captions": all_captions, "images": cur_image_batch, "doc_idx": doc_indices}
+                self.batches.append(entry)
+
+            print("loaded %d images, %d captions, %d docs in %d batches!" % (
+            len(images), len(captions), len(docs), len(self.batches)))
+
     def __len__(self):
-        return len(self.captions)
+        return len(self.batches)
 
     def __getitem__(self, item):
-        image_id = self.captions[item]["image_id"]
-        image = Image.open(self.images[image_id]).convert("RGB")  # make sure not to deal with rgba or grayscale images.
-        if self.transform is not None:
-            image = self.transform(image)
+        batch = self.batches[item]
+        images = []
+        for image_path in batch["images"]:  # todo do it parallel?
+            # make sure not to deal with rgba or grayscale images.
+            image = Image.open(image_path.convert("RGB"))
+            if self.transform is not None:
+                image = self.transform(image)
+            images.append(image)
 
-        return {"image": image, "caption": self.captions[item]["caption"], "doc": self.captions[item]["doc"],
-                "language": self.captions[item]["language"]}
+        return {"images": images, "caption": batch["caption"], "doc": batch["doc"], "doc_idx": batch["doc_idx"]}
 
 
 class TextCollator(object):

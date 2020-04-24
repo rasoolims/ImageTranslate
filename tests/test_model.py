@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 
-from scripts import create_batches
+import create_batches
 from albert_seq2seq import AlbertSeq2Seq
 from dataset import TextDataset
 from lm import LM

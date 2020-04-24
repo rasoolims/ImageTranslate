@@ -3,6 +3,8 @@ import os
 import pickle
 from optparse import OptionParser
 
+import torch
+
 from textprocessor import TextProcessor
 
 
@@ -36,7 +38,7 @@ def write(text_processor: TextProcessor, output_file: str,
                 tok_lines = text_processor.split_tokenized(tok_line, max_length=max_seq_len)
 
                 doc_id = len(unique_docs)
-                unique_docs[doc_id] = tok_lines
+                unique_docs[doc_id] = torch.LongTensor(tok_lines)
 
                 max_doc_size = max(max_doc_size, len(tok_lines))
                 num_captions += len(doc["images"])

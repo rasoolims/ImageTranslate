@@ -34,13 +34,12 @@ def write(text_processor: TextProcessor, output_file: str,
             for doc in doc_dicts:
                 content = doc["content"]
                 lang = doc["lang"]
-                tok_line = text_processor.tokenize_one_line(content.strip())
-                tok_lines = text_processor.split_tokenized(tok_line, max_length=max_seq_len)
+                tok_lines = text_processor.tokenize_lines(content.strip())
 
                 doc_id = len(unique_docs)
-                unique_docs[doc_id] = torch.LongTensor(tok_lines)
+                unique_docs[doc_id] = torch.stack([torch.LongTensor(t) for t in tok_lines])
 
-                max_doc_size = max(max_doc_size, len(tok_lines))
+                max_doc_size = max(max_doc_size, unique_docs[doc_id].size(0))
                 num_captions += len(doc["images"])
                 for image in doc["images"]:
                     path = image["img_path"]
@@ -60,7 +59,7 @@ def write(text_processor: TextProcessor, output_file: str,
                                                 "image_id": image_id}
                     max_caption_len = max(len(caption), max_caption_len)
 
-            print(len(doc_dicts), "max caption length", max_caption_len)
+            print(len(doc_dicts), max_caption_len, max_doc_size)
     print("%d images, %d docs, %d captions, max doc vec %d" % (
         len(unique_images), len(unique_docs), len(caption_dict), max_doc_size))
     with open(output_file, "wb") as fp:

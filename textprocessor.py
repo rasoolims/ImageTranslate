@@ -76,6 +76,22 @@ class TextProcessor:
             tokenized += [self.sep_token_id()]
         return tokenized
 
+    def tokenize_lines(self, line) -> List[List[int]]:
+        tokenized = []
+        spl = [sen for sen in line.split("</s>") if len(sen.strip()) > 0]
+        if spl[0].startswith("<"):
+            words = spl[0].strip().split(" ")
+            spl[0] = " ".join(words[1:])
+            tokenized += [self.token_id(words[0])]
+
+        max_len = 0
+        for sen in spl:
+            toks = self._tokenize(sen).ids
+            tokenized += toks + [self.sep_token_id()]
+            max_len = max(max_len, len(toks) + 1)
+
+        return self.split_tokenized(tokenized, min(max_len, self.max_len))
+
     def tokenize(self, lines) -> List[List[int]]:
         lines = [line.strip() for line in lines.strip().split("\n") if len(line.strip()) > 0]
         tokenized = self.tokenizer.encode_batch(lines)

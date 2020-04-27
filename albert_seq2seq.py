@@ -8,6 +8,12 @@ from lm import LM
 from textprocessor import TextProcessor
 
 
+def future_mask(tgt_mask):
+    attn_shape = (tgt_mask.size(0), tgt_mask.size(1), tgt_mask.size(1))
+    future_mask = torch.triu(torch.ones(attn_shape), diagonal=1).type_as(tgt_mask)
+    return future_mask | tgt_mask.unsqueeze(-1)
+
+
 class AlbertSeq2Seq(nn.Module):
     def __init__(self, lm: LM, sep_encoder_decoder: bool = True):
         super(AlbertSeq2Seq, self).__init__()
@@ -26,21 +32,19 @@ class AlbertSeq2Seq(nn.Module):
     def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask, log_softmax: bool = False,
                 flatten: bool = False):
         "Take in and process masked src and target sequences."
-        encoder_states = self.encode(device, src_inputs, src_mask)
+        encoder_states = self.encode(device, src_inputs, src_mask)[0]
 
         tgt_inputs = tgt_inputs.to(device)
-        tgt_mask = tgt_mask.to(device)
 
-        outputs = []
-        for i in range(1, tgt_inputs.size(1)):
-            decoder_states = self.decoder(encoder_states[0], tgt_inputs[:, :i], src_mask, tgt_mask[:, :i])
-            output = self.output_layer(decoder_states[:, -1, :])
-            if log_softmax:
-                output = F.log_softmax(output, dim=1)
-            outputs.append(output)
-        outputs = torch.stack(outputs, dim=1)
+        subseq_mask = future_mask(tgt_mask[:, :-1]).to(device)
+        decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], src_mask, subseq_mask)
+        diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
+        outputs = self.output_layer(diag_outputs)
+        if log_softmax:
+            outputs = F.log_softmax(outputs, dim=-1)
         if flatten:
-            outputs = outputs.view(-1, outputs.size(2))
+            outputs = outputs.view(-1, outputs.size(-1))
+
         return outputs
 
     def save(self, out_dir: str):
@@ -107,7 +111,10 @@ class AlbertDecoderAttention(nn.Module):
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
         x = x.view(*new_x_shape)
-        return x.permute(0, 2, 1, 3)
+        if x.dim() == 4:
+            return x.permute(0, 2, 1, 3)
+        else:
+            return x.permute(0, 3, 1, 2, 4)
 
     def forward(self, encoder_states, output_ids, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
         output_ids_q = self.query(output_ids)
@@ -116,8 +123,10 @@ class AlbertDecoderAttention(nn.Module):
         encoder_states_k = self.key(encoder_states)
         encoder_states_v = self.value(encoder_states)
 
-        output_attention = self.attention(output_ids_q, output_ids_k, output_ids_v, tgt_attention_mask)
-        cross_attention = self.attention(output_attention[0], encoder_states_k, encoder_states_v)
+        output_attention = self.attention(output_ids_q, output_ids_k, output_ids_v,
+                                          src_attention_mask=tgt_attention_mask, tgt_attention_mask=tgt_attention_mask)
+        cross_attention = self.attention(output_attention[0], encoder_states_k, encoder_states_v,
+                                         src_attention_mask=src_attention_mask)
         return cross_attention
 
     def attention(self, q, k, v, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
@@ -125,15 +134,30 @@ class AlbertDecoderAttention(nn.Module):
         key_layer = self.transpose_for_scores(k)
         value_layer = self.transpose_for_scores(v)
 
+        if query_layer.dim() == 5 and key_layer.dim() == 4:
+            key_layer = key_layer.unsqueeze(2).expand(-1, -1, query_layer.size(2), -1, -1)
+        if query_layer.dim() == 5 and value_layer.dim() == 4:
+            value_layer = value_layer.unsqueeze(2).expand(-1, -1, query_layer.size(2), -1, -1)
+
         # Take the dot product between "query" and "key" to get the raw attention scores.
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+
         if src_attention_mask is not None:
             # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
+            if src_attention_mask.dim() > 4 and attention_scores.dim() == 4:
+                attention_scores = attention_scores.unsqueeze(2).expand(-1, -1, attention_scores.size(2), -1, -1)
+            if src_attention_mask.dim() == 4 and attention_scores.dim() == 5:
+                src_attention_mask = src_attention_mask.unsqueeze(2).expand(-1, -1, attention_scores.size(2), -1, -1)
+
             attention_scores = attention_scores + src_attention_mask
 
         if tgt_attention_mask is not None:
             # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
+            if tgt_attention_mask.dim() > 4 and attention_scores.dim() == 4:
+                attention_scores = attention_scores.unsqueeze(2).expand(-1, -1, attention_scores.size(2), -1, -1)
+            if tgt_attention_mask.dim() == 4 and attention_scores.dim() == 5:
+                tgt_attention_mask = tgt_attention_mask.unsqueeze(2).expand(-1, -1, attention_scores.size(2), -1, -1)
             attention_scores = attention_scores + tgt_attention_mask
 
         # Normalize the attention scores to probabilities.
@@ -147,9 +171,15 @@ class AlbertDecoderAttention(nn.Module):
         if head_mask is not None:
             attention_probs = attention_probs * head_mask
 
+        if attention_probs.dim() > 4 and value_layer.dim() == 4:
+            value_layer = value_layer.unsqueeze(2).expand(-1, -1, value_layer.size(2), -1, -1)
+
         context_layer = torch.matmul(attention_probs, value_layer)
 
-        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        if context_layer.dim() == 4:
+            context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        else:
+            context_layer = context_layer.permute(0, 2, 3, 1, 4).contiguous()
 
         # Should find a better way to do this
         w = (
@@ -159,9 +189,17 @@ class AlbertDecoderAttention(nn.Module):
         )
         b = self.dense.bias.to(context_layer.dtype)
 
-        projected_context_layer = torch.einsum("bfnd,ndh->bfh", context_layer, w) + b
+        if context_layer.dim() == 4:
+            projected_context_layer = torch.einsum("bfnd,ndh->bfh", context_layer, w) + b
+        else:
+            projected_context_layer = torch.einsum("bfxnd,ndh->bfxh", context_layer, w) + b
+
         projected_context_layer_dropout = self.dropout(projected_context_layer)
-        layernormed_context_layer = self.LayerNorm(q + projected_context_layer_dropout)
+
+        query = q
+        if projected_context_layer_dropout.dim() == 4 and query.dim() < 4:
+            query = query.unsqueeze(1).expand(-1, query.size(1), -1, -1)
+        layernormed_context_layer = self.LayerNorm(query + projected_context_layer_dropout)
         return (layernormed_context_layer, attention_probs) if self.output_attentions else (layernormed_context_layer,)
 
 

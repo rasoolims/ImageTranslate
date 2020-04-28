@@ -233,8 +233,7 @@ def get_options():
                       default=None)
     parser.add_option("--epoch", dest="num_epochs", help="Number of training epochs", type="int", default=100)
     parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
-    parser.add_option("--capacity", dest="total_capacity", help="Batch capcity (batch_size*len**2)", type="int",
-                      default=200000)
+    parser.add_option("--capacity", dest="total_capacity", help="Batch capcity", type="int", default=20)
     parser.add_option("--batch", dest="batch", help="Batch num_tokens", type="int", default=25000)
     parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
     parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)

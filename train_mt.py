@@ -77,10 +77,10 @@ class Trainer:
         for i, batch in enumerate(data_iter):
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
-            src_inputs = batch["src_texts"].squeeze()
-            src_mask = batch["src_pad_mask"].squeeze()
-            tgt_inputs = batch["dst_texts"].squeeze()
-            tgt_mask = batch["dst_pad_mask"].squeeze()
+            src_inputs = batch["src_texts"].squeeze(0)
+            src_mask = batch["src_pad_mask"].squeeze(0)
+            tgt_inputs = batch["dst_texts"].squeeze(0)
+            tgt_mask = batch["dst_pad_mask"].squeeze(0)
 
             predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                      src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
@@ -190,10 +190,10 @@ class Trainer:
 
         mt_model = AlbertSeq2Seq(lm=lm, sep_encoder_decoder=options.sep_encoder)
 
-        train_data = dataset.MTDataset(batch_pickle_dir=options.train__path, max_batch_capcity=options.capacity,
+        train_data = dataset.MTDataset(batch_pickle_dir=options.train__path,
                                        max_batch_total_capcity=options.total_capacity, max_batch=options.batch,
                                        pad_idx=lm.text_processor.pad_token_id())
-        valid_data = dataset.MTDataset(batch_pickle_dir=options.valid__path, max_batch_capcity=options.capacity,
+        valid_data = dataset.MTDataset(batch_pickle_dir=options.valid__path,
                                        max_batch_total_capcity=options.total_capacity, max_batch=options.batch,
                                        pad_idx=lm.text_processor.pad_token_id())
 
@@ -233,9 +233,7 @@ def get_options():
                       default=None)
     parser.add_option("--epoch", dest="num_epochs", help="Number of training epochs", type="int", default=100)
     parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
-    parser.add_option("--capacity", dest="capacity", help="Batch capcity (batch_size*len**2)", type="int",
-                      default=150000)
-    parser.add_option("--total_capacity", dest="total_capacity", help="Batch capcity (batch_size*len**2)", type="int",
+    parser.add_option("--capacity", dest="total_capacity", help="Batch capcity (batch_size*len**2)", type="int",
                       default=200000)
     parser.add_option("--batch", dest="batch", help="Batch num_tokens", type="int", default=25000)
     parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)

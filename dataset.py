@@ -73,10 +73,11 @@ class MTDataset(Dataset):
                 cur_src_batch.append(src)
                 cur_dst_batch.append(dst)
 
-                batch_capacity_size = (cur_max_src_len ** 2 + cur_max_dst_len ** 2) * len(cur_src_batch) * cur_max_dst_len
+                batch_capacity_size = (cur_max_src_len ** 2 + cur_max_dst_len ** 2) * len(
+                    cur_src_batch) * cur_max_dst_len
                 batch_size = (cur_max_src_len + cur_max_dst_len) * len(cur_src_batch)
 
-                if batch_size > max_batch or batch_capacity_size > max_batch_total_capcity*1000000:
+                if batch_size > max_batch or batch_capacity_size > max_batch_total_capcity * 1000000:
                     src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
                     dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
                     src_pad_mask = (src_batch == pad_idx)
@@ -150,7 +151,7 @@ class ImageDocDataset(Dataset):
                 self.batches.append(entry)
 
             print("loaded %d images, %d captions, %d docs in %d batches!" % (
-            len(images), len(captions), len(docs), len(self.batches)))
+                len(images), len(captions), len(docs), len(self.batches)))
 
     def __len__(self):
         return len(self.batches)

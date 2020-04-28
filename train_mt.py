@@ -48,9 +48,9 @@ class Trainer:
         self.mask_prob = mask_prob
         self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
 
-        num_gpu = torch.cuda.device_count()
-        if num_gpu > 1:
-            print("Let's use", num_gpu, "GPUs!")
+        self.num_gpu = torch.cuda.device_count()
+        if self.num_gpu > 1:
+            print("Let's use", self.num_gpu, "GPUs!")
             self.model = DataParallelModel(self.model)
             self.criterion = DataParallelCriterion(self.criterion)
 
@@ -81,6 +81,9 @@ class Trainer:
             src_mask = batch["src_pad_mask"].squeeze(0)
             tgt_inputs = batch["dst_texts"].squeeze(0)
             tgt_mask = batch["dst_pad_mask"].squeeze(0)
+
+            if src_inputs.size(0)<self.num_gpu:
+                continue
 
             predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                      src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)

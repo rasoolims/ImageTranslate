@@ -91,7 +91,6 @@ class Trainer:
             model_to_call = self.model.module if hasattr(self.model, "module") else self.model
             mask, target, texts = model_to_call.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"])
             predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
-            model_to_call.unmask_text(mask, target, texts)
             ntokens = target.size(0)
 
             if ntokens == 0:  # Nothing to predict!
@@ -105,6 +104,8 @@ class Trainer:
                     scaled_loss.backward()
             else:
                 loss.backward()
+
+            model_to_call.unmask_text(mask, target, texts)
 
             if self.optimizer is not None:
                 if self.fp16:

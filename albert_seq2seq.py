@@ -124,41 +124,32 @@ class AlbertDecoderAttention(nn.Module):
         encoder_states_v = self.value(encoder_states)
 
         output_attention = self.attention(output_ids_q, output_ids_k, output_ids_v,
-                                          src_attention_mask=tgt_attention_mask, tgt_attention_mask=tgt_attention_mask)
+                                          attention_mask=tgt_attention_mask)
         cross_attention = self.attention(output_attention[0], encoder_states_k, encoder_states_v,
-                                         src_attention_mask=src_attention_mask)
+                                         attention_mask=src_attention_mask)
         return cross_attention
 
-    def attention(self, q, k, v, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
+    def attention(self, q, k, v, attention_mask=None, head_mask=None):
         query_layer = self.transpose_for_scores(q)
         key_layer = self.transpose_for_scores(k)
         value_layer = self.transpose_for_scores(v)
 
-        if query_layer.dim() == 5 and key_layer.dim() == 4:
-            key_layer = key_layer.unsqueeze(2).expand(-1, -1, query_layer.size(2), -1, -1)
-        if query_layer.dim() == 5 and value_layer.dim() == 4:
-            value_layer = value_layer.unsqueeze(2).expand(-1, -1, query_layer.size(2), -1, -1)
-
         # Take the dot product between "query" and "key" to get the raw attention scores.
-        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+        if query_layer.dim() == 5 and key_layer.dim() == 4:
+            attention_scores = torch.matmul(query_layer, key_layer.unsqueeze(2).transpose(-1, -2)).clone()
+        else:
+            attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
 
-        if src_attention_mask is not None:
+        if attention_mask is not None:
             # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
-            if src_attention_mask.dim() > 4 and attention_scores.dim() == 4:
-                attention_scores = attention_scores.unsqueeze(2).expand(-1, -1, attention_scores.size(2), -1, -1)
-            if src_attention_mask.dim() == 4 and attention_scores.dim() == 5:
-                src_attention_mask = src_attention_mask.unsqueeze(2).expand(-1, -1, attention_scores.size(2), -1, -1)
-
-            attention_scores = attention_scores + src_attention_mask
-
-        if tgt_attention_mask is not None:
-            # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
-            if tgt_attention_mask.dim() > 4 and attention_scores.dim() == 4:
-                attention_scores = attention_scores.unsqueeze(2).expand(-1, -1, attention_scores.size(2), -1, -1)
-            if tgt_attention_mask.dim() == 4 and attention_scores.dim() == 5:
-                tgt_attention_mask = tgt_attention_mask.unsqueeze(2).expand(-1, -1, attention_scores.size(2), -1, -1)
-            attention_scores = attention_scores + tgt_attention_mask
+            if attention_mask.dim() > 4 and attention_scores.dim() == 4:
+                # attention_scores = attention_scores.unsqueeze(2).expand(-1, -1, attention_scores.size(2), -1, -1)
+                attention_scores = attention_scores.unsqueeze(2) + attention_mask
+            elif attention_mask.dim() == 4 and attention_scores.dim() == 5:
+                attention_scores = attention_scores + attention_mask.unsqueeze(2)
+            else:
+                attention_scores = attention_scores + attention_mask
 
         # Normalize the attention scores to probabilities.
         attention_probs = nn.Softmax(dim=-1)(attention_scores)
@@ -172,9 +163,9 @@ class AlbertDecoderAttention(nn.Module):
             attention_probs = attention_probs * head_mask
 
         if attention_probs.dim() > 4 and value_layer.dim() == 4:
-            value_layer = value_layer.unsqueeze(2).expand(-1, -1, value_layer.size(2), -1, -1)
-
-        context_layer = torch.matmul(attention_probs, value_layer)
+            context_layer = torch.matmul(attention_probs, value_layer.unsqueeze(2))
+        else:
+            context_layer = torch.matmul(attention_probs, value_layer)
 
         if context_layer.dim() == 4:
             context_layer = context_layer.permute(0, 2, 1, 3).contiguous()

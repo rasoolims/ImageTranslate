@@ -4,6 +4,7 @@ import sys
 import time
 from optparse import OptionParser
 
+import sacrebleu
 import torch
 import torch.nn as nn
 import torch.utils.data as data_utils
@@ -15,7 +16,7 @@ from albert_seq2seq import AlbertSeq2Seq
 from lm import LM
 from parallel import DataParallelModel, DataParallelCriterion
 from pytorch_lamb.pytorch_lamb import Lamb
-from seq_gen import BeamDecoder
+from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
@@ -55,6 +56,7 @@ class Trainer:
             self.criterion = DataParallelCriterion(self.criterion)
 
         self.generator = BeamDecoder(model)
+        self.reference = None
 
     @staticmethod
     def build_optimizer(model, learning_rate, weight_decay):
@@ -124,6 +126,9 @@ class Trainer:
 
                 if (i + 1) % 5000 == 0:
                     best_valid_loss = self.validate_and_save(best_valid_loss, saving_path, valid_data_iter)
+                    if best_valid_loss < 1:
+                        bleu = self.eval_bleu(valid_data_iter)
+                        print("BLEU:", bleu)
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
@@ -134,7 +139,31 @@ class Trainer:
         model_to_save.save(saving_path + ".latest")
 
         best_valid_loss = self.validate_and_save(best_valid_loss, saving_path, valid_data_iter)
+        if best_valid_loss < 1:
+            bleu = self.eval_bleu(valid_data_iter)
+            print("BLEU:", bleu)
         return total_loss / total_tokens, best_valid_loss
+
+    def eval_bleu(self, valid_data_iter):
+        mt_output = []
+        model = (
+            self.model.module if hasattr(self.model, "module") else self.model
+        )
+        model.eval()
+        with torch.no_grad():
+            for batch in valid_data_iter:
+                src_inputs = batch["src_texts"].squeeze()
+                src_mask = batch["src_pad_mask"].squeeze()
+                tgt_inputs = batch["dst_texts"].squeeze()
+                tgt_mask = batch["dst_pad_mask"].squeeze()
+                outputs = self.generator(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                                         src_mask=src_mask, tgt_mask=tgt_mask)
+                for output in outputs:
+                    mt_output.append(self.generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
+
+            model.train()
+        bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
+        return bleu.score
 
     def validate_and_save(self, best_valid_loss, saving_path, valid_data_iter):
         model = (
@@ -150,11 +179,6 @@ class Trainer:
                 tgt_mask = batch["dst_pad_mask"].squeeze()
                 predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                          src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
-                if best_valid_loss < 1:
-                    outputs = self.generator(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                             src_mask=src_mask, tgt_mask=tgt_mask)
-                    for output in outputs:
-                        print(self.generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
 
                 targets = tgt_inputs[:, 1:].contiguous().view(-1)
                 ntokens = targets.size(0)
@@ -209,11 +233,13 @@ class Trainer:
                           clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps,
                           fp16=options.fp16, fp16_opt_level=options.fp16_opt_level)
 
-        if options.fp16:
-            try:
-                from apex import amp
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
+        print("creating referece")
+        trainer.reference = []
+        for batch in valid_loader:
+            tgt_inputs = batch["dst_texts"].squeeze()
+            refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
+            ref = [trainer.generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
+            trainer.reference += ref
 
         best_valid_loss = float("inf")
         for i in range(options.num_epochs):

@@ -5,6 +5,22 @@ import torch.nn.functional as F
 from albert_seq2seq import AlbertSeq2Seq
 
 
+def get_outputs_until_eos(eos, outputs, remove_first_token: bool = True):
+    found_eos = torch.nonzero(outputs == eos)
+    actual_outputs = {}
+    for idx in range(found_eos.size(0)):
+        r, c = found_eos[idx, 0], found_eos[idx, 1]
+        if r not in actual_outputs:
+            actual_outputs[int(r)] = outputs[r,
+                                     1 if remove_first_token else 0:c]  # disregard end of sentence in output!
+    final_outputs = []
+    for r in range(outputs.size(0)):
+        if r not in actual_outputs:
+            actual_outputs[r] = outputs[r, 1 if remove_first_token else 0:]
+        final_outputs.append(actual_outputs[r])
+    return final_outputs
+
+
 class BatchedBeamElement():
     def __init__(self, outputs, scores=None):
         self.outputs = outputs
@@ -59,11 +75,6 @@ class BeamDecoder(nn.Module):
             if torch.all(seen_eos):
                 break
         outputs = top_beam_outputs[:, 0, :]
-        found_eos = torch.nonzero(outputs == eos)
-        actual_outputs = []
-        for idx in range(found_eos.size(0)):
-            r, c = found_eos[idx, 0], found_eos[idx, 1]
-            if r == len(actual_outputs):
-                actual_outputs.append(outputs[r, :c + 1])
+        actual_outputs = get_outputs_until_eos(eos, outputs)
 
         return actual_outputs

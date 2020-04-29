@@ -64,6 +64,6 @@ class BeamDecoder(nn.Module):
         for idx in range(found_eos.size(0)):
             r, c = found_eos[idx, 0], found_eos[idx, 1]
             if r == len(actual_outputs):
-                actual_outputs.append(outputs[0, :c + 1])
+                actual_outputs.append(outputs[r, :c + 1])
 
         return actual_outputs

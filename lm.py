@@ -142,7 +142,7 @@ class LM(nn.Module):
     def mask_text(self, mask_prob, pads, texts):
         assert 0 < mask_prob < 1
         mask = torch.empty(texts.size()).uniform_(0, 1) < mask_prob
-        mask[pads] = False  # We should not mask pads.
+        mask[~pads] = False  # We should not mask pads.
         masked_ids = texts[mask]
         replacements = masked_ids.clone()
         for i in range(len(replacements)):

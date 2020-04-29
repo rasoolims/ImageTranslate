@@ -11,7 +11,7 @@ from textprocessor import TextProcessor
 def future_mask(tgt_mask):
     attn_shape = (tgt_mask.size(0), tgt_mask.size(1), tgt_mask.size(1))
     future_mask = torch.triu(torch.ones(attn_shape), diagonal=1).type_as(tgt_mask)
-    return future_mask | tgt_mask.unsqueeze(-1)
+    return ~future_mask & tgt_mask.unsqueeze(-1)
 
 
 class AlbertSeq2Seq(nn.Module):

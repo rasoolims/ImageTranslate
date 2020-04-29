@@ -80,8 +80,8 @@ class MTDataset(Dataset):
                 if batch_size > max_batch or batch_capacity_size > max_batch_total_capcity * 1000000:
                     src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
                     dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
-                    src_pad_mask = (src_batch == pad_idx)
-                    dst_pad_mask = (dst_batch == pad_idx)
+                    src_pad_mask = (src_batch != pad_idx)
+                    dst_pad_mask = (dst_batch != pad_idx)
                     self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                                          "dst_pad_mask": dst_pad_mask})
                     cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
@@ -90,8 +90,8 @@ class MTDataset(Dataset):
         if len(cur_src_batch) > 0:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
             dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
-            src_pad_mask = (src_batch == pad_idx)
-            dst_pad_mask = (dst_batch == pad_idx)
+            src_pad_mask = (src_batch != pad_idx)
+            dst_pad_mask = (dst_batch != pad_idx)
             self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                                  "dst_pad_mask": dst_pad_mask})
 
@@ -175,5 +175,5 @@ class TextCollator(object):
 
     def __call__(self, batch):
         padded_text = pad_sequence(batch, batch_first=True, padding_value=self.pad_idx)
-        pad_mask = (padded_text == self.pad_idx)
+        pad_mask = (padded_text != self.pad_idx)
         return {"texts": padded_text, "pad_mask": pad_mask}

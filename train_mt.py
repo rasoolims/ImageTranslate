@@ -82,7 +82,7 @@ class Trainer:
             tgt_inputs = batch["dst_texts"].squeeze(0)
             tgt_mask = batch["dst_pad_mask"].squeeze(0)
 
-            if src_inputs.size(0)<self.num_gpu:
+            if src_inputs.size(0) < self.num_gpu:
                 continue
 
             predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,

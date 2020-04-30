@@ -145,7 +145,7 @@ class ImageDocDataset(Dataset):
                     cur_doc_batch += docs
 
             if len(cur_image_batch) > 0:
-                all_docs = pad_sequence(cur_caption_batch, batch_first=True, padding_value=pad_index)
+                all_docs = pad_sequence(cur_doc_batch, batch_first=True, padding_value=pad_index)
                 all_captions = pad_sequence(cur_caption_batch, batch_first=True, padding_value=pad_index)
                 entry = {"docs": all_docs, "captions": all_captions, "images": cur_image_batch, "doc_idx": doc_indices}
                 self.batches.append(entry)

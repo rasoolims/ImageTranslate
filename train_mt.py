@@ -235,17 +235,36 @@ class Trainer:
 
         print("creating referece")
         trainer.reference = []
+
         for batch in valid_loader:
             tgt_inputs = batch["dst_texts"].squeeze()
             refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
             ref = [trainer.generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
             trainer.reference += ref
 
+        print("Trying if largest batch fits into memory")
+        Trainer.memory_test(train_data, trainer)
+
         best_valid_loss = float("inf")
         for i in range(options.num_epochs):
             print("train epoch", i)
             _, best_valid_loss = trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader,
                                                      best_valid_loss=best_valid_loss, saving_path=options.model_path)
+
+    @staticmethod
+    def memory_test(train_data, trainer):
+        last_index = max(len(train_data) - 2, 0)
+        src_inputs = train_data[last_index]["src_texts"]
+        src_mask = train_data[last_index]["src_pad_mask"]
+        tgt_inputs = train_data[last_index]["dst_texts"]
+        tgt_mask = train_data[last_index]["dst_pad_mask"]
+        print(src_inputs.size(), tgt_inputs.size())
+        predictions = trainer.model(device=trainer.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                                    src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
+        targets = tgt_inputs[:, 1:].contiguous().view(-1)
+        ntokens = targets.size(0)
+        if ntokens > 0:  # Nothing to predict!
+            loss = trainer.criterion(predictions, targets).mean().data * ntokens
 
 
 def get_options():

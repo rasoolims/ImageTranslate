@@ -96,7 +96,7 @@ class MTDataset(Dataset):
                     else:
                         entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                                  "dst_pad_mask": dst_pad_mask}
-                        b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(0))
+                        b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
                         this_batch_size = (s ** 2 + d ** 2) * b * d
                         if this_batch_size > self.longest_batch[1]:
                             self.longest_batch = (entry, this_batch_size)
@@ -114,7 +114,7 @@ class MTDataset(Dataset):
             else:
                 entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                          "dst_pad_mask": dst_pad_mask}
-                b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(0))
+                b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
                 this_batch_size = (s ** 2 + d ** 2) * b * d
                 if this_batch_size > self.longest_batch[1]:
                     self.longest_batch = (entry, this_batch_size)

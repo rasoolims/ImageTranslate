@@ -177,6 +177,9 @@ class Trainer:
 
             model_to_save.save(saving_path)
 
+            with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
+                writer.write("\n".join(mt_output))
+
         return bleu.score
 
     def validate_and_save(self, valid_data_iter):

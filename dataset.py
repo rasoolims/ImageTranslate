@@ -86,7 +86,8 @@ class MTDataset(Dataset):
                     cur_src_batch) * cur_max_dst_len
                 batch_size = (cur_max_src_len + cur_max_dst_len) * len(cur_src_batch)
 
-                if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000 and len(cur_src_batch)>=num_gpu:
+                if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000 and len(
+                        cur_src_batch)-1 >= num_gpu:
                     src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
                     dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
                     src_pad_mask = (src_batch != pad_idx)

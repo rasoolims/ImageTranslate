@@ -65,6 +65,7 @@ class MTDataset(Dataset):
         sentence pairs (it will crash in multi-gpu).
         """
         self.batches = []
+        self.longest_batch = ([], 0)
         num_gpu = torch.cuda.device_count()
         with open(batch_pickle_dir, "rb") as fr:
             examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
@@ -93,9 +94,13 @@ class MTDataset(Dataset):
                     if src_batch.size(0) < num_gpu:
                         print("skipping", src_batch.size(), dst_batch.size())
                     else:
-                        self.batches.append(
-                            {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                             "dst_pad_mask": dst_pad_mask})
+                        entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
+                                 "dst_pad_mask": dst_pad_mask}
+                        b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(0))
+                        this_batch_size = (s ** 2 + d ** 2) * b * d
+                        if this_batch_size > self.longest_batch[1]:
+                            self.longest_batch = (entry, this_batch_size)
+                        self.batches.append(entry)
                     cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
                     cur_max_src_len, cur_max_dst_len = int(cur_src_batch[0].size(0)), int(cur_dst_batch[0].size(0))
 
@@ -107,13 +112,17 @@ class MTDataset(Dataset):
             if src_batch.size(0) < num_gpu:
                 print("skipping", src_batch.size(), dst_batch.size())
             else:
-                self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                                     "dst_pad_mask": dst_pad_mask})
+                entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
+                         "dst_pad_mask": dst_pad_mask}
+                b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(0))
+                this_batch_size = (s ** 2 + d ** 2) * b * d
+                if this_batch_size > self.longest_batch[1]:
+                    self.longest_batch = (entry, this_batch_size)
+                self.batches.append(entry)
 
         print("loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
-        print("The last size", self.batches[-1]["src_texts"].size(), self.batches[-1]["dst_texts"].size())
-        if len(self.batches) > 1:
-            print("The second last size", self.batches[-2]["src_texts"].size(), self.batches[-2]["dst_texts"].size())
+        print("Longest batch size", self.longest_batch[0]["src_texts"].size(),
+              self.longest_batch[0]["dst_texts"].size())
 
     def __len__(self):
         return len(self.batches)

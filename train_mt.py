@@ -254,11 +254,10 @@ class Trainer:
 
     @staticmethod
     def memory_test(train_data, trainer):
-        last_index = max(len(train_data) - 2, 0)
-        src_inputs = train_data[last_index]["src_texts"]
-        src_mask = train_data[last_index]["src_pad_mask"]
-        tgt_inputs = train_data[last_index]["dst_texts"]
-        tgt_mask = train_data[last_index]["dst_pad_mask"]
+        src_inputs = train_data.longest_batch[0]["src_texts"]
+        src_mask = train_data.longest_batch[0]["src_pad_mask"]
+        tgt_inputs = train_data.longest_batch[0]["dst_texts"]
+        tgt_mask = train_data.longest_batch[0]["dst_pad_mask"]
         print(src_inputs.size(), tgt_inputs.size())
         predictions = trainer.model(device=trainer.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                     src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)

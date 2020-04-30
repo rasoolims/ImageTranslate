@@ -33,10 +33,12 @@ class BatchedBeamElement():
 
 
 class BeamDecoder(nn.Module):
-    def __init__(self, seq2seq_model: AlbertSeq2Seq, beam_width: int = 4):
+    def __init__(self, seq2seq_model: AlbertSeq2Seq, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5):
         super(BeamDecoder, self).__init__()
         self.seq2seq_model = seq2seq_model
         self.beam_width = beam_width
+        self.max_len_a = max_len_a
+        self.max_len_b = max_len_b
 
     def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask):
         batch_size = src_inputs.size(0)
@@ -47,7 +49,9 @@ class BeamDecoder(nn.Module):
         top_beam_outputs = first_position_output
         top_beam_scores = torch.zeros(first_position_output.size()).to(tgt_inputs.device)
 
-        for i in range(1, self.seq2seq_model.encoder.embeddings.position_embeddings.num_embeddings):
+        max_len = min(int(self.max_len_a * src_inputs.size(1) + self.max_len_b) + 1,
+                      self.seq2seq_model.encoder.embeddings.position_embeddings.num_embeddings)
+        for i in range(1, max_len):
             cur_outputs = top_beam_outputs.view(-1, top_beam_outputs.size(-1))
             cur_scores = top_beam_scores.view(-1).unsqueeze(-1)
             output_mask = torch.ones(cur_outputs.size()).to(cur_outputs.device)

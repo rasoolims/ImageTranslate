@@ -25,7 +25,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class Trainer:
     def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.15, clip: int = 1, optimizer=None,
                  warmup: float = 0.1, warmup_steps: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
-                 beam_with: int = 5):
+                 beam_with: int = 5, max_len_a: float = 1.1, max_len_b: int = 5):
         self.model = model
 
         self.clip = clip
@@ -55,15 +55,16 @@ class Trainer:
             self.model = DataParallelModel(self.model)
             self.criterion = DataParallelCriterion(self.criterion)
 
-        self.generator = BeamDecoder(model, beam_width=beam_with)
+        self.generator = BeamDecoder(model, beam_width=beam_with, max_len_a=max_len_a, max_len_b=max_len_b)
         self.reference = None
+        self.best_bleu = -1.0
 
     @staticmethod
     def build_optimizer(model, learning_rate, weight_decay):
         return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
-    def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader,
-                    best_valid_loss: float, saving_path: str, max_grad_norm: float = 1.0):
+    def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader, saving_path: str,
+                    max_grad_norm: float = 1.0):
         if self.fp16:
             try:
                 import apex
@@ -129,10 +130,9 @@ class Trainer:
                           i + 1, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
                 if (i + 1) % 5000 == 0:
-                    best_valid_loss = self.validate_and_save(best_valid_loss, saving_path, valid_data_iter)
-                    if best_valid_loss < 1:
-                        bleu = self.eval_bleu(valid_data_iter)
-                        print("BLEU:", bleu)
+                    self.validate_and_save(valid_data_iter)
+                    bleu = self.eval_bleu(valid_data_iter, saving_path)
+                    print("BLEU:", bleu)
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
@@ -142,13 +142,11 @@ class Trainer:
         )
         model_to_save.save(saving_path + ".latest")
 
-        best_valid_loss = self.validate_and_save(best_valid_loss, saving_path, valid_data_iter)
-        if best_valid_loss < 1:
-            bleu = self.eval_bleu(valid_data_iter)
-            print("BLEU:", bleu)
-        return total_loss / total_tokens, best_valid_loss
+        self.validate_and_save(valid_data_iter)
+        bleu = self.eval_bleu(valid_data_iter, saving_path)
+        print("BLEU:", bleu)
 
-    def eval_bleu(self, valid_data_iter):
+    def eval_bleu(self, valid_data_iter, saving_path):
         mt_output = []
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
@@ -167,9 +165,18 @@ class Trainer:
 
             model.train()
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
+        if bleu.score > self.best_bleu:
+            self.best_bleu = bleu.score
+            print("Saving best BLEU", self.best_bleu)
+            model_to_save = (
+                self.model.module if hasattr(self.model, "module") else self.model
+            )
+
+            model_to_save.save(saving_path)
+
         return bleu.score
 
-    def validate_and_save(self, best_valid_loss, saving_path, valid_data_iter):
+    def validate_and_save(self, valid_data_iter):
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
@@ -201,16 +208,7 @@ class Trainer:
 
             valid_loss = total_valid_loss / total_valid_tokens
             print("Current valid loss", valid_loss)
-            if best_valid_loss > float(valid_loss):
-                best_valid_loss = float(valid_loss)
-                print("saving best valid loss", best_valid_loss)
-                model_to_save = (
-                    self.model.module if hasattr(self.model, "module") else self.model
-                )
-
-                model_to_save.save(saving_path)
             model.train()
-        return best_valid_loss
 
     @staticmethod
     def train(options):
@@ -241,7 +239,8 @@ class Trainer:
         trainer = Trainer(model=mt_model, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
                           clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps,
-                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level)
+                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, beam_with=options.beam_width,
+                          max_len_a=options.max_len_a, max_len_b=options.max_len_b)
 
         print("creating referece")
         trainer.reference = []
@@ -255,11 +254,9 @@ class Trainer:
         print("Trying if largest batch fits into memory")
         Trainer.memory_test(train_data, trainer)
 
-        best_valid_loss = float("inf")
         for i in range(options.num_epochs):
             print("train epoch", i)
-            _, best_valid_loss = trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader,
-                                                     best_valid_loss=best_valid_loss, saving_path=options.model_path)
+            trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader, saving_path=options.model_path)
 
     @staticmethod
     def memory_test(train_data, trainer):
@@ -343,6 +340,8 @@ def get_options():
                       default=False)
     parser.add_option("--size", dest="model_size", help="Model size: 1 (base), 2 (medium), 3 (small)", type="int",
                       default=3)
+    parser.add_option("--max_len_a", dest="max_len_a", help="a for beam search (a*l+b)", type="float", default=1.1)
+    parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)
     parser.add_option(
         "--fp16_opt_level",
         type=str,

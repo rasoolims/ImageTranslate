@@ -6,7 +6,7 @@ from albert_seq2seq import AlbertSeq2Seq
 
 
 def get_outputs_until_eos(eos, outputs, remove_first_token: bool = True):
-    found_eos = torch.nonzero(outputs == eos)
+    found_eos = torch.nonzero(outputs == eos).cpu()
     actual_outputs = {}
     for idx in range(found_eos.size(0)):
         r, c = found_eos[idx, 0], found_eos[idx, 1]
@@ -75,11 +75,11 @@ class BeamDecoder(nn.Module):
             if i > 1:
                 beam_indices = indices / output.size(-1)
                 beam_indices_to_select = torch.stack([beam_indices] * top_beam_outputs.size(-1), dim=2)
-                beam_elements_to_use = top_beam_outputs.gather(1, beam_indices_to_select).view(-1, i)
+                beam_to_use = top_beam_outputs.gather(1, beam_indices_to_select).view(-1, i)
             else:
-                beam_elements_to_use = torch.repeat_interleave(top_beam_outputs, self.beam_width, 0)
-            top_beam_outputs = torch.cat([beam_elements_to_use, word_indices[flat_indices].unsqueeze(-1)], dim=1).view(
-                batch_size, self.beam_width, i + 1)
+                beam_to_use = torch.repeat_interleave(top_beam_outputs, self.beam_width, 0)
+            word_indices = word_indices[flat_indices].unsqueeze(-1).to(beam_to_use.device)
+            top_beam_outputs = torch.cat([beam_to_use, word_indices], dim=1).view(batch_size, self.beam_width, i + 1)
 
             top_beam_scores = top_scores
 

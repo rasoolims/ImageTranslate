@@ -16,7 +16,7 @@ from albert_seq2seq import AlbertSeq2Seq
 from lm import LM
 from parallel import DataParallelModel, DataParallelCriterion
 from pytorch_lamb.pytorch_lamb import Lamb
-from seq_gen import BeamDecoder, get_outputs_until_eos
+from seq_gen import BeamDecoder, get_outputs_until_eos, GreedyDecoder
 from textprocessor import TextProcessor
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
@@ -25,7 +25,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class Trainer:
     def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.15, clip: int = 1, optimizer=None,
                  warmup: float = 0.1, warmup_steps: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
-                 beam_with: int = 5, max_len_a: float = 1.1, max_len_b: int = 5):
+                 beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5):
         self.model = model
 
         self.clip = clip
@@ -55,7 +55,11 @@ class Trainer:
             self.model = DataParallelModel(self.model)
             self.criterion = DataParallelCriterion(self.criterion)
 
-        self.generator = BeamDecoder(model, beam_width=beam_with, max_len_a=max_len_a, max_len_b=max_len_b)
+        self.generator = GreedyDecoder(model, max_len_a=max_len_a,
+                                       max_len_b=max_len_b) if beam_width == 1 else BeamDecoder(model,
+                                                                                                beam_width=beam_width,
+                                                                                                max_len_a=max_len_a,
+                                                                                                max_len_b=max_len_b)
         self.reference = None
         self.best_bleu = -1.0
 
@@ -245,7 +249,7 @@ class Trainer:
         trainer = Trainer(model=mt_model, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
                           clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps,
-                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, beam_with=options.beam_width,
+                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
                           max_len_a=options.max_len_a, max_len_b=options.max_len_b)
 
         print("creating referece")

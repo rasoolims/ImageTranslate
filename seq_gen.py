@@ -92,3 +92,41 @@ class BeamDecoder(nn.Module):
         actual_outputs = get_outputs_until_eos(eos, outputs)
 
         return actual_outputs
+
+
+class GreedyDecoder(nn.Module):
+    def __init__(self, seq2seq_model: AlbertSeq2Seq, max_len_a: float = 1.1, max_len_b: int = 5):
+        super(GreedyDecoder, self).__init__()
+        self.seq2seq_model = seq2seq_model
+        self.max_len_a = max_len_a
+        self.max_len_b = max_len_b
+
+    def forward(self, device, src_inputs, tgt_langs, src_mask):
+        """
+
+        :param device:
+        :param src_inputs:
+        :param tgt_langs: First token that is language identifier
+        :param src_mask:
+        :return:
+        """
+        encoder_states = self.seq2seq_model.encode(device, src_inputs, src_mask)[0]
+        eos = self.seq2seq_model.text_processor.sep_token_id()
+        pad_id = self.seq2seq_model.text_processor.pad_token_id()
+        src_mask = src_mask.to(device)
+        max_len = min(int(self.max_len_a * src_inputs.size(1) + self.max_len_b) + 1,
+                      self.seq2seq_model.encoder.embeddings.position_embeddings.num_embeddings)
+
+        outputs = tgt_langs.unsqueeze(1)
+        seen_eos = torch.zeros(outputs.size(0), dtype=torch.bool).to(outputs.device)
+        for i in range(1, max_len):
+            output_mask = (outputs != pad_id)
+            decoder_states = self.seq2seq_model.decoder(encoder_states, outputs, src_mask, output_mask)
+            output = self.seq2seq_model.output_layer(decoder_states[:, -1, :])
+            best_outputs = torch.argmax(output, dim=1)
+            outputs = torch.cat([outputs, best_outputs.unsqueeze(1)], dim=1)
+            seen_eos |= best_outputs == eos
+            if torch.all(seen_eos):
+                break
+
+        return get_outputs_until_eos(eos, outputs)

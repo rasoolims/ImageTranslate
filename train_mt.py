@@ -24,8 +24,8 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 class Trainer:
     def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.15, clip: int = 1, optimizer=None,
-                 warmup: float = 0.1,
-                 warmup_steps: int = 125000, fp16: bool = False, fp16_opt_level: str = "01"):
+                 warmup: float = 0.1, warmup_steps: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
+                 beam_with: int = 5):
         self.model = model
 
         self.clip = clip
@@ -55,7 +55,7 @@ class Trainer:
             self.model = DataParallelModel(self.model)
             self.criterion = DataParallelCriterion(self.criterion)
 
-        self.generator = BeamDecoder(model)
+        self.generator = BeamDecoder(model, beam_width=beam_with)
         self.reference = None
 
     @staticmethod
@@ -217,11 +217,12 @@ class Trainer:
 
         mt_model = AlbertSeq2Seq(lm=lm, sep_encoder_decoder=options.sep_encoder)
 
-        train_data = dataset.MTDataset(batch_pickle_dir=options.train__path,
-                                       max_batch_total_capcity=options.total_capacity, max_batch=options.batch,
+        train_data = dataset.MTDataset(batch_pickle_dir=options.train_path,
+                                       max_batch_capacity=options.total_capacity, max_batch=options.batch,
                                        pad_idx=lm.text_processor.pad_token_id())
-        valid_data = dataset.MTDataset(batch_pickle_dir=options.valid__path,
-                                       max_batch_total_capcity=options.total_capacity, max_batch=options.batch,
+        valid_data = dataset.MTDataset(batch_pickle_dir=options.valid_path,
+                                       max_batch_capacity=options.total_capacity,
+                                       max_batch=int(options.batch / options.beam_width),
                                        pad_idx=lm.text_processor.pad_token_id())
 
         pin_memory = torch.cuda.is_available()
@@ -272,9 +273,9 @@ class Trainer:
 def get_options():
     global options
     parser = OptionParser()
-    parser.add_option("--train", dest="train__path",
+    parser.add_option("--train", dest="train_path",
                       help="Path to the train data pickle files for large data", metavar="FILE", default=None)
-    parser.add_option("--valid", dest="valid__path",
+    parser.add_option("--valid", dest="valid_path",
                       help="Path to the train data pickle files for large data", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
@@ -295,6 +296,7 @@ def get_options():
     parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)
     parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
     parser.add_option("--layer", dest="num_layers", help="Number of Layers in cross-attention", type="int", default=2)
+    parser.add_option("--beam", dest="beam_width", help="Beam width", type="int", default=5)
     parser.add_option("--heads", dest="num_heads", help="Number of attention heads", type="int", default=8)
     parser.add_option("--fp16", action="store_true", dest="fp16", help="use fp16; should be compatible", default=False)
     parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Don't share encoder and decoder",

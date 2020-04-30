@@ -56,8 +56,14 @@ class TextDataset(Dataset):
 
 
 class MTDataset(Dataset):
-    def __init__(self, batch_pickle_dir: str, max_batch_total_capcity: int, max_batch: int,
+    def __init__(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
                  pad_idx: int, max_seq_len: int = 512):
+        """
+        Since training is fully-batched and has memory/computational need for cubic power of target length, and quadratic
+        power of source length, we need to make sure that each batch has similar length and it does not go over
+        max_batch_capacity. We also need to make sure not to include those batches that has less than num_gpu
+        sentence pairs (it will crash in multi-gpu).
+        """
         self.batches = []
         num_gpu = torch.cuda.device_count()
         with open(batch_pickle_dir, "rb") as fr:
@@ -78,7 +84,7 @@ class MTDataset(Dataset):
                     cur_src_batch) * cur_max_dst_len
                 batch_size = (cur_max_src_len + cur_max_dst_len) * len(cur_src_batch)
 
-                if batch_size > max_batch or batch_capacity_size > max_batch_total_capcity * 1000000:
+                if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000:
                     src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
                     dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
                     src_pad_mask = (src_batch != pad_idx)

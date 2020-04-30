@@ -105,6 +105,9 @@ class MTDataset(Dataset):
                                      "dst_pad_mask": dst_pad_mask})
 
         print("loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
+        print("The last size", self.batches[-1]["src_texts"].size(), self.batches[-1]["dst_texts"].size())
+        if len(self.batches) > 1:
+            print("The second last size", self.batches[-2]["src_texts"].size(), self.batches[-2]["dst_texts"].size())
 
     def __len__(self):
         return len(self.batches)

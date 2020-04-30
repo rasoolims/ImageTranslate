@@ -265,6 +265,8 @@ class Trainer:
         ntokens = targets.size(0)
         if ntokens > 0:  # Nothing to predict!
             loss = trainer.criterion(predictions, targets).mean().data * ntokens
+        trainer.optimizer.zero_grad()
+        torch.cuda.empty_cache()
 
 
 def get_options():

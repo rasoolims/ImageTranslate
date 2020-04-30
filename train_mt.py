@@ -165,6 +165,10 @@ class Trainer:
 
             model.train()
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
+
+        with open(os.path.join(saving_path, "bleu.output"), "w") as writer:
+            writer.write("\n".join(mt_output))
+
         if bleu.score > self.best_bleu:
             self.best_bleu = bleu.score
             print("Saving best BLEU", self.best_bleu)

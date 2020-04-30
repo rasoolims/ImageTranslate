@@ -66,6 +66,7 @@ class MTDataset(Dataset):
         """
         self.batches = []
         self.longest_batch = ([], 0)
+        self.most_token_batch = ([], 0)
         num_gpu = torch.cuda.device_count()
         with open(batch_pickle_dir, "rb") as fr:
             examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
@@ -100,6 +101,8 @@ class MTDataset(Dataset):
                         this_batch_size = (s ** 2 + d ** 2) * b * d
                         if this_batch_size > self.longest_batch[1]:
                             self.longest_batch = (entry, this_batch_size)
+                        if b * (s + d) > self.most_token_batch[1]:
+                            self.most_token_batch = (entry, b * (s + d))
                         self.batches.append(entry)
                     cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
                     cur_max_src_len, cur_max_dst_len = int(cur_src_batch[0].size(0)), int(cur_dst_batch[0].size(0))
@@ -118,11 +121,15 @@ class MTDataset(Dataset):
                 this_batch_size = (s ** 2 + d ** 2) * b * d
                 if this_batch_size > self.longest_batch[1]:
                     self.longest_batch = (entry, this_batch_size)
+                if b * (s + d) > self.most_token_batch[1]:
+                    self.most_token_batch = (entry, b * (s + d))
                 self.batches.append(entry)
 
         print("loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
         print("Longest batch size", self.longest_batch[0]["src_texts"].size(),
               self.longest_batch[0]["dst_texts"].size())
+        print("Most token batch size", self.most_token_batch[0]["src_texts"].size(),
+              self.most_token_batch[0]["dst_texts"].size())
 
     def __len__(self):
         return len(self.batches)

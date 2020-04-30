@@ -254,17 +254,49 @@ class Trainer:
 
     @staticmethod
     def memory_test(train_data, trainer):
+        if trainer.fp16:
+            try:
+                import apex
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
+
         src_inputs = train_data.longest_batch[0]["src_texts"]
         src_mask = train_data.longest_batch[0]["src_pad_mask"]
         tgt_inputs = train_data.longest_batch[0]["dst_texts"]
         tgt_mask = train_data.longest_batch[0]["dst_pad_mask"]
-        print(src_inputs.size(), tgt_inputs.size())
+        s, d, b = int(src_inputs.size(1)), int(tgt_inputs.size(1)), int(src_inputs.size(0))
+        print(src_inputs.size(), tgt_inputs.size(), b * d * (s ** 2 + d ** 2))
         predictions = trainer.model(device=trainer.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                     src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
         targets = tgt_inputs[:, 1:].contiguous().view(-1)
         ntokens = targets.size(0)
         if ntokens > 0:  # Nothing to predict!
-            loss = trainer.criterion(predictions, targets).mean().data * ntokens
+            loss = trainer.criterion(predictions, targets).mean()
+            if trainer.fp16:
+                with apex.amp.scale_loss(loss, trainer.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                loss.backward()
+        trainer.optimizer.zero_grad()
+        torch.cuda.empty_cache()
+
+        src_inputs = train_data.most_token_batch[0]["src_texts"]
+        src_mask = train_data.most_token_batch[0]["src_pad_mask"]
+        tgt_inputs = train_data.most_token_batch[0]["dst_texts"]
+        tgt_mask = train_data.most_token_batch[0]["dst_pad_mask"]
+        s, d, b = int(src_inputs.size(1)), int(tgt_inputs.size(1)), int(src_inputs.size(0))
+        print(src_inputs.size(), tgt_inputs.size(), b * (s + d))
+        predictions = trainer.model(device=trainer.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                                    src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
+        targets = tgt_inputs[:, 1:].contiguous().view(-1)
+        ntokens = targets.size(0)
+        if ntokens > 0:  # Nothing to predict!
+            loss = trainer.criterion(predictions, targets).mean()
+            if trainer.fp16:
+                with apex.amp.scale_loss(loss, trainer.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                loss.backward()
         trainer.optimizer.zero_grad()
         torch.cuda.empty_cache()
 

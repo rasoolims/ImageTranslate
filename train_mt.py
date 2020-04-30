@@ -87,36 +87,40 @@ class Trainer:
             if src_inputs.size(0) < self.num_gpu:
                 continue
 
-            predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                     src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
-            targets = tgt_inputs[:, 1:].contiguous().view(-1)
-            ntokens = targets.size(0)
+            try:
+                predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                                         src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
+                targets = tgt_inputs[:, 1:].contiguous().view(-1)
+                ntokens = targets.size(0)
 
-            if ntokens == 0:  # Nothing to predict!
-                continue
+                if ntokens == 0:  # Nothing to predict!
+                    continue
 
-            loss = self.criterion(predictions, targets).mean()
-            if self.fp16:
-                with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                    scaled_loss.backward()
-            else:
-                loss.backward()
-
-            if self.optimizer is not None:
+                loss = self.criterion(predictions, targets).mean()
                 if self.fp16:
-                    torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
+                    with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                        scaled_loss.backward()
                 else:
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+                    loss.backward()
 
-                self.optimizer.step()
-                self.scheduler.step()
+                if self.optimizer is not None:
+                    if self.fp16:
+                        torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
+                    else:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
 
-            loss = float(loss.data) * ntokens
-            total_loss += loss
-            cur_loss += loss
-            total_tokens += ntokens
-            tokens += ntokens
-            sentences += int(src_inputs.size(0))
+                    self.optimizer.step()
+                    self.scheduler.step()
+
+                loss = float(loss.data) * ntokens
+                total_loss += loss
+                cur_loss += loss
+                total_tokens += ntokens
+                tokens += ntokens
+                sentences += int(src_inputs.size(0))
+            except RuntimeError:
+                print("Error in processing", src_inputs.size(), tgt_inputs.size())
+                torch.cuda.empty_cache()
 
             if (i + 1) % 50 == 0:
                 elapsed = time.time() - start

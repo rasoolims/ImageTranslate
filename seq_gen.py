@@ -40,14 +40,22 @@ class BeamDecoder(nn.Module):
         self.max_len_a = max_len_a
         self.max_len_b = max_len_b
 
-    def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask):
+    def forward(self, device, src_inputs, tgt_langs, src_mask):
+        """
+
+        :param device:
+        :param src_inputs:
+        :param tgt_langs: First token that is language identifier
+        :param src_mask:
+        :return:
+        """
         batch_size = src_inputs.size(0)
         encoder_states = self.seq2seq_model.encode(device, src_inputs, src_mask)[0]
         eos = self.seq2seq_model.text_processor.sep_token_id()
 
-        first_position_output = tgt_inputs[:, 0].unsqueeze(1)
+        first_position_output = tgt_langs.unsqueeze(1).to(device)
         top_beam_outputs = first_position_output
-        top_beam_scores = torch.zeros(first_position_output.size()).to(tgt_inputs.device)
+        top_beam_scores = torch.zeros(first_position_output.size()).to(first_position_output.device)
 
         max_len = min(int(self.max_len_a * src_inputs.size(1) + self.max_len_b) + 1,
                       self.seq2seq_model.encoder.embeddings.position_embeddings.num_embeddings)

@@ -177,18 +177,23 @@ class Trainer:
                 src_mask = batch["src_pad_mask"].squeeze()
                 tgt_inputs = batch["dst_texts"].squeeze()
                 tgt_mask = batch["dst_pad_mask"].squeeze()
-                predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                         src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
 
-                targets = tgt_inputs[:, 1:].contiguous().view(-1)
-                ntokens = targets.size(0)
+                try:
+                    predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                                             src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
 
-                if ntokens == 0:  # Nothing to predict!
-                    continue
+                    targets = tgt_inputs[:, 1:].contiguous().view(-1)
+                    ntokens = targets.size(0)
 
-                loss = self.criterion(predictions, targets).mean().data * ntokens
-                total_valid_loss += float(loss)
-                total_valid_tokens += ntokens
+                    if ntokens == 0:  # Nothing to predict!
+                        continue
+
+                    loss = self.criterion(predictions, targets).mean().data * ntokens
+                    total_valid_loss += float(loss)
+                    total_valid_tokens += ntokens
+                except:
+                    print("Error in processing", src_inputs.size(), tgt_inputs.size())
+                    torch.cuda.empty_cache()
 
             valid_loss = total_valid_loss / total_valid_tokens
             print("Current valid loss", valid_loss)
@@ -315,8 +320,8 @@ def get_options():
                       default=None)
     parser.add_option("--epoch", dest="num_epochs", help="Number of training epochs", type="int", default=100)
     parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
-    parser.add_option("--capacity", dest="total_capacity", help="Batch capcity", type="int", default=100)
-    parser.add_option("--batch", dest="batch", help="Batch num_tokens", type="int", default=25000)
+    parser.add_option("--capacity", dest="total_capacity", help="Batch capcity", type="int", default=160)
+    parser.add_option("--batch", dest="batch", help="Batch num_tokens", type="int", default=20000)
     parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
     parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
     parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.002)

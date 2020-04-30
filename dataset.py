@@ -85,7 +85,7 @@ class MTDataset(Dataset):
                     dst_pad_mask = (dst_batch != pad_idx)
 
                     if src_batch.size(0) < num_gpu:
-                        print("skipping", src_batch.size())
+                        print("skipping", src_batch.size(), dst_batch.size())
                     else:
                         self.batches.append(
                             {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
@@ -99,7 +99,7 @@ class MTDataset(Dataset):
             src_pad_mask = (src_batch != pad_idx)
             dst_pad_mask = (dst_batch != pad_idx)
             if src_batch.size(0) < num_gpu:
-                print("skipping", src_batch.size())
+                print("skipping", src_batch.size(), dst_batch.size())
             else:
                 self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                                      "dst_pad_mask": dst_pad_mask})

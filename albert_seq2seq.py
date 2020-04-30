@@ -116,10 +116,10 @@ class AlbertDecoderAttention(nn.Module):
         else:
             return x.permute(0, 3, 1, 2, 4)
 
-    def forward(self, encoder_states, output_ids, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
-        output_ids_q = self.query(output_ids)
-        output_ids_k = self.key(output_ids)
-        output_ids_v = self.value(output_ids)
+    def forward(self, encoder_states, decoder_inputs, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
+        output_ids_q = self.query(decoder_inputs)
+        output_ids_k = self.key(decoder_inputs)
+        output_ids_v = self.value(decoder_inputs)
         encoder_states_k = self.key(encoder_states)
         encoder_states_v = self.value(encoder_states)
 

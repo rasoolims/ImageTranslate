@@ -128,11 +128,11 @@ class TestModel(unittest.TestCase):
             processor.train_tokenizer([text_data_path], vocab_size=1000, to_save_dir=tmpdirname)
             binarize_image_doc_data.write(text_processor=processor, output_file=os.path.join(tmpdirname, "image.bin"),
                                           max_seq_len=512, json_dir=data_path, files_to_use="mzn,glk")
-            image_data = ImageDocDataset(os.getcwd(), os.path.join(tmpdirname, "image.bin"), transform, max_doc_batch_capacity=10,
+            image_data = ImageDocDataset(os.getcwd(), os.path.join(tmpdirname, "image.bin"), transform,
+                                         max_doc_batch_capacity=10,
                                          pad_index=processor.pad_token_id())
-            assert len(image_data[4])==4
+            assert len(image_data[4]) == 4
             assert len(image_data) == 21
-
 
 
 if __name__ == '__main__':

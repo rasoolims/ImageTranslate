@@ -138,7 +138,7 @@ class MTDataset(Dataset):
 
 
 class ImageDocDataset(Dataset):
-    def __init__(self, root_img_dir:str, data_bin_file: str, transform, max_doc_batch_capacity: int, pad_index: int):
+    def __init__(self, root_img_dir: str, data_bin_file: str, transform, max_doc_batch_capacity: int, pad_index: int):
         self.transform = transform
 
         self.batches = []

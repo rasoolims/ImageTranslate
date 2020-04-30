@@ -138,10 +138,11 @@ class MTDataset(Dataset):
 
 
 class ImageDocDataset(Dataset):
-    def __init__(self, data_bin_file: str, transform, max_doc_batch_capacity: int, pad_index: int):
+    def __init__(self, root_img_dir:str, data_bin_file: str, transform, max_doc_batch_capacity: int, pad_index: int):
         self.transform = transform
 
         self.batches = []
+        self.root_img_dir = root_img_dir
         max_doc_batch_capacity *= 1000000
         with open(data_bin_file, "rb") as fp:
             doc_ids, images, captions = pickle.load(fp)
@@ -194,7 +195,7 @@ class ImageDocDataset(Dataset):
         images = []
         for image_path in batch["images"]:  # todo do it parallel?
             # make sure not to deal with rgba or grayscale images.
-            image = Image.open(image_path.convert("RGB"))
+            image = Image.open(os.path.join(self.root_img_dir, image_path)).convert("RGB")
             if self.transform is not None:
                 image = self.transform(image)
             images.append(image)

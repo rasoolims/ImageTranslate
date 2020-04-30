@@ -191,7 +191,7 @@ class Trainer:
                     loss = self.criterion(predictions, targets).mean().data * ntokens
                     total_valid_loss += float(loss)
                     total_valid_tokens += ntokens
-                except:
+                except RuntimeError:
                     print("Error in processing", src_inputs.size(), tgt_inputs.size())
                     torch.cuda.empty_cache()
 

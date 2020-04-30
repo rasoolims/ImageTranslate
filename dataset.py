@@ -59,6 +59,7 @@ class MTDataset(Dataset):
     def __init__(self, batch_pickle_dir: str, max_batch_total_capcity: int, max_batch: int,
                  pad_idx: int, max_seq_len: int = 512):
         self.batches = []
+        num_gpu = torch.cuda.device_count()
         with open(batch_pickle_dir, "rb") as fr:
             examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
 
@@ -82,8 +83,13 @@ class MTDataset(Dataset):
                     dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
                     src_pad_mask = (src_batch != pad_idx)
                     dst_pad_mask = (dst_batch != pad_idx)
-                    self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                                         "dst_pad_mask": dst_pad_mask})
+
+                    if src_batch.size(0) < num_gpu:
+                        print("skipping", src_batch.size())
+                    else:
+                        self.batches.append(
+                            {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
+                             "dst_pad_mask": dst_pad_mask})
                     cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
                     cur_max_src_len, cur_max_dst_len = int(cur_src_batch[0].size(0)), int(cur_dst_batch[0].size(0))
 
@@ -92,8 +98,11 @@ class MTDataset(Dataset):
             dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
             src_pad_mask = (src_batch != pad_idx)
             dst_pad_mask = (dst_batch != pad_idx)
-            self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                                 "dst_pad_mask": dst_pad_mask})
+            if src_batch.size(0) < num_gpu:
+                print("skipping", src_batch.size())
+            else:
+                self.batches.append({"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
+                                     "dst_pad_mask": dst_pad_mask})
 
         print("loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
 

@@ -53,6 +53,7 @@ class BeamDecoder(nn.Module):
         encoder_states = self.seq2seq_model.encode(device, src_inputs, src_mask)[0]
         eos = self.seq2seq_model.text_processor.sep_token_id()
 
+        src_mask = src_mask.to(device)
         first_position_output = tgt_langs.unsqueeze(1).to(device)
         top_beam_outputs = first_position_output
         top_beam_scores = torch.zeros(first_position_output.size()).to(first_position_output.device)

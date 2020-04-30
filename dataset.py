@@ -93,7 +93,6 @@ class MTDataset(Dataset):
                     dst_pad_mask = (dst_batch != pad_idx)
                     if src_batch.size(0) < num_gpu:
                         print("skipping", src_batch.size(), dst_batch.size())
-                        cur_src_batch, cur_dst_batch = [], []
                     else:
                         entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                                  "dst_pad_mask": dst_pad_mask}
@@ -104,7 +103,7 @@ class MTDataset(Dataset):
                         if b * (s + d) > self.most_token_batch[1]:
                             self.most_token_batch = (entry, b * (s + d))
                         self.batches.append(entry)
-                        cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
+                    cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
                     cur_max_src_len, cur_max_dst_len = int(cur_src_batch[0].size(0)), int(cur_dst_batch[0].size(0))
 
         if len(cur_src_batch) > 0:

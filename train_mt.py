@@ -230,7 +230,7 @@ class Trainer:
                                        max_batch=int(options.batch / options.beam_width),
                                        pad_idx=lm.text_processor.pad_token_id())
 
-        pin_memory = torch.cuda.is_available()
+        pin_memory = False # Did not help in this case
         loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
         valid_loader = data_utils.DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 

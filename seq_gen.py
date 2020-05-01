@@ -5,17 +5,17 @@ import torch.nn.functional as F
 from albert_seq2seq import AlbertSeq2Seq
 
 
-def get_outputs_until_eos(eos, outputs, remove_first_token: bool = True):
-    if outputs.dim()==1:
+def get_outputs_until_eos(eos, outputs, remove_first_token: bool = False):
+    if outputs.dim() == 1:
         outputs = outputs.unsqueeze(0)
     found_eos = torch.nonzero(outputs == eos).cpu()
     outputs = outputs.cpu()
     actual_outputs = {}
     for idx in range(found_eos.size(0)):
-        r, c = found_eos[idx, 0], found_eos[idx, 1]
+        r, c = int(found_eos[idx, 0]), int(found_eos[idx, 1])
         if r not in actual_outputs:
-            actual_outputs[int(r)] = outputs[r,
-                                     1 if remove_first_token else 0:c]  # disregard end of sentence in output!
+            # disregard end of sentence in output!
+            actual_outputs[r] = outputs[r, 1 if remove_first_token else 0:c]
     final_outputs = []
     for r in range(outputs.size(0)):
         if r not in actual_outputs:

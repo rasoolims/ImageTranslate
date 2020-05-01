@@ -34,17 +34,10 @@ class AlbertSeq2Seq(nn.Module):
         encoder_states = self.encode(device, src_inputs, src_mask)[0]
 
         tgt_inputs = tgt_inputs.to(device)
-        tgt_mask = tgt_mask.to(device)
 
-        outputs = []
-        for i in range(1, tgt_inputs.size(1)):
-            decoder_states = self.decoder(encoder_states, tgt_inputs[:, :i], src_mask, tgt_mask[:, :i])
-            outputs.append(decoder_states[:, -1, :])
-        diag_outputs = torch.stack(outputs, dim=1)
-
-        # subseq_mask = future_mask(tgt_mask[:, :-1]).to(device)
-        # decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], src_mask, subseq_mask)
-        # diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
+        subseq_mask = future_mask(tgt_mask[:, :-1]).to(device)
+        decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], src_mask, subseq_mask)
+        diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
         diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
         tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
         non_padded_outputs = diag_outputs_flat[tgt_mask_flat]

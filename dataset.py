@@ -200,7 +200,7 @@ class ImageDocDataset(Dataset):
                 image = self.transform(image)
             images.append(image)
 
-        return {"images": images, "caption": batch["caption"], "doc": batch["doc"], "doc_idx": batch["doc_idx"]}
+        return {"images": images, "caption": batch["captions"], "doc": batch["docs"], "doc_idx": batch["doc_idx"]}
 
 
 class TextCollator(object):

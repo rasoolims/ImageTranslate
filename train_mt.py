@@ -18,12 +18,13 @@ from parallel import DataParallelModel, DataParallelCriterion
 from pytorch_lamb.pytorch_lamb import Lamb
 from seq_gen import BeamDecoder, get_outputs_until_eos, GreedyDecoder
 from textprocessor import TextProcessor
+from transformer_mt import TransformerMT
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
 
 class Trainer:
-    def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.15, clip: int = 1, optimizer=None,
+    def __init__(self, model, mask_prob: float = 0.15, clip: int = 1, optimizer=None,
                  warmup: float = 0.1, warmup_steps: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
                  beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5):
         self.model = model
@@ -232,7 +233,7 @@ class Trainer:
         else:
             lm = LM.load(options.pretrained_path)
 
-        mt_model = AlbertSeq2Seq(lm=lm, sep_encoder_decoder=options.sep_encoder)
+        mt_model = TransformerMT(lm=lm, sep_encoder_decoder=options.sep_encoder)
 
         train_data = dataset.MTDataset(batch_pickle_dir=options.train_path,
                                        max_batch_capacity=options.total_capacity, max_batch=options.batch,

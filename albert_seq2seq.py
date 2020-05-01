@@ -85,29 +85,6 @@ class AlbertDecoderAttention(nn.Module):
             albert_attention.LayerNorm)  # nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.pruned_heads = set()
 
-    def prune_heads(self, heads):
-        if len(heads) == 0:
-            return
-        mask = torch.ones(self.num_attention_heads, self.attention_head_size)
-        heads = set(heads) - self.pruned_heads  # Convert to set and emove already pruned heads
-        for head in heads:
-            # Compute how many pruned heads are before the head and move the index accordingly
-            head = head - sum(1 if h < head else 0 for h in self.pruned_heads)
-            mask[head] = 0
-        mask = mask.view(-1).contiguous().eq(1)
-        index = torch.arange(len(mask))[mask].long()
-
-        # Prune linear layers
-        self.query = prune_linear_layer(self.query, index)
-        self.key = prune_linear_layer(self.key, index)
-        self.value = prune_linear_layer(self.value, index)
-        self.dense = prune_linear_layer(self.dense, index, dim=1)
-
-        # Update hyper params and store pruned heads
-        self.num_attention_heads = self.num_attention_heads - len(heads)
-        self.all_head_size = self.attention_head_size * self.num_attention_heads
-        self.pruned_heads = self.pruned_heads.union(heads)
-
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
         x = x.view(*new_x_shape)
@@ -282,24 +259,6 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
 
     def _resize_token_embeddings(self, new_num_tokens):
         self.encoder_layer._resize_token_embeddings(new_num_tokens)
-
-    def _pzrune_heads(self, heads_to_prune):
-        """ Prunes heads of the model.
-            heads_to_prune: dict of {layer_num: list of heads to prune in this layer}
-            ALBERT has a different architecture in that its layers are shared across groups, which then has inner groups.
-            If an ALBERT model has 12 hidden layers and 2 hidden groups, with two inner groups, there
-            is a total of 4 different layers.
-
-            These layers are flattened: the indices [0,1] correspond to the two inner groups of the first hidden layer,
-            while [2,3] correspond to the two inner groups of the second hidden layer.
-
-            Any layer with in index other than [0,1,2,3] will result in an error.
-            See base class PreTrainedModel for more information about head pruning
-        """
-        for layer, heads in heads_to_prune.items():
-            group_idx = int(layer / self.config.inner_group_num)
-            inner_group_idx = int(layer - group_idx * self.config.inner_group_num)
-            self.encoder.albert_layer_groups[group_idx].albert_layers[inner_group_idx].attention.prune_heads(heads)
 
     def forward(
             self,

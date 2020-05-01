@@ -117,7 +117,7 @@ class GreedyDecoder(nn.Module):
         max_len = min(int(self.max_len_a * src_inputs.size(1) + self.max_len_b) + 1,
                       self.seq2seq_model.encoder.embeddings.position_embeddings.num_embeddings)
 
-        outputs = tgt_langs.unsqueeze(1)
+        outputs = tgt_langs.unsqueeze(1).to(device)
         seen_eos = torch.zeros(outputs.size(0), dtype=torch.bool).to(outputs.device)
         for i in range(1, max_len):
             output_mask = (outputs != pad_id)

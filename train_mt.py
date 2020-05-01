@@ -94,8 +94,10 @@ class Trainer:
 
             try:
                 predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                         src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
+                                         src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
                 targets = tgt_inputs[:, 1:].contiguous().view(-1)
+                tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
+                targets = targets[tgt_mask_flat]
                 ntokens = targets.size(0)
 
                 if ntokens == 0:  # Nothing to predict!
@@ -201,9 +203,11 @@ class Trainer:
 
                 try:
                     predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                             src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
+                                             src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
 
                     targets = tgt_inputs[:, 1:].contiguous().view(-1)
+                    tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
+                    targets = targets[tgt_mask_flat]
                     ntokens = targets.size(0)
 
                     if ntokens == 0:  # Nothing to predict!
@@ -283,8 +287,11 @@ class Trainer:
         s, d, b = int(src_inputs.size(1)), int(tgt_inputs.size(1)), int(src_inputs.size(0))
         print(src_inputs.size(), tgt_inputs.size(), b * d * (s ** 2 + d ** 2))
         predictions = trainer.model(device=trainer.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                    src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
+                                    src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
         targets = tgt_inputs[:, 1:].contiguous().view(-1)
+        tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
+        targets = targets[tgt_mask_flat]
+
         ntokens = targets.size(0)
         if ntokens > 0:  # Nothing to predict!
             loss = trainer.criterion(predictions, targets).mean()
@@ -303,8 +310,10 @@ class Trainer:
         s, d, b = int(src_inputs.size(1)), int(tgt_inputs.size(1)), int(src_inputs.size(0))
         print(src_inputs.size(), tgt_inputs.size(), b * (s + d))
         predictions = trainer.model(device=trainer.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                    src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True, flatten=True)
+                                    src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
         targets = tgt_inputs[:, 1:].contiguous().view(-1)
+        tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
+        targets = targets[tgt_mask_flat]
         ntokens = targets.size(0)
         if ntokens > 0:  # Nothing to predict!
             loss = trainer.criterion(predictions, targets).mean()

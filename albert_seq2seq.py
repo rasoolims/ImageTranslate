@@ -29,8 +29,7 @@ class AlbertSeq2Seq(nn.Module):
         encoder_states = self.encoder(src_inputs, attention_mask=src_mask)
         return encoder_states
 
-    def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask, log_softmax: bool = False,
-                flatten: bool = False):
+    def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask, log_softmax: bool = False):
         "Take in and process masked src and target sequences."
         encoder_states = self.encode(device, src_inputs, src_mask)[0]
 
@@ -39,11 +38,12 @@ class AlbertSeq2Seq(nn.Module):
         subseq_mask = future_mask(tgt_mask[:, :-1]).to(device)
         decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], src_mask, subseq_mask)
         diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
-        outputs = self.output_layer(diag_outputs)
+        diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
+        tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
+        non_padded_outputs = diag_outputs_flat[tgt_mask_flat]
+        outputs = self.output_layer(non_padded_outputs)
         if log_softmax:
             outputs = F.log_softmax(outputs, dim=-1)
-        if flatten:
-            outputs = outputs.view(-1, outputs.size(-1))
 
         return outputs
 

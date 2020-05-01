@@ -160,9 +160,9 @@ class Trainer:
         model.eval()
         with torch.no_grad():
             for batch in valid_data_iter:
-                src_inputs = batch["src_texts"].squeeze()
-                src_mask = batch["src_pad_mask"].squeeze()
-                tgt_inputs = batch["dst_texts"].squeeze()
+                src_inputs = batch["src_texts"].squeeze(0)
+                src_mask = batch["src_pad_mask"].squeeze(0)
+                tgt_inputs = batch["dst_texts"].squeeze(0)
                 outputs = self.generator(device=self.device, src_inputs=src_inputs, tgt_langs=tgt_inputs[:, 0],
                                          src_mask=src_mask)
                 for output in outputs:
@@ -196,10 +196,11 @@ class Trainer:
         with torch.no_grad():
             total_valid_loss, total_valid_tokens = 0, 0
             for batch in valid_data_iter:
-                src_inputs = batch["src_texts"].squeeze()
-                src_mask = batch["src_pad_mask"].squeeze()
-                tgt_inputs = batch["dst_texts"].squeeze()
-                tgt_mask = batch["dst_pad_mask"].squeeze()
+                src_inputs = batch["src_texts"].squeeze(0)
+                src_mask = batch["src_pad_mask"].squeeze(0)
+                tgt_inputs = batch["dst_texts"].squeeze(0)
+                tgt_mask = batch["dst_pad_mask"].squeeze(0)
+
 
                 try:
                     predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,

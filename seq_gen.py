@@ -6,6 +6,8 @@ from albert_seq2seq import AlbertSeq2Seq
 
 
 def get_outputs_until_eos(eos, outputs, remove_first_token: bool = True):
+    if outputs.dim()==1:
+        outputs = outputs.unsqueeze(0)
     found_eos = torch.nonzero(outputs == eos).cpu()
     outputs = outputs.cpu()
     actual_outputs = {}

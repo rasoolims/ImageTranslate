@@ -75,11 +75,15 @@ class AlbertDecoderAttention(nn.Module):
         self.attention_head_size = albert_attention.attention_head_size
         self.all_head_size = albert_attention.all_head_size
 
-        self.query = copy.deepcopy(albert_attention.query)  # nn.Linear(config.hidden_size, self.all_head_size)
-        self.key = copy.deepcopy(albert_attention.key)  # nn.Linear(config.hidden_size, self.all_head_size)
-        self.value = copy.deepcopy(albert_attention.value)  # nn.Linear(config.hidden_size, self.all_head_size)
+        self.query = copy.deepcopy(albert_attention.query)
+        self.key = copy.deepcopy(albert_attention.key)
+        self.value = copy.deepcopy(albert_attention.value)
 
-        self.dense = copy.deepcopy(albert_attention.dense)  # nn.Linear(config.hidden_size, config.hidden_size)
+        self.src_attn_query = copy.deepcopy(albert_attention.query)
+        self.src_attn_key = copy.deepcopy(albert_attention.key)
+        self.src_attn_value = copy.deepcopy(albert_attention.value)
+
+        self.dense = copy.deepcopy(albert_attention.dense)
         self.LayerNorm = copy.deepcopy(
             albert_attention.LayerNorm)  # nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.pruned_heads = set()
@@ -93,16 +97,15 @@ class AlbertDecoderAttention(nn.Module):
             return x.permute(0, 3, 1, 2, 4)
 
     def forward(self, encoder_states, decoder_inputs, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
-        output_attention = self.attention(decoder_inputs, decoder_inputs, decoder_inputs,
+        output_attention = self.attention(self.query(decoder_inputs), self.key(decoder_inputs),
+                                          self.value(decoder_inputs),
                                           attention_mask=tgt_attention_mask)
-        cross_attention = self.attention(output_attention[0], encoder_states, encoder_states,
+        cross_attention = self.attention(self.src_attn_query(output_attention[0]), self.src_attn_key(encoder_states),
+                                         self.src_attn_value(encoder_states),
                                          attention_mask=src_attention_mask)
         return cross_attention
 
     def attention(self, q, k, v, attention_mask=None, head_mask=None):
-        q = self.query(q)
-        k = self.key(k)
-        v = self.value(v)
         query_layer = self.transpose_for_scores(q)
         key_layer = self.transpose_for_scores(k)
         value_layer = self.transpose_for_scores(v)

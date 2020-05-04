@@ -93,8 +93,10 @@ class AlbertDecoderAttention(nn.Module):
             return x.permute(0, 3, 1, 2, 4)
 
     def forward(self, encoder_states, decoder_inputs, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
-        output_attention = self.attention(decoder_inputs, decoder_inputs, decoder_inputs, attention_mask=tgt_attention_mask)
-        cross_attention = self.attention(output_attention[0], encoder_states, encoder_states, attention_mask=src_attention_mask)
+        output_attention = self.attention(decoder_inputs, decoder_inputs, decoder_inputs,
+                                          attention_mask=tgt_attention_mask)
+        cross_attention = self.attention(output_attention[0], encoder_states, encoder_states,
+                                         attention_mask=src_attention_mask)
         return cross_attention
 
     def attention(self, q, k, v, attention_mask=None, head_mask=None):

@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from transformers import AlbertModel, AlbertConfig
 from transformers.modeling_albert import AlbertMLMHead
 
+import lm_config
 from textprocessor import TextProcessor
 
 
@@ -24,20 +25,25 @@ class LM(nn.Module):
             self.config = config
         else:
             if size == 1:
-                self.config = self._base_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
-                                                pad_token_id=text_processor.pad_token_id(),
-                                                bos_token_id=text_processor.bos_token_id(),
-                                                eos_token_id=text_processor.sep_token_id())
+                self.config = lm_config._base_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
+                                                     pad_token_id=text_processor.pad_token_id(),
+                                                     bos_token_id=text_processor.bos_token_id(),
+                                                     eos_token_id=text_processor.sep_token_id())
             elif size == 2:
-                self.config = self._medium_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
-                                                  pad_token_id=text_processor.pad_token_id(),
-                                                  bos_token_id=text_processor.bos_token_id(),
-                                                  eos_token_id=text_processor.sep_token_id())
-            else:
-                self.config = self._small_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
-                                                 pad_token_id=text_processor.pad_token_id(),
-                                                 bos_token_id=text_processor.bos_token_id(),
-                                                 eos_token_id=text_processor.sep_token_id())
+                self.config = lm_config._medium_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
+                                                       pad_token_id=text_processor.pad_token_id(),
+                                                       bos_token_id=text_processor.bos_token_id(),
+                                                       eos_token_id=text_processor.sep_token_id())
+            elif size == 3:
+                self.config = lm_config._small_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
+                                                      pad_token_id=text_processor.pad_token_id(),
+                                                      bos_token_id=text_processor.bos_token_id(),
+                                                      eos_token_id=text_processor.sep_token_id())
+            elif size == 4:
+                self.config = lm_config._toy_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
+                                                    pad_token_id=text_processor.pad_token_id(),
+                                                    bos_token_id=text_processor.bos_token_id(),
+                                                    eos_token_id=text_processor.sep_token_id())
         albert_config = AlbertConfig(**self.config)
         self.masked_lm = AlbertMLMHead(albert_config)
         if encoder is None:
@@ -46,87 +52,6 @@ class LM(nn.Module):
             self.encoder._tie_or_clone_weights(self.masked_lm.decoder, self.encoder.embeddings.word_embeddings)
         else:
             self.encoder = encoder
-
-    def _base_config(self, vocab_size: int, pad_token_id: int, bos_token_id: int, eos_token_id: int) -> Dict:
-        config = {
-            "attention_probs_dropout_prob": 0.1,
-            "hidden_act": "gelu_new",
-            "hidden_dropout_prob": 0.1,
-            "embedding_size": 128,
-            "hidden_size": 4096,
-            "initializer_range": 0.02,
-            "intermediate_size": 16384,
-            "max_position_embeddings": 512,
-            "num_attention_heads": 64,  # smaller than usual
-            "num_hidden_layers": 12,  # smaller than usual
-            "num_hidden_groups": 1,
-            "net_structure_type": 0,
-            "gap_size": 0,
-            "num_memory_blocks": 0,
-            "inner_group_num": 1,
-            "down_scale_factor": 1,
-            "type_vocab_size": 2,
-            "vocab_size": vocab_size,
-            "pad_token_id": pad_token_id,
-            "bos_token_id": bos_token_id,
-            "eos_token_id": eos_token_id,
-        }
-
-        return config
-
-    def _medium_config(self, vocab_size: int, pad_token_id: int, bos_token_id: int, eos_token_id: int) -> Dict:
-        config = {
-            "attention_probs_dropout_prob": 0.1,
-            "hidden_act": "gelu_new",
-            "hidden_dropout_prob": 0.1,
-            "embedding_size": 128,
-            "hidden_size": 1024,
-            "initializer_range": 0.02,
-            "intermediate_size": 4096,
-            "max_position_embeddings": 512,
-            "num_attention_heads": 8,  # smaller than usual
-            "num_hidden_layers": 3,  # smaller than usual
-            "num_hidden_groups": 1,
-            "net_structure_type": 0,
-            "gap_size": 0,
-            "num_memory_blocks": 0,
-            "inner_group_num": 1,
-            "down_scale_factor": 1,
-            "type_vocab_size": 2,
-            "vocab_size": vocab_size,
-            "pad_token_id": pad_token_id,
-            "bos_token_id": bos_token_id,
-            "eos_token_id": eos_token_id,
-        }
-
-        return config
-
-    def _small_config(self, vocab_size: int, pad_token_id: int, bos_token_id: int, eos_token_id: int) -> Dict:
-        config = {
-            "attention_probs_dropout_prob": 0.1,
-            "hidden_act": "gelu_new",
-            "hidden_dropout_prob": 0.1,
-            "embedding_size": 64,
-            "hidden_size": 256,
-            "initializer_range": 0.02,
-            "intermediate_size": 1024,
-            "max_position_embeddings": 512,
-            "num_attention_heads": 2,  # smaller than usual
-            "num_hidden_layers": 2,  # smaller than usual
-            "num_hidden_groups": 1,
-            "net_structure_type": 0,
-            "gap_size": 0,
-            "num_memory_blocks": 0,
-            "inner_group_num": 1,
-            "down_scale_factor": 1,
-            "type_vocab_size": 2,
-            "vocab_size": vocab_size,
-            "pad_token_id": pad_token_id,
-            "bos_token_id": bos_token_id,
-            "eos_token_id": eos_token_id,
-        }
-
-        return config
 
     def forward(self, device, mask: torch.Tensor, texts: torch.Tensor, pads: torch.Tensor):
         """

@@ -70,7 +70,7 @@ class BeamDecoder(nn.Module):
             enc_states = encoder_states if i == 1 else torch.repeat_interleave(encoder_states, self.beam_width, 0)
             cur_src_mask = src_mask if i == 1 else torch.repeat_interleave(src_mask, self.beam_width, 0)
             decoder_states = self.seq2seq_model.decoder(enc_states, cur_outputs, cur_src_mask, output_mask)
-            output = F.log_softmax(self.seq2seq_model.output_layer(decoder_states[:, -1, :]), dim=1)
+            output = F.log_softmax(self.seq2seq_model.output_layer(decoder_states[:, -1, :]), dim=-1)
             beam_scores = (cur_scores + output).view(batch_size, -1)
             top_scores, indices = torch.topk(beam_scores, k=self.beam_width, dim=1)
             flat_indices = indices.view(-1)

@@ -112,7 +112,7 @@ class AlbertDecoderAttention(nn.Module):
 
         # Take the dot product between "query" and "key" to get the raw attention scores.
         if query_layer.dim() == 5 and key_layer.dim() == 4:
-            attention_scores = torch.matmul(query_layer, key_layer.unsqueeze(2).transpose(-1, -2)).clone()
+            attention_scores = torch.matmul(query_layer, key_layer.unsqueeze(2).transpose(-1, -2))
         else:
             attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)

@@ -49,7 +49,8 @@ class TextProcessor:
         self.mask_token = "<mask>"
         self.unk_token = "<unk>"
         self.sep_token = "</s>"
-        self.special_tokens = [self.pad_token, self.unk_token, self.mask_token, self.sep_token] + self.languages
+        self.bos = "<s>"
+        self.special_tokens = [self.bos, self.pad_token, self.unk_token, self.mask_token, self.sep_token] + self.languages
 
     def train_tokenizer(self, paths: List[str], vocab_size: int, to_save_dir: str):
         self.tokenizer = SentencePieceBPETokenizer()
@@ -105,6 +106,9 @@ class TextProcessor:
 
     def unk_token_id(self) -> int:
         return self.tokenizer.token_to_id(self.unk_token)
+
+    def bos_token_id(self) -> int:
+        return self.tokenizer.token_to_id(self.bos)
 
     def sep_token_id(self) -> int:
         return self.tokenizer.token_to_id(self.sep_token)

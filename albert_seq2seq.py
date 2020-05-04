@@ -44,7 +44,6 @@ class AlbertSeq2Seq(nn.Module):
         outputs = self.output_layer(non_padded_outputs)
         if log_softmax:
             outputs = F.log_softmax(outputs, dim=-1)
-
         return outputs
 
     def save(self, out_dir: str):
@@ -94,19 +93,14 @@ class AlbertDecoderAttention(nn.Module):
             return x.permute(0, 3, 1, 2, 4)
 
     def forward(self, encoder_states, decoder_inputs, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
-        output_ids_q = self.query(decoder_inputs)
-        output_ids_k = self.key(decoder_inputs)
-        output_ids_v = self.value(decoder_inputs)
-        encoder_states_k = self.key(encoder_states)
-        encoder_states_v = self.value(encoder_states)
-
-        output_attention = self.attention(output_ids_q, output_ids_k, output_ids_v,
-                                          attention_mask=tgt_attention_mask)
-        cross_attention = self.attention(output_attention[0], encoder_states_k, encoder_states_v,
-                                         attention_mask=src_attention_mask)
+        output_attention = self.attention(decoder_inputs, decoder_inputs, decoder_inputs, attention_mask=tgt_attention_mask)
+        cross_attention = self.attention(output_attention[0], encoder_states, encoder_states, attention_mask=src_attention_mask)
         return cross_attention
 
     def attention(self, q, k, v, attention_mask=None, head_mask=None):
+        q = self.query(q)
+        k = self.key(k)
+        v = self.value(v)
         query_layer = self.transpose_for_scores(q)
         key_layer = self.transpose_for_scores(k)
         value_layer = self.transpose_for_scores(v)

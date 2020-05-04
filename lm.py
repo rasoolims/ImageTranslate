@@ -26,18 +26,18 @@ class LM(nn.Module):
             if size == 1:
                 self.config = self._base_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
                                                 pad_token_id=text_processor.pad_token_id(),
-                                                bos_token_id=text_processor.token_id("<en>"),
-                                                eos_token_id=text_processor.token_id("</s>"))
+                                                bos_token_id=text_processor.bos_token_id(),
+                                                eos_token_id=text_processor.sep_token_id())
             elif size == 2:
                 self.config = self._medium_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
                                                   pad_token_id=text_processor.pad_token_id(),
-                                                  bos_token_id=text_processor.token_id("<en>"),
-                                                  eos_token_id=text_processor.token_id("</s>"))
+                                                  bos_token_id=text_processor.bos_token_id(),
+                                                  eos_token_id=text_processor.sep_token_id())
             else:
                 self.config = self._small_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
                                                  pad_token_id=text_processor.pad_token_id(),
-                                                 bos_token_id=text_processor.token_id("<en>"),
-                                                 eos_token_id=text_processor.token_id("</s>"))
+                                                 bos_token_id=text_processor.bos_token_id(),
+                                                 eos_token_id=text_processor.sep_token_id())
         albert_config = AlbertConfig(**self.config)
         self.masked_lm = AlbertMLMHead(albert_config)
         if encoder is None:

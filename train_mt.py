@@ -45,6 +45,7 @@ class Trainer:
         if self.optimizer is not None:
             self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
                                                                    num_training_steps=step)
+
         self.mask_prob = mask_prob
         self.criterion = SmoothedNLLLoss(
             ignore_index=model.text_processor.pad_token_id())  # nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
@@ -172,7 +173,8 @@ class Trainer:
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
 
         with open(os.path.join(saving_path, "bleu.output"), "w") as writer:
-            writer.write("\n".join(mt_output))
+            writer.write("\n".join(
+                [ref + "\n" + o + "\n***************\n" for ref, o in zip(mt_output, self.reference[:len(mt_output)])]))
 
         if bleu.score > self.best_bleu:
             self.best_bleu = bleu.score
@@ -323,6 +325,8 @@ class Trainer:
             else:
                 loss.backward()
         trainer.optimizer.zero_grad()
+        trainer.optimizer.step()
+        trainer.scheduler.step()
         torch.cuda.empty_cache()
 
 

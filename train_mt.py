@@ -69,7 +69,7 @@ class Trainer:
         return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader, saving_path: str,
-                    max_grad_norm: float = 1.0):
+                    step: int, max_grad_norm: float = 1.0):
         if self.fp16:
             try:
                 import apex
@@ -119,6 +119,7 @@ class Trainer:
 
                     self.optimizer.step()
                     self.scheduler.step()
+                    step += 1
 
                 loss = float(loss.data) * ntokens
                 total_loss += loss
@@ -152,6 +153,7 @@ class Trainer:
         self.validate_and_save(valid_data_iter)
         bleu = self.eval_bleu(valid_data_iter, saving_path)
         print("BLEU:", bleu)
+        return step
 
     def eval_bleu(self, valid_data_iter, saving_path):
         mt_output = []
@@ -270,9 +272,12 @@ class Trainer:
         print("Trying if largest batch fits into memory")
         Trainer.memory_test(train_data, trainer)
 
-        for i in range(options.num_epochs):
-            print("train epoch", i)
-            trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader, saving_path=options.model_path)
+        step, train_epoch = 0, 1
+        while step <= options.step:
+            print("train epoch", train_epoch)
+            step = trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader, saving_path=options.model_path,
+                                       step=step)
+            train_epoch += 1
 
     @staticmethod
     def memory_test(train_data, trainer):
@@ -342,7 +347,6 @@ def get_options():
                       default=None)
     parser.add_option("--pretrained", dest="pretrained_path", help="Directory of pretrained model", metavar="FILE",
                       default=None)
-    parser.add_option("--epoch", dest="num_epochs", help="Number of training epochs", type="int", default=100)
     parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
     parser.add_option("--capacity", dest="total_capacity", help="Batch capcity", type="int", default=150)
     parser.add_option("--batch", dest="batch", help="Batch num_tokens", type="int", default=20000)

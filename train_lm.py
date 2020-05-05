@@ -21,8 +21,8 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 class Trainer:
-    def __init__(self, model: LM, mask_prob: float = 0.15, clip: int = 1, optimizer=None, warmup: float = 0.1,
-                 warmup_steps: int = 125000, fp16: bool = False, fp16_opt_level: str = "01", distributed: bool = False,
+    def __init__(self, model: LM, mask_prob: float = 0.15, clip: int = 1, optimizer=None, warmup: int = 12500,
+                 step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01", distributed: bool = False,
                  local_rank: int = 0):
         self.model = model
 
@@ -44,9 +44,9 @@ class Trainer:
             self.model, self.optimizer = apex.amp.initialize(self.model, self.optimizer, opt_level=fp16_opt_level)
 
         if self.optimizer is not None:
-            self.scheduler = optim.get_linear_schedule_with_warmup(
-                self.optimizer, num_warmup_steps=int(warmup * warmup_steps), num_training_steps=warmup_steps
-            )
+            if self.optimizer is not None:
+                self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
+                                                                       num_training_steps=step)
         self.mask_prob = mask_prob
         self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
 
@@ -73,7 +73,7 @@ class Trainer:
         return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader,
-                    saving_path: str, max_grad_norm: float = 1.0):
+                    saving_path: str, step: int, max_grad_norm: float = 1.0):
         if self.fp16 or self.distributed:
             try:
                 import apex
@@ -115,6 +115,7 @@ class Trainer:
 
                 self.optimizer.step()
                 self.scheduler.step()
+                step += 1
 
             loss = float(loss.data) * ntokens
             total_loss += loss
@@ -143,6 +144,7 @@ class Trainer:
         self.last_train_loss = current_loss
 
         self.validate_and_save(saving_path, valid_data_iter)
+        return step
 
     def validate_and_save(self, saving_path, valid_data_iter):
         with torch.no_grad():
@@ -196,7 +198,7 @@ class Trainer:
 
         trainer = Trainer(model=lm, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
-                          clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps,
+                          clip=options.clip, warmup=options.warmup, step=options.step,
                           fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, distributed=options.distributed,
                           local_rank=options.local_rank)
 
@@ -212,9 +214,11 @@ class Trainer:
         valid_loader = data_utils.DataLoader(valid_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
                                              collate_fn=collator, sampler=valid_sampler)
 
-        for i in range(options.num_epochs):
-            print("train epoch", i)
-            trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader, saving_path=options.model_path)
+        step, train_epoch = 0, 1
+        while step <= options.step:
+            print("train epoch", train_epoch)
+            step = trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader, saving_path=options.model_path,
+                                       step=step)
 
 
 def get_options():
@@ -237,8 +241,8 @@ def get_options():
     parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
     parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
     parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.0025)
-    parser.add_option("--warmup", dest="warmup", help="Warm up rate", type="float", default=0.1)
-    parser.add_option("--steps", dest="warmup_steps", help="Number of warmup steps", type="int", default=125000)
+    parser.add_option("--warmup", dest="warmup", help="Number of warmup steps", type="int", default=12500)
+    parser.add_option("--step", dest="step", help="Number of training steps", type="int", default=125000)
     parser.add_option("--decay", dest="weight_decay", help="Weight decay", type="float", default=0.01)
     parser.add_option("--max_grad_norm", dest="max_grad_norm", help="Max grad norm", type="float", default=1.0)
     parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)

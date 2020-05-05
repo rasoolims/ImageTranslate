@@ -6,7 +6,6 @@ from optparse import OptionParser
 
 import sacrebleu
 import torch
-import torch.nn as nn
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
@@ -14,6 +13,7 @@ from IPython.core import ultratb
 import dataset
 from albert_seq2seq import AlbertSeq2Seq
 from lm import LM
+from loss import SmoothedNLLLoss
 from parallel import DataParallelModel, DataParallelCriterion
 from pytorch_lamb.pytorch_lamb import Lamb
 from seq_gen import BeamDecoder, get_outputs_until_eos, GreedyDecoder
@@ -47,7 +47,8 @@ class Trainer:
                 self.optimizer, num_warmup_steps=int(warmup * warmup_steps), num_training_steps=warmup_steps
             )
         self.mask_prob = mask_prob
-        self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
+        self.criterion = SmoothedNLLLoss(
+            ignore_index=model.text_processor.pad_token_id())  # nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
 
         self.num_gpu = torch.cuda.device_count()
         if self.num_gpu > 1:
@@ -201,7 +202,6 @@ class Trainer:
                 tgt_inputs = batch["dst_texts"].squeeze(0)
                 tgt_mask = batch["dst_pad_mask"].squeeze(0)
 
-
                 try:
                     predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                              src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
@@ -257,7 +257,7 @@ class Trainer:
                           fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
                           max_len_a=options.max_len_a, max_len_b=options.max_len_b)
 
-        print("creating referece")
+        print("creating reference")
         trainer.reference = []
 
         for batch in valid_loader:

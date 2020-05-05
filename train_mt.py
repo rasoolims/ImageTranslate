@@ -24,7 +24,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 class Trainer:
     def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.15, clip: int = 1, optimizer=None,
-                 warmup: float = 0.1, warmup_steps: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
+                 warmup: int = 12500, step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
                  beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5):
         self.model = model
 
@@ -43,9 +43,8 @@ class Trainer:
             self.model, self.optimizer = apex.amp.initialize(self.model, self.optimizer, opt_level=fp16_opt_level)
 
         if self.optimizer is not None:
-            self.scheduler = optim.get_linear_schedule_with_warmup(
-                self.optimizer, num_warmup_steps=int(warmup * warmup_steps), num_training_steps=warmup_steps
-            )
+            self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
+                                                                   num_training_steps=step)
         self.mask_prob = mask_prob
         self.criterion = SmoothedNLLLoss(
             ignore_index=model.text_processor.pad_token_id())  # nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
@@ -253,8 +252,8 @@ class Trainer:
 
         trainer = Trainer(model=mt_model, mask_prob=options.mask_prob,
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
-                          clip=options.clip, warmup=options.warmup, warmup_steps=options.warmup_steps,
-                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
+                          clip=options.clip, warmup=options.warmup, step=options.step, fp16=options.fp16,
+                          fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
                           max_len_a=options.max_len_a, max_len_b=options.max_len_b)
 
         print("creating reference")
@@ -346,8 +345,8 @@ def get_options():
     parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
     parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
     parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.002)
-    parser.add_option("--warmup", dest="warmup", help="Warm up rate", type="float", default=0.00001)
-    parser.add_option("--steps", dest="warmup_steps", help="Number of warmup steps", type="int", default=125000)
+    parser.add_option("--warmup", dest="warmup", help="Number of warmup steps", type="int", default=12500)
+    parser.add_option("--step", dest="step", help="Number of training steps", type="int", default=125000)
     parser.add_option("--decay", dest="weight_decay", help="Weight decay", type="float", default=0.01)
     parser.add_option("--max_grad_norm", dest="max_grad_norm", help="Max grad norm", type="float", default=1.0)
     parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)

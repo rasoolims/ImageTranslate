@@ -104,6 +104,9 @@ class LM(nn.Module):
         text_processor = TextProcessor(tok_model_path=out_dir)
         with open(os.path.join(out_dir, "config"), "rb") as fp:
             config = pickle.load(fp)
+            if isinstance(config, dict):
+                # For older configs
+                config = AlbertConfig(**config)
             lm = LM(text_processor=text_processor, config=config)
             lm.load_state_dict(torch.load(os.path.join(out_dir, "model.state_dict")))
             return lm

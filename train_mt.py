@@ -131,7 +131,7 @@ class Trainer:
                 print("Error in processing", src_inputs.size(), tgt_inputs.size())
                 torch.cuda.empty_cache()
 
-            if step % 50 == 0:
+            if step % 50 == 0 and tokens > 0:
                 elapsed = time.time() - start
                 print(datetime.datetime.now(),
                       "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (

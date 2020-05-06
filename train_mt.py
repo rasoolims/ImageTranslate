@@ -131,13 +131,13 @@ class Trainer:
                 print("Error in processing", src_inputs.size(), tgt_inputs.size())
                 torch.cuda.empty_cache()
 
-            if (i + 1) % 50 == 0:
+            if step % 50 == 0:
                 elapsed = time.time() - start
                 print(datetime.datetime.now(),
                       "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
-                          i + 1, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
+                          step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
-                if (i + 1) % 5000 == 0:
+                if step % 500 == 0:
                     self.validate_and_save(valid_data_iter)
                     bleu = self.eval_bleu(valid_data_iter, saving_path)
                     print("BLEU:", bleu)

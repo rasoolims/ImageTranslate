@@ -25,7 +25,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class Trainer:
     def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.15, clip: int = 1, optimizer=None,
                  warmup: int = 12500, step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
-                 beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5):
+                 beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5, len_penalty_ratio: float = 0.8):
         self.model = model
 
         self.clip = clip
@@ -60,7 +60,8 @@ class Trainer:
                                        max_len_b=max_len_b) if beam_width == 1 else BeamDecoder(model,
                                                                                                 beam_width=beam_width,
                                                                                                 max_len_a=max_len_a,
-                                                                                                max_len_b=max_len_b)
+                                                                                                max_len_b=max_len_b,
+                                                                                                len_penalty_ratio=len_penalty_ratio)
         self.reference = None
         self.best_bleu = -1.0
 
@@ -258,7 +259,8 @@ class Trainer:
                           optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
                           clip=options.clip, warmup=options.warmup, step=options.step, fp16=options.fp16,
                           fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
-                          max_len_a=options.max_len_a, max_len_b=options.max_len_b)
+                          max_len_a=options.max_len_a, max_len_b=options.max_len_b,
+                          len_penalty_ratio=options.len_penalty_ratio)
 
         print("creating reference")
         trainer.reference = []
@@ -369,6 +371,8 @@ def get_options():
                       default=3)
     parser.add_option("--max_len_a", dest="max_len_a", help="a for beam search (a*l+b)", type="float", default=1.8)
     parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)
+    parser.add_option("--len-penalty", dest="len_penalty_ratio", help="Length penalty (alpha)", type="float",
+                      default=0.8)
     parser.add_option(
         "--fp16_opt_level",
         type=str,

@@ -36,12 +36,32 @@ class BatchedBeamElement():
 
 
 class BeamDecoder(nn.Module):
-    def __init__(self, seq2seq_model: AlbertSeq2Seq, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5):
+    def __init__(self, seq2seq_model: AlbertSeq2Seq, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
+                 len_penalty_ratio: float = 0.8):
         super(BeamDecoder, self).__init__()
         self.seq2seq_model = seq2seq_model
         self.beam_width = beam_width
         self.max_len_a = max_len_a
         self.max_len_b = max_len_b
+        self.len_penalty_ratio = len_penalty_ratio
+
+    def len_penalty(self, cur_beam_elements: torch.Tensor, eos_idx: int):
+        """
+        Based on https://arxiv.org/pdf/1609.08144.pdf, section 7
+        :param cur_beam_elements: of size (batch_size * beam_width) * length [might have eos before length]
+        :return:
+        """
+        lengths = [int(cur_beam_elements.size(-1))] * int(cur_beam_elements.size(0))
+        found_eos = torch.nonzero(cur_beam_elements == eos_idx).cpu()
+        eos_indices = {}
+        for idx in range(found_eos.size(0)):
+            r, c = int(found_eos[idx, 0]), int(found_eos[idx, 1])
+            if r not in eos_indices:
+                eos_indices[r] = c
+                lengths[r] = c + 1
+
+        length_penalty = torch.pow(torch.tensor(lengths).to(cur_beam_elements.device) / 6.0, self.len_penalty_ratio)
+        return length_penalty.unsqueeze(-1)
 
     def forward(self, device, src_inputs, tgt_langs, src_mask):
         """
@@ -63,15 +83,26 @@ class BeamDecoder(nn.Module):
 
         max_len = min(int(self.max_len_a * src_inputs.size(1) + self.max_len_b) + 1,
                       self.seq2seq_model.encoder.embeddings.position_embeddings.num_embeddings)
+
         for i in range(1, max_len):
             cur_outputs = top_beam_outputs.view(-1, top_beam_outputs.size(-1))
+
+            if int(torch.sum(torch.any(cur_outputs == eos, 1))) == self.beam_width * batch_size:
+                # All beam items have end-of-sentence token.
+                break
+
+            # Keeps track of those items for which we know should be masked for their score, because they already reached
+            # end of sentence.
+            eos_mask = torch.any(cur_outputs == eos, 1)
+
             cur_scores = top_beam_scores.view(-1).unsqueeze(-1)
             output_mask = torch.ones(cur_outputs.size()).to(cur_outputs.device)
             enc_states = encoder_states if i == 1 else torch.repeat_interleave(encoder_states, self.beam_width, 0)
             cur_src_mask = src_mask if i == 1 else torch.repeat_interleave(src_mask, self.beam_width, 0)
             decoder_states = self.seq2seq_model.decoder(enc_states, cur_outputs, cur_src_mask, output_mask)
             output = F.log_softmax(self.seq2seq_model.output_layer(decoder_states[:, -1, :]), dim=-1)
-            beam_scores = (cur_scores + output).view(batch_size, -1)
+            output[eos_mask] = 0  # Disregard those items with EOS in them!
+            beam_scores = ((cur_scores + output) / self.len_penalty(cur_outputs, eos)).view(batch_size, -1)
             top_scores, indices = torch.topk(beam_scores, k=self.beam_width, dim=1)
             flat_indices = indices.view(-1)
             word_indices = torch.stack([torch.LongTensor([range(output.size(1))])] * self.beam_width, dim=1).view(-1)
@@ -86,10 +117,6 @@ class BeamDecoder(nn.Module):
 
             top_beam_scores = top_scores
 
-            seen_eos = torch.any(top_beam_outputs[:, 0, :] == eos, 1)
-
-            if torch.all(seen_eos):
-                break
         outputs = top_beam_outputs[:, 0, :]
         actual_outputs = get_outputs_until_eos(eos, outputs)
 

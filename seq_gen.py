@@ -51,14 +51,14 @@ class BeamDecoder(nn.Module):
         :param cur_beam_elements: of size (batch_size * beam_width) * length [might have eos before length]
         :return:
         """
-        lengths = [int(cur_beam_elements.size(-1))] * int(cur_beam_elements.size(0))
+        lengths = [int(cur_beam_elements.size(-1)) + 5] * int(cur_beam_elements.size(0))
         found_eos = torch.nonzero(cur_beam_elements == eos_idx).cpu()
         eos_indices = {}
         for idx in range(found_eos.size(0)):
             r, c = int(found_eos[idx, 0]), int(found_eos[idx, 1])
             if r not in eos_indices:
                 eos_indices[r] = c
-                lengths[r] = c + 1
+                lengths[r] = c + 6
 
         length_penalty = torch.pow(torch.tensor(lengths).to(cur_beam_elements.device) / 6.0, self.len_penalty_ratio)
         return length_penalty.unsqueeze(-1)

@@ -1,7 +1,6 @@
 import os
 import pickle
 import random
-from typing import Dict
 
 import torch
 import torch.nn as nn
@@ -14,7 +13,8 @@ from textprocessor import TextProcessor
 
 
 class LM(nn.Module):
-    def __init__(self, text_processor: TextProcessor, config: Dict = None, encoder: AlbertModel = None, size: int = 1):
+    def __init__(self, text_processor: TextProcessor, config: AlbertConfig = None, encoder: AlbertModel = None,
+                 size: int = 1):
         """
         :param size: config size: 1 big, 2 medium, 3 small.
         """
@@ -44,10 +44,11 @@ class LM(nn.Module):
                                                     pad_token_id=text_processor.pad_token_id(),
                                                     bos_token_id=text_processor.bos_token_id(),
                                                     eos_token_id=text_processor.sep_token_id())
-        albert_config = AlbertConfig(**self.config)
-        self.masked_lm = AlbertMLMHead(albert_config)
+            self.config = AlbertConfig(**self.config)
+
+        self.masked_lm = AlbertMLMHead(self.config)
         if encoder is None:
-            self.encoder: AlbertModel = AlbertModel(albert_config)
+            self.encoder: AlbertModel = AlbertModel(self.config)
             self.encoder.init_weights()
             self.encoder._tie_or_clone_weights(self.masked_lm.decoder, self.encoder.embeddings.word_embeddings)
         else:

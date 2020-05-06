@@ -82,6 +82,9 @@ class Trainer:
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
         cur_loss = 0
         sentences = 0
+        model_to_save = (
+            self.model.module if hasattr(self.model, "module") else self.model
+        )
 
         for i, batch in enumerate(data_iter):
             if self.optimizer is not None:
@@ -128,6 +131,9 @@ class Trainer:
                 total_tokens += ntokens
                 tokens += ntokens
                 sentences += int(src_inputs.size(0))
+
+                model_to_save.save_checkpoint(saving_path)
+
             except RuntimeError:
                 print("Error in processing", src_inputs.size(), tgt_inputs.size())
                 torch.cuda.empty_cache()
@@ -139,19 +145,18 @@ class Trainer:
                           step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
                 if step % 500 == 0:
-                    self.validate_and_save(valid_data_iter)
+                    self.avg_model = model_to_save.load_avg_model(saving_path)
+                    self.validate(valid_data_iter)
                     bleu = self.eval_bleu(valid_data_iter, saving_path)
                     print("BLEU:", bleu)
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-        model_to_save = (
-            self.model.module if hasattr(self.model, "module") else self.model
-        )
         model_to_save.save(saving_path + ".latest")
 
-        self.validate_and_save(valid_data_iter)
+        self.avg_model = model_to_save.load_avg_model(saving_path)
+        self.validate(valid_data_iter)
         bleu = self.eval_bleu(valid_data_iter, saving_path)
         print("BLEU:", bleu)
         return step
@@ -159,9 +164,11 @@ class Trainer:
     def eval_bleu(self, valid_data_iter, saving_path):
         mt_output = []
         model = (
-            self.model.module if hasattr(self.model, "module") else self.model
+            self.avg_model.module if hasattr(self.avg_model, "module") else self.avg_model
         )
         model.eval()
+        self.generator.seq2seq_model = self.avg_model
+
         with torch.no_grad():
             for batch in valid_data_iter:
                 src_inputs = batch["src_texts"].squeeze(0)
@@ -182,20 +189,16 @@ class Trainer:
         if bleu.score > self.best_bleu:
             self.best_bleu = bleu.score
             print("Saving best BLEU", self.best_bleu)
-            model_to_save = (
-                self.model.module if hasattr(self.model, "module") else self.model
-            )
-
-            model_to_save.save(saving_path)
+            model.save(saving_path)
 
             with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
                 writer.write("\n".join(mt_output))
 
         return bleu.score
 
-    def validate_and_save(self, valid_data_iter):
+    def validate(self, valid_data_iter):
         model = (
-            self.model.module if hasattr(self.model, "module") else self.model
+            self.avg_model.module if hasattr(self.avg_model, "module") else self.avg_model
         )
         model.eval()
         with torch.no_grad():
@@ -207,8 +210,8 @@ class Trainer:
                 tgt_mask = batch["dst_pad_mask"].squeeze(0)
 
                 try:
-                    predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                             src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
+                    predictions = self.avg_model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                                                 src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
 
                     targets = tgt_inputs[:, 1:].contiguous().view(-1)
                     tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
@@ -241,7 +244,8 @@ class Trainer:
         else:
             lm = LM.load(options.pretrained_path)
 
-        mt_model = AlbertSeq2Seq(lm=lm, sep_encoder_decoder=options.sep_encoder)
+        mt_model = AlbertSeq2Seq(lm=lm, sep_encoder_decoder=options.sep_encoder, checkpoint=options.checkpoint)
+        mt_model.save_config_and_tok(options.model_path)
 
         train_data = dataset.MTDataset(batch_pickle_dir=options.train_path,
                                        max_batch_capacity=options.total_capacity, max_batch=options.batch,
@@ -365,14 +369,12 @@ def get_options():
     parser.add_option("--beam", dest="beam_width", help="Beam width", type="int", default=5)
     parser.add_option("--heads", dest="num_heads", help="Number of attention heads", type="int", default=8)
     parser.add_option("--fp16", action="store_true", dest="fp16", help="use fp16; should be compatible", default=False)
-    parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Don't share encoder and decoder",
-                      default=False)
-    parser.add_option("--size", dest="model_size", help="Model size: 1 (base), 2 (medium), 3 (small)", type="int",
-                      default=3)
+    parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Disjoint encoder/decoder", default=False)
+    parser.add_option("--size", dest="model_size", help="1 base, 2 medium, 3 small, 4 toy", type="int", default=3)
     parser.add_option("--max_len_a", dest="max_len_a", help="a for beam search (a*l+b)", type="float", default=1.8)
     parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)
-    parser.add_option("--len-penalty", dest="len_penalty_ratio", help="Length penalty (alpha)", type="float",
-                      default=0.8)
+    parser.add_option("--len-penalty", dest="len_penalty_ratio", help="Length penalty", type="float", default=0.8)
+    parser.add_option("--checkpoint", dest="checkpoint", help="Number of checkpoints to average", type="int", default=5)
     parser.add_option(
         "--fp16_opt_level",
         type=str,

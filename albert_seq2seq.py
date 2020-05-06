@@ -1,3 +1,4 @@
+import collections
 import copy
 import pickle
 
@@ -15,13 +16,16 @@ def future_mask(tgt_mask):
 
 
 class AlbertSeq2Seq(nn.Module):
-    def __init__(self, lm: LM, sep_encoder_decoder: bool = True):
+    def __init__(self, lm: LM, sep_encoder_decoder: bool = False, checkpoint: int = 5):
         super(AlbertSeq2Seq, self).__init__()
         self.text_processor: TextProcessor = lm.text_processor
         self.config = lm.encoder.config
-        self.encoder: AlbertModel = lm.encoder if not sep_encoder_decoder else copy.deepcopy(lm.encoder)
+        self.encoder: AlbertModel = lm.encoder if not sep_encoder_decoder else copy.deepcopy(lm.encoder.state_dict())
         self.decoder: AlbertDecoderModel = AlbertDecoderModel(self.encoder)
         self.output_layer = lm.masked_lm
+        self.checkpoint = checkpoint
+        self.checkpoint_num = 0
+        self.sep = sep_encoder_decoder
 
     def encode(self, device, src_inputs, src_mask):
         src_inputs = src_inputs.to(device)
@@ -46,11 +50,30 @@ class AlbertSeq2Seq(nn.Module):
             outputs = F.log_softmax(outputs, dim=-1)
         return outputs
 
+    def save_checkpoint(self, out_dir: str):
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict." + str(self.checkpoint_num)))
+        self.checkpoint_num = (self.checkpoint_num + 1) % self.checkpoint
+
+    def save_state_dict(self, out_dir: str, state_dict):
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        torch.save(state_dict, os.path.join(out_dir, "mt_model.state_dict." + str(self.checkpoint_num)))
+        self.checkpoint_num = (self.checkpoint_num + 1) % self.checkpoint
+
+    def save_config_and_tok(self, out_dir: str):
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        with open(os.path.join(out_dir, "mt_config"), "wb") as fp:
+            pickle.dump((self.config, self.checkpoint, self.sep), fp)
+        self.text_processor.tokenizer.save(directory=out_dir)
+
     def save(self, out_dir: str):
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         with open(os.path.join(out_dir, "mt_config"), "wb") as fp:
-            pickle.dump(self.config, fp)
+            pickle.dump((self.config, self.checkpoint, self.sep), fp)
 
         torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
         self.text_processor.tokenizer.save(directory=out_dir)
@@ -59,10 +82,42 @@ class AlbertSeq2Seq(nn.Module):
     def load(out_dir: str):
         text_processor = TextProcessor(tok_model_path=out_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
-            config = pickle.load(fp)
+            config, checkpoint, sep = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
-            lm.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
+            mt_model = AlbertSeq2Seq(lm=lm, checkpoint=checkpoint, sep_encoder_decoder=sep)
+            mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return lm
+
+    def load_avg_model(self, out_dir: str):
+        text_processor = TextProcessor(tok_model_path=out_dir)
+        with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
+            config, checkpoint, sep = pickle.load(fp)
+            lm = LM(text_processor=text_processor, config=config)
+            mt_model = AlbertSeq2Seq(lm=lm, sep_encoder_decoder=sep, checkpoint=checkpoint)
+
+            params_dict = collections.OrderedDict()
+            num_models = 0
+            for i in range(self.checkpoint):
+                path = os.path.join(out_dir, "mt_model.state_dict." + str(i))
+                if os.path.exists(path):
+                    num_models += 1
+                    state_dict = torch.load(path)
+
+                    for k in state_dict.keys():
+                        p = state_dict[k]
+                        if isinstance(p, torch.HalfTensor):
+                            p = p.float()
+                        if k not in params_dict:
+                            params_dict[k] = p.clone()
+                        else:
+                            params_dict[k] += p
+
+            averaged_params = collections.OrderedDict()
+            for k, v in params_dict.items():
+                averaged_params[k] = v
+                averaged_params[k].div_(num_models)
+            mt_model.load_state_dict(averaged_params)
+            return mt_model
 
 
 class AlbertDecoderAttention(nn.Module):

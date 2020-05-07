@@ -89,7 +89,8 @@ class Trainer:
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
             model_to_call = self.model.module if hasattr(self.model, "module") else self.model
-            mask, target, texts = model_to_call.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"])
+            mask, target, texts = LM.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"],
+                                               model_to_call.text_processor)
             predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
             ntokens = target.size(0)
 
@@ -105,7 +106,7 @@ class Trainer:
             else:
                 loss.backward()
 
-            model_to_call.unmask_text(mask, target, texts)
+            LM.unmask_text(mask, target, texts)
 
             if self.optimizer is not None:
                 if self.fp16:
@@ -155,9 +156,9 @@ class Trainer:
             total_valid_loss, total_valid_tokens = 0, 0
             for batch in valid_data_iter:
                 model_to_call = self.model.module if hasattr(self.model, "module") else self.model
-                mask, target, texts = model_to_call.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"].clone())
+                mask, target, texts = LM.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"].clone(),
+                                                   model_to_call.text_processor)
                 predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
-                model_to_call.unmask_text(mask, target, texts)
                 ntokens = target.size(0)
 
                 if ntokens == 0:  # Nothing to predict!

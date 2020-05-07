@@ -25,7 +25,8 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class Trainer:
     def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.15, clip: int = 1, optimizer=None,
                  warmup: int = 12500, step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
-                 beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5, len_penalty_ratio: float = 0.8):
+                 beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5, len_penalty_ratio: float = 0.8,
+                 self_translate: bool = False):
         self.model = model
 
         self.clip = clip
@@ -34,6 +35,7 @@ class Trainer:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.model.to(self.device)
+        self.self_translate = self_translate
 
         if fp16:
             try:
@@ -98,6 +100,10 @@ class Trainer:
                 continue
 
             try:
+                if self.self_translate:
+                    mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
+                                                                text_processor=model_to_save.text_processor)
+
                 predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                          src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
                 targets = tgt_inputs[:, 1:].contiguous().view(-1)
@@ -131,7 +137,11 @@ class Trainer:
                 total_tokens += ntokens
                 tokens += ntokens
                 sentences += int(src_inputs.size(0))
-            except RuntimeError:
+
+                if self.self_translate:
+                    LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
+
+            except RuntimeError as err:
                 print("Error in processing", src_inputs.size(), tgt_inputs.size())
                 torch.cuda.empty_cache()
 
@@ -172,10 +182,17 @@ class Trainer:
                 src_inputs = batch["src_texts"].squeeze(0)
                 src_mask = batch["src_pad_mask"].squeeze(0)
                 tgt_inputs = batch["dst_texts"].squeeze(0)
+                if self.self_translate:
+                    mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
+                                                                text_processor=model.text_processor)
+
                 outputs = self.generator(device=self.device, src_inputs=src_inputs, tgt_langs=tgt_inputs[:, 0],
                                          src_mask=src_mask)
                 for output in outputs:
                     mt_output.append(self.generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
+
+                if self.self_translate:
+                    LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
 
             model.train()
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
@@ -208,6 +225,9 @@ class Trainer:
                 tgt_mask = batch["dst_pad_mask"].squeeze(0)
 
                 try:
+                    if self.self_translate:
+                        mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
+                                                                    text_processor=model.text_processor)
                     predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                              src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
 
@@ -222,6 +242,8 @@ class Trainer:
                     loss = self.criterion(predictions, targets).mean().data * ntokens
                     total_valid_loss += float(loss)
                     total_valid_tokens += ntokens
+                    if self.self_translate:
+                        LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
                 except RuntimeError:
                     print("Error in processing", src_inputs.size(), tgt_inputs.size())
                     torch.cuda.empty_cache()
@@ -262,7 +284,7 @@ class Trainer:
                           clip=options.clip, warmup=options.warmup, step=options.step, fp16=options.fp16,
                           fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
                           max_len_a=options.max_len_a, max_len_b=options.max_len_b,
-                          len_penalty_ratio=options.len_penalty_ratio)
+                          len_penalty_ratio=options.len_penalty_ratio, self_translate=options.pretrain)
 
         print("creating reference")
         trainer.reference = []
@@ -373,6 +395,8 @@ def get_options():
     parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)
     parser.add_option("--len-penalty", dest="len_penalty_ratio", help="Length penalty", type="float", default=0.8)
     parser.add_option("--checkpoint", dest="checkpoint", help="Number of checkpoints to average", type="int", default=5)
+    parser.add_option("--pretrain", action="store_true", dest="pretrain",
+                      help="Use self to self translation similar to BART!", default=False)
     parser.add_option(
         "--fp16_opt_level",
         type=str,

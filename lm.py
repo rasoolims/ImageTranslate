@@ -65,7 +65,8 @@ class LM(nn.Module):
         output_predictions = F.log_softmax(self.masked_lm(text_hidden[mask]), dim=1)
         return output_predictions
 
-    def mask_text(self, mask_prob, pads, texts):
+    @staticmethod
+    def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
         assert 0 < mask_prob < 1
         mask = torch.empty(texts.size()).uniform_(0, 1) < mask_prob
         mask[~pads] = False  # We should not mask pads.
@@ -74,11 +75,10 @@ class LM(nn.Module):
         for i in range(len(replacements)):
             r = random.random()
             if r < 0.8:
-                replacements[i] = self.text_processor.mask_token_id()
+                replacements[i] = text_processor.mask_token_id()
             elif r < 0.9:
                 # Replace with another random word.
-                random_index = random.randint(len(self.text_processor.special_tokens),
-                                              self.text_processor.vocab_size() - 1)
+                random_index = random.randint(len(text_processor.special_tokens), text_processor.vocab_size() - 1)
                 replacements[i] = random_index
             else:
                 # keep the word
@@ -86,7 +86,8 @@ class LM(nn.Module):
         texts[mask] = replacements
         return mask, masked_ids, texts
 
-    def unmask_text(self, mask, masked_ids, texts):
+    @staticmethod
+    def unmask_text(mask, masked_ids, texts):
         # Return back the original masked elements!
         texts[mask] = masked_ids
 

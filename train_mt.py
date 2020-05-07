@@ -1,3 +1,4 @@
+import copy
 import datetime
 import os
 import sys
@@ -259,12 +260,18 @@ class Trainer:
 
         text_processor = TextProcessor(options.tokenizer_path)
 
-        if options.pretrained_path is None:
-            lm = LM(text_processor=text_processor, size=options.model_size)
+        if options.pretrained_path is not None:
+            mt_model, lm = AlbertSeq2Seq.load(options.pretrained_path)
         else:
-            lm = LM.load(options.pretrained_path)
+            if options.lm_path is None:
+                lm = LM(text_processor=text_processor, size=options.model_size)
+            else:
+                lm = LM.load(options.lm_path)
 
-        mt_model = AlbertSeq2Seq(lm=lm, sep_encoder_decoder=options.sep_encoder, checkpoint=options.checkpoint)
+            decoder = copy.DeepCopy(lm.encoder) if options.sep_encoder else lm.encoder
+            mt_model = AlbertSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
+                                     text_processor=lm.text_processor, checkpoint=options.checkpoint)
+
         mt_model.save_config_and_tok(options.model_path)
 
         train_data = dataset.MTDataset(batch_pickle_dir=options.train_path,
@@ -371,8 +378,8 @@ def get_options():
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
                       default=None)
-    parser.add_option("--pretrained", dest="pretrained_path", help="Directory of pretrained model", metavar="FILE",
-                      default=None)
+    parser.add_option("--lm", dest="lm_path", help="LM pretrained model", metavar="FILE", default=None)
+    parser.add_option("--pretrained", dest="pretrained_path", help="MT pretrained model", metavar="FILE", default=None)
     parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
     parser.add_option("--capacity", dest="total_capacity", help="Batch capcity", type="int", default=150)
     parser.add_option("--batch", dest="batch", help="Batch num_tokens", type="int", default=20000)

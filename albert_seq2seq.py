@@ -16,16 +16,17 @@ def future_mask(tgt_mask):
 
 
 class AlbertSeq2Seq(nn.Module):
-    def __init__(self, lm: LM, sep_encoder_decoder: bool = False, checkpoint: int = 5):
+    def __init__(self, config: AlbertConfig, encoder, decoder, output_layer: AlbertMLMHead,
+                 text_processor: TextProcessor, checkpoint: int = 5):
         super(AlbertSeq2Seq, self).__init__()
-        self.text_processor: TextProcessor = lm.text_processor
-        self.config = lm.encoder.config
-        self.encoder: AlbertModel = lm.encoder if not sep_encoder_decoder else copy.deepcopy(lm.encoder.state_dict())
-        self.decoder: AlbertDecoderModel = AlbertDecoderModel(self.encoder)
-        self.output_layer = lm.masked_lm
+        self.text_processor: TextProcessor = text_processor
+        self.config: AlbertConfig = config
+        self.encoder: AlbertModel = encoder
+        self.decoder: AlbertDecoderModel = decoder if isinstance(decoder, AlbertDecoderModel) else AlbertDecoderModel(
+            decoder)
+        self.output_layer: AlbertMLMHead = output_layer
         self.checkpoint = checkpoint
         self.checkpoint_num = 0
-        self.sep = sep_encoder_decoder
 
     def encode(self, device, src_inputs, src_mask):
         src_inputs = src_inputs.to(device)
@@ -66,14 +67,14 @@ class AlbertSeq2Seq(nn.Module):
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         with open(os.path.join(out_dir, "mt_config"), "wb") as fp:
-            pickle.dump((self.config, self.checkpoint, self.sep), fp)
+            pickle.dump((self.config, self.checkpoint), fp)
         self.text_processor.tokenizer.save(directory=out_dir)
 
     def save(self, out_dir: str):
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         with open(os.path.join(out_dir, "mt_config"), "wb") as fp:
-            pickle.dump((self.config, self.checkpoint, self.sep), fp)
+            pickle.dump((self.config, self.checkpoint), fp)
 
         torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
         self.text_processor.tokenizer.save(directory=out_dir)
@@ -82,18 +83,20 @@ class AlbertSeq2Seq(nn.Module):
     def load(out_dir: str):
         text_processor = TextProcessor(tok_model_path=out_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
-            config, checkpoint, sep = pickle.load(fp)
+            config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
-            mt_model = AlbertSeq2Seq(lm=lm, checkpoint=checkpoint, sep_encoder_decoder=sep)
+            mt_model = AlbertSeq2Seq(config=config, encoder=lm.encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
+                                     text_processor=lm.text_processor, checkpoint=checkpoint)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
-            return lm
+            return mt_model, lm
 
     def load_avg_model(self, out_dir: str):
         text_processor = TextProcessor(tok_model_path=out_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
-            config, checkpoint, sep = pickle.load(fp)
+            config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
-            mt_model = AlbertSeq2Seq(lm=lm, sep_encoder_decoder=sep, checkpoint=checkpoint)
+            mt_model = AlbertSeq2Seq(config=config, encoder=lm.encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
+                                     text_processor=lm.text_processor, checkpoint=checkpoint)
 
             params_dict = collections.OrderedDict()
             num_models = 0
@@ -117,7 +120,7 @@ class AlbertSeq2Seq(nn.Module):
                 averaged_params[k] = v
                 averaged_params[k].div_(num_models)
             mt_model.load_state_dict(averaged_params)
-            return mt_model
+            return mt_model, lm
 
 
 class AlbertDecoderAttention(nn.Module):

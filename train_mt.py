@@ -103,7 +103,7 @@ class Trainer:
             try:
                 if self.self_translate:
                     mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
-                                                                text_processor=model_to_save.text_processor)
+                                                                text_processor=model_to_save.text_processor, mask_eos=False)
 
                 predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                          src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
@@ -186,7 +186,7 @@ class Trainer:
                 tgt_inputs = batch["dst_texts"].squeeze(0)
                 if self.self_translate:
                     mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
-                                                                text_processor=model.text_processor)
+                                                                text_processor=model.text_processor, mask_eos=False)
 
                 src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs)
                 src_text += [self.generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in
@@ -236,7 +236,7 @@ class Trainer:
                 try:
                     if self.self_translate:
                         mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
-                                                                    text_processor=model.text_processor)
+                                                                    text_processor=model.text_processor, mask_eos=False)
 
                     predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                              src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)

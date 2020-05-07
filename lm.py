@@ -66,10 +66,14 @@ class LM(nn.Module):
         return output_predictions
 
     @staticmethod
-    def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
+    def mask_text(mask_prob, pads, texts, text_processor: TextProcessor, mask_eos:bool=True):
         assert 0 < mask_prob < 1
         mask = torch.empty(texts.size()).uniform_(0, 1) < mask_prob
         mask[~pads] = False  # We should not mask pads.
+        if not mask_eos:
+            eos_idx = texts == text_processor.sep_token_id()
+            mask[eos_idx] = False  # We should not mask end-of-sentence (usually in case of BART training).
+
         masked_ids = texts[mask]
         replacements = masked_ids.clone()
         for i in range(len(replacements)):

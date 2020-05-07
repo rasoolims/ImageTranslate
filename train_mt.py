@@ -131,9 +131,6 @@ class Trainer:
                 total_tokens += ntokens
                 tokens += ntokens
                 sentences += int(src_inputs.size(0))
-
-                model_to_save.save_checkpoint(saving_path)
-
             except RuntimeError:
                 print("Error in processing", src_inputs.size(), tgt_inputs.size())
                 torch.cuda.empty_cache()
@@ -144,8 +141,11 @@ class Trainer:
                       "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
                           step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
+                if step % 1000 == 0:
+                    # Save every 1000 steps!
+                    model_to_save.save_checkpoint(saving_path)
+
                 if step % 500 == 0:
-                    self.avg_model = model_to_save.load_avg_model(saving_path)
                     self.validate(valid_data_iter)
                     bleu = self.eval_bleu(valid_data_iter, saving_path)
                     print("BLEU:", bleu)
@@ -155,7 +155,6 @@ class Trainer:
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model_to_save.save(saving_path + ".latest")
 
-        self.avg_model = model_to_save.load_avg_model(saving_path)
         self.validate(valid_data_iter)
         bleu = self.eval_bleu(valid_data_iter, saving_path)
         print("BLEU:", bleu)
@@ -164,10 +163,9 @@ class Trainer:
     def eval_bleu(self, valid_data_iter, saving_path):
         mt_output = []
         model = (
-            self.avg_model.module if hasattr(self.avg_model, "module") else self.avg_model
+            self.model.module if hasattr(self.model, "module") else self.model
         )
         model.eval()
-        self.generator.seq2seq_model = self.avg_model
 
         with torch.no_grad():
             for batch in valid_data_iter:
@@ -198,7 +196,7 @@ class Trainer:
 
     def validate(self, valid_data_iter):
         model = (
-            self.avg_model.module if hasattr(self.avg_model, "module") else self.avg_model
+            self.model.module if hasattr(self.model, "module") else self.model
         )
         model.eval()
         with torch.no_grad():
@@ -210,8 +208,8 @@ class Trainer:
                 tgt_mask = batch["dst_pad_mask"].squeeze(0)
 
                 try:
-                    predictions = self.avg_model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                                 src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
+                    predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                                             src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
 
                     targets = tgt_inputs[:, 1:].contiguous().view(-1)
                     tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)

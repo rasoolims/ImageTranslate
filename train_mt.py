@@ -173,6 +173,7 @@ class Trainer:
 
     def eval_bleu(self, valid_data_iter, saving_path):
         mt_output = []
+        src_text = []
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
@@ -187,6 +188,10 @@ class Trainer:
                     mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
                                                                 text_processor=model.text_processor)
 
+                src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs)
+                src_text += [self.generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in
+                             src_ids]
+
                 outputs = self.generator(device=self.device, src_inputs=src_inputs, tgt_langs=tgt_inputs[:, 0],
                                          src_mask=src_mask)
                 for output in outputs:
@@ -200,7 +205,8 @@ class Trainer:
 
         with open(os.path.join(saving_path, "bleu.output"), "w") as writer:
             writer.write("\n".join(
-                [ref + "\n" + o + "\n***************\n" for ref, o in zip(mt_output, self.reference[:len(mt_output)])]))
+                [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
+                 zip(src_text, mt_output, self.reference[:len(mt_output)])]))
 
         if bleu.score > self.best_bleu:
             self.best_bleu = bleu.score
@@ -208,7 +214,9 @@ class Trainer:
             model.save(saving_path)
 
             with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
-                writer.write("\n".join(mt_output))
+                writer.write("\n".join(
+                    [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
+                     zip(src_text, mt_output, self.reference[:len(mt_output)])]))
 
         return bleu.score
 
@@ -229,6 +237,7 @@ class Trainer:
                     if self.self_translate:
                         mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
                                                                     text_processor=model.text_processor)
+
                     predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                              src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
 
@@ -276,18 +285,18 @@ class Trainer:
 
         train_data = dataset.MTDataset(batch_pickle_dir=options.train_path,
                                        max_batch_capacity=options.total_capacity, max_batch=options.batch,
-                                       pad_idx=lm.text_processor.pad_token_id())
+                                       pad_idx=mt_model.text_processor.pad_token_id())
         valid_data = dataset.MTDataset(batch_pickle_dir=options.valid_path,
                                        max_batch_capacity=options.total_capacity,
                                        max_batch=int(options.batch / options.beam_width),
-                                       pad_idx=lm.text_processor.pad_token_id())
+                                       pad_idx=mt_model.text_processor.pad_token_id())
 
         pin_memory = torch.cuda.is_available()
         loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
         valid_loader = data_utils.DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
         trainer = Trainer(model=mt_model, mask_prob=options.mask_prob,
-                          optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
+                          optimizer=Trainer.build_optimizer(mt_model, options.learning_rate, options.weight_decay),
                           clip=options.clip, warmup=options.warmup, step=options.step, fp16=options.fp16,
                           fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
                           max_len_a=options.max_len_a, max_len_b=options.max_len_b,

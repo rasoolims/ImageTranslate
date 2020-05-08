@@ -24,7 +24,7 @@ def _small_config(vocab_size: int, pad_token_id: int, eos_token_id: int) -> Dict
         "hidden_size": 64,
         "feed_forward_size": 64,
         "max_position_embeddings": 4096,
-        "num_attention_heads": 2,
+        "num_attention_heads": 1,
         "pad_token_id": pad_token_id,
         "vocab_size": vocab_size,
         "eos_token_id": eos_token_id,

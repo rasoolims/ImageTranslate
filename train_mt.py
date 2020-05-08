@@ -18,8 +18,6 @@ from lm import LM
 from loss import SmoothedNLLLoss
 from parallel import DataParallelModel, DataParallelCriterion
 from pytorch_lamb.pytorch_lamb import Lamb
-from reformer_lm import ReformerLM
-from reformer_seq2seq import ReformerSeq2Seq
 from seq_gen import BeamDecoder, get_outputs_until_eos, GreedyDecoder
 from textprocessor import TextProcessor
 
@@ -27,7 +25,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 class Trainer:
-    def __init__(self, model, mask_prob: float = 0.15, clip: int = 1, optimizer=None,
+    def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.15, clip: int = 1, optimizer=None,
                  warmup: int = 12500, step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
                  beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5, len_penalty_ratio: float = 0.8,
                  self_translate: bool = False):
@@ -312,49 +310,32 @@ class Trainer:
 
         text_processor = TextProcessor(options.tokenizer_path)
 
-        if not options.use_reformer:
-            if options.pretrained_path is not None:
-                mt_model, lm = AlbertSeq2Seq.load(options.pretrained_path)
-            else:
-                if options.lm_path is None:
-                    lm = LM(text_processor=text_processor, size=options.model_size)
-                else:
-                    lm = LM.load(options.lm_path)
-
-                decoder = copy.DeepCopy(lm.encoder) if options.sep_encoder else lm.encoder
-                mt_model = AlbertSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder,
-                                         output_layer=lm.masked_lm,
-                                         text_processor=lm.text_processor, checkpoint=options.checkpoint)
+        if options.pretrained_path is not None:
+            mt_model, lm = AlbertSeq2Seq.load(options.pretrained_path)
         else:
-            if options.pretrained_path is not None:
-                mt_model, lm = ReformerSeq2Seq.load(options.pretrained_path)
+            if options.lm_path is None:
+                lm = LM(text_processor=text_processor, size=options.model_size)
             else:
-                if options.lm_path is None:
-                    lm = ReformerLM(text_processor=text_processor, size=options.model_size)
-                else:
-                    lm = LM.load(options.lm_path)
+                lm = LM.load(options.lm_path)
 
-                decoder = copy.DeepCopy(lm.encoder) if options.sep_encoder else lm.encoder
-                mt_model = ReformerSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder,
-                                           output_layer=lm.lm_head,
-                                           text_processor=lm.text_processor, checkpoint=options.checkpoint)
+            decoder = copy.DeepCopy(lm.encoder) if options.sep_encoder else lm.encoder
+            mt_model = AlbertSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
+                                     text_processor=lm.text_processor, checkpoint=options.checkpoint)
+
         mt_model.save_config_and_tok(options.model_path)
 
         train_data = dataset.MTDataset(batch_pickle_dir=options.train_path,
                                        max_batch_capacity=options.total_capacity, max_batch=options.batch,
-                                       pad_idx=mt_model.text_processor.pad_token_id(),
-                                       chunk_len=mt_model.config.local_attn_chunk_length if options.use_reformer else -1)
+                                       pad_idx=mt_model.text_processor.pad_token_id())
         valid_data = dataset.MTDataset(batch_pickle_dir=options.valid_path,
                                        max_batch_capacity=options.total_capacity,
                                        max_batch=int(options.batch / options.beam_width),
-                                       pad_idx=mt_model.text_processor.pad_token_id(),
-                                       chunk_len=mt_model.config.local_attn_chunk_length if options.use_reformer else -1)
+                                       pad_idx=mt_model.text_processor.pad_token_id())
         monolingual_data = None
         if options.monolingual_path is not None:
             monolingual_data = dataset.MTDataset(batch_pickle_dir=options.monolingual_path,
                                                  max_batch_capacity=options.total_capacity, max_batch=options.batch,
-                                                 pad_idx=mt_model.text_processor.pad_token_id(),
-                                                 chunk_len=mt_model.config.local_attn_chunk_length if options.use_reformer else -1)
+                                                 pad_idx=mt_model.text_processor.pad_token_id())
 
         pin_memory = torch.cuda.is_available()
         train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
@@ -484,8 +465,6 @@ def get_options():
     parser.add_option("--checkpoint", dest="checkpoint", help="Number of checkpoints to average", type="int", default=5)
     parser.add_option("--pretrain", action="store_true", dest="pretrain",
                       help="Use self to self translation similar to BART!", default=False)
-    parser.add_option("--reformer", action="store_true", dest="use_reformer",
-                      help="Use reformer instead of transformer", default=False)
     parser.add_option(
         "--fp16_opt_level",
         type=str,

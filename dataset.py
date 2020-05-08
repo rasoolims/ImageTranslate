@@ -57,13 +57,12 @@ class TextDataset(Dataset):
 
 class MTDataset(Dataset):
     def __init__(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
-                 pad_idx: int, max_seq_len: int = 512, chunk_len: int = -1):
+                 pad_idx: int, max_seq_len: int = 512):
         """
         Since training is fully-batched and has memory/computational need for cubic power of target length, and quadratic
         power of source length, we need to make sure that each batch has similar length and it does not go over
         max_batch_capacity. We also need to make sure not to include those batches that has less than num_gpu
         sentence pairs (it will crash in multi-gpu).
-        chunk_len: if >0, then sequence length should be a multiple of this (for reformer).
         """
         self.batches = []
         self.longest_batch = ([], 0)
@@ -76,16 +75,6 @@ class MTDataset(Dataset):
             for example in examples:
                 src = example[0][:max_seq_len]  # trim if longer than expected!
                 dst = example[1][:max_seq_len]  # trim if longer than expected!
-
-                if chunk_len > 0:
-                    src_size = math.ceil(int(src.size(0)) / chunk_len) * chunk_len
-                    src_pad_size = src_size - int(src.size(0))
-                    src_pad = torch.LongTensor([pad_idx] * src_pad_size)
-                    src = torch.cat([src, src_pad])
-                    dst_size = math.ceil(int(dst.size(0)) / chunk_len) * chunk_len
-                    dst_pad_size = dst_size - int(dst.size(0))
-                    dst_pad = torch.LongTensor([pad_idx] * dst_pad_size)
-                    dst = torch.cat([dst, dst_pad])
 
                 cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
                 cur_max_dst_len = max(cur_max_dst_len, int(dst.size(0)))

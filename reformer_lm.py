@@ -33,8 +33,6 @@ class ReformerLM(nn.Module):
         self.lm_head: ReformerOnlyLMHead = reformer.lm_head
         self.encoder: ReformerModel = reformer.reformer
 
-        self.encoder._tie_or_clone_weights(self.lm_head.decoder, self.encoder.embeddings.word_embeddings)
-
     def forward(self, device, mask: torch.Tensor, texts: torch.Tensor, pads: torch.Tensor):
         """
         :param data: A minibatch as dictionary that has transformed image and tokenized text as long tensors.

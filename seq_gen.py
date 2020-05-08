@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from albert_seq2seq import AlbertSeq2Seq
-
 
 def get_outputs_until_eos(eos, outputs, remove_first_token: bool = False):
     if outputs.dim() == 1:
@@ -36,7 +34,7 @@ class BatchedBeamElement():
 
 
 class BeamDecoder(nn.Module):
-    def __init__(self, seq2seq_model: AlbertSeq2Seq, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
+    def __init__(self, seq2seq_model, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
                  len_penalty_ratio: float = 0.8):
         super(BeamDecoder, self).__init__()
         self.seq2seq_model = seq2seq_model
@@ -124,7 +122,7 @@ class BeamDecoder(nn.Module):
 
 
 class GreedyDecoder(nn.Module):
-    def __init__(self, seq2seq_model: AlbertSeq2Seq, max_len_a: float = 1.1, max_len_b: int = 5):
+    def __init__(self, seq2seq_model, max_len_a: float = 1.1, max_len_b: int = 5):
         super(GreedyDecoder, self).__init__()
         self.seq2seq_model = seq2seq_model
         self.max_len_a = max_len_a

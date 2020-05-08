@@ -56,6 +56,9 @@ def write(text_processor: TextProcessor, cache_dir: str,
 def get_tokenizer(tokenizer_path: Optional[str] = None, train_path: Optional[str] = None,
                   model_path: Optional[str] = None, vocab_size: Optional[int] = None) -> TextProcessor:
     if tokenizer_path is None:
+        if not os.path.exists(model_path):
+            os.makedirs(model_path)
+
         print("Training Tokenizer...")
         text_processor = TextProcessor()
         print("Writing raw text...")
@@ -99,8 +102,7 @@ def get_options():
 
 if __name__ == "__main__":
     options = get_options()
-    if not os.path.exists(options.model_path):
-        os.makedirs(options.model_path)
+
     tokenizer = get_tokenizer(tokenizer_path=options.tokenizer_path, train_path=options.data_path,
                               model_path=options.model_path, vocab_size=options.vocab_size)
     if not os.path.exists(options.cache_path):

@@ -66,7 +66,7 @@ class LM(nn.Module):
         return output_predictions
 
     @staticmethod
-    def mask_text(mask_prob, pads, texts, text_processor: TextProcessor, mask_eos:bool=True):
+    def mask_text(mask_prob, pads, texts, text_processor: TextProcessor, mask_eos: bool = True):
         assert 0 < mask_prob < 1
         mask = torch.empty(texts.size()).uniform_(0, 1) < mask_prob
         mask[~pads] = False  # We should not mask pads.

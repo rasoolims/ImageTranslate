@@ -4,6 +4,7 @@ import os
 import sys
 import time
 from optparse import OptionParser
+from typing import Optional
 
 import sacrebleu
 import torch
@@ -73,7 +74,8 @@ class Trainer:
         return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader, saving_path: str,
-                    step: int, max_grad_norm: float = 1.0):
+                    step: int, max_grad_norm: float = 1.0,
+                    monolingual_data_iter: Optional[data_utils.DataLoader] = None):
         if self.fp16:
             try:
                 import apex
@@ -89,9 +91,11 @@ class Trainer:
             self.model.module if hasattr(self.model, "module") else self.model
         )
 
-        for i, batch in enumerate(data_iter):
+        data_to_iter = data_iter if monolingual_data_iter is None else zip(data_iter, monolingual_data_iter)
+        for i, batched in enumerate(data_to_iter):
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
+            batch = batched if monolingual_data_iter is None else batched[0]
             src_inputs = batch["src_texts"].squeeze(0)
             src_mask = batch["src_pad_mask"].squeeze(0)
             tgt_inputs = batch["dst_texts"].squeeze(0)
@@ -103,7 +107,8 @@ class Trainer:
             try:
                 if self.self_translate:
                     mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
-                                                                text_processor=model_to_save.text_processor, mask_eos=False)
+                                                                text_processor=model_to_save.text_processor,
+                                                                mask_eos=False)
 
                 predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                          src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
@@ -122,7 +127,52 @@ class Trainer:
                 else:
                     loss.backward()
 
+                loss = float(loss.data) * ntokens
+                total_loss += loss
+                cur_loss += loss
+                total_tokens += ntokens
+                tokens += ntokens
+                sentences += int(src_inputs.size(0))
+                if self.self_translate:
+                    LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
+
+                if monolingual_data_iter is not None:
+                    src_inputs = batched[1]["src_texts"].squeeze(0)
+                    src_mask = batched[1]["src_pad_mask"].squeeze(0)
+                    tgt_inputs = batched[1]["dst_texts"].squeeze(0)
+                    tgt_mask = batched[1]["dst_pad_mask"].squeeze(0)
+
+                    mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
+                                                                text_processor=model_to_save.text_processor,
+                                                                mask_eos=False)
+
+                    predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                                             src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
+                    targets = tgt_inputs[:, 1:].contiguous().view(-1)
+                    tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
+                    targets = targets[tgt_mask_flat]
+                    ntokens = targets.size(0)
+
+                    if ntokens == 0:  # Nothing to predict!
+                        continue
+
+                    loss = self.criterion(predictions, targets).mean()
+                    if self.fp16:
+                        with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                            scaled_loss.backward()
+                    else:
+                        loss.backward()
+
+                    loss = float(loss.data) * ntokens
+                    total_loss += loss
+                    cur_loss += loss
+                    total_tokens += ntokens
+                    tokens += ntokens
+                    sentences += int(src_inputs.size(0))
+                    LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
+
                 if self.optimizer is not None:
+                    # We accumulate the gradients for both tasks!
                     if self.fp16:
                         torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
                     else:
@@ -132,15 +182,6 @@ class Trainer:
                     self.scheduler.step()
                     step += 1
 
-                loss = float(loss.data) * ntokens
-                total_loss += loss
-                cur_loss += loss
-                total_tokens += ntokens
-                tokens += ntokens
-                sentences += int(src_inputs.size(0))
-
-                if self.self_translate:
-                    LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
 
             except RuntimeError as err:
                 print("Error in processing", src_inputs.size(), tgt_inputs.size())
@@ -290,9 +331,16 @@ class Trainer:
                                        max_batch_capacity=options.total_capacity,
                                        max_batch=int(options.batch / options.beam_width),
                                        pad_idx=mt_model.text_processor.pad_token_id())
+        monolingual_data = None
+        if options.monolingual_path is not None:
+            monolingual_data = dataset.MTDataset(batch_pickle_dir=options.monolingual_path,
+                                                 max_batch_capacity=options.total_capacity, max_batch=options.batch,
+                                                 pad_idx=mt_model.text_processor.pad_token_id())
 
         pin_memory = torch.cuda.is_available()
-        loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+        train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+        monolingual_loader = data_utils.DataLoader(monolingual_data, batch_size=1, shuffle=True,
+                                                   pin_memory=pin_memory) if monolingual_data is not None else None
         valid_loader = data_utils.DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
         trainer = Trainer(model=mt_model, mask_prob=options.mask_prob,
@@ -317,7 +365,8 @@ class Trainer:
         step, train_epoch = 0, 1
         while step <= options.step:
             print("train epoch", train_epoch)
-            step = trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader, saving_path=options.model_path,
+            step = trainer.train_epoch(data_iter=train_loader, valid_data_iter=valid_loader,
+                                       monolingual_data_iter=monolingual_loader, saving_path=options.model_path,
                                        step=step)
             train_epoch += 1
 
@@ -380,10 +429,13 @@ class Trainer:
 def get_options():
     global options
     parser = OptionParser()
-    parser.add_option("--train", dest="train_path",
-                      help="Path to the train data pickle files for large data", metavar="FILE", default=None)
+    parser.add_option("--train", dest="train_path", help="Path to the train data pickle files", metavar="FILE",
+                      default=None)
+    parser.add_option("--mono", dest="monolingual_path",
+                      help="Path to the monolingual data pickle files for auxiliary BART training", metavar="FILE",
+                      default=None)
     parser.add_option("--valid", dest="valid_path",
-                      help="Path to the train data pickle files for large data", metavar="FILE", default=None)
+                      help="Path to the train data pickle files", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
                       default=None)

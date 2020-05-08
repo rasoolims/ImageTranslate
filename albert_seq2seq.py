@@ -306,7 +306,6 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
         self.config = encoder_layer.config
         self.embeddings = encoder_layer.embeddings
         self.decoder = AlbertDecoderTransformer(encoder_layer.encoder)
-        self.init_weights()
 
     def get_input_embeddings(self):
         return self.embeddings.word_embeddings

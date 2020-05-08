@@ -14,6 +14,7 @@ def write(text_processor: TextProcessor, cache_dir: str,
     current_cache = []
     examples = {}
     line_num, file_count = 0, 0
+    text_processor.max_len = seq_len
 
     with open(txt_file, "r") as fp:
         for ln, line in enumerate(fp):

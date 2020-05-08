@@ -22,7 +22,7 @@ def _small_config(vocab_size: int, pad_token_id: int, eos_token_id: int) -> Dict
     config = {
         "attention_head_size": 4,
         "hidden_size": 64,
-        "feed_forward_size": 64,
+        "feed_forward_size": 128,
         "max_position_embeddings": 4096,
         "num_attention_heads": 2,
         "pad_token_id": pad_token_id,

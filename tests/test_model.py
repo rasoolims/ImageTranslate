@@ -85,9 +85,7 @@ class TestModel(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdirname, tempfile.TemporaryDirectory() as tmpdirname2:
             processor = TextProcessor()
             processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname)
-            create_batches.write(text_processor=processor, small_cache_dir=tmpdirname, max_small_seq_len=512,
-                                 big_cache_dir=tmpdirname2, max_big_seq_len=512,
-                                 txt_file=data_path, sentence_small_block_size=10)
+            create_batches.write(text_processor=processor, cache_dir=tmpdirname2, seq_len=512, txt_file=data_path)
             dataset = TextDataset(save_cache_dir=tmpdirname, max_cache_size=3)
             assert dataset.line_num == 92
 

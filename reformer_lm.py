@@ -33,7 +33,7 @@ class ReformerLM(nn.Module):
         self.lm_head: ReformerOnlyLMHead = reformer.lm_head
         self.encoder: ReformerModel = reformer.reformer
 
-        # self.encoder._tie_or_clone_weights(self.masked_lm.decoder, self.encoder.embeddings.word_embeddings)
+        self.encoder._tie_or_clone_weights(self.masked_lm.decoder, self.encoder.embeddings.word_embeddings)
 
     def forward(self, device, mask: torch.Tensor, texts: torch.Tensor, pads: torch.Tensor):
         """

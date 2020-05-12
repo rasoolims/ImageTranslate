@@ -65,26 +65,6 @@ class ImageSeq2Seq(AlbertSeq2Seq):
             return mt_model, lm
 
 
-#
-# class AlbertImageDecoderModel(AlbertPreTrainedModel):
-#     config_class = AlbertConfig
-#     base_model_prefix = "albert"
-#
-#     def __init__(self, encoder_layer: AlbertModel):
-#         super().__init__(encoder_layer.config)
-#         self.encoder_layer = encoder_layer
-#         self.config = encoder_layer.config
-#         self.decoder = AlbertDecoderTransformer(encoder_layer.encoder)
-#
-#     def forward(self,encoder_states,image_embeddings,src_attention_mask):
-#         extended_mask = src_attention_mask.unsqueeze(1).unsqueeze(2)
-#         extended_mask = extended_mask.to(dtype=next(self.parameters()).dtype)  # fp16 compatibility
-#         extended_mask = (1.0 - extended_mask) * -10000.0
-#
-#         outputs = self.decoder(encoder_states, image_embeddings, src_attention_mask=extended_mask)
-#
-#         return outputs
-
 class AlbertImageTransformer(AlbertDecoderTransformer):
     def __init__(self, albert_transformer: AlbertTransformer):
         super(AlbertImageTransformer, self).__init__(albert_transformer)

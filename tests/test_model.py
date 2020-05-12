@@ -1,7 +1,6 @@
 import os
 import tempfile
 import unittest
-from pathlib import Path
 
 import torch
 from torchvision import transforms
@@ -55,15 +54,14 @@ class TestModel(unittest.TestCase):
 
     def test_albert_seq2seq_init(self):
         path_dir_name = os.path.dirname(os.path.realpath(__file__))
-        data_path = os.path.join(path_dir_name, "sample_txt/")
-        paths = [str(x) for x in Path(data_path).glob("*.txt")]
+        data_path = os.path.join(path_dir_name, "sample.txt")
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer(paths, vocab_size=1000, to_save_dir=tmpdirname)
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname)
             lm = LM(text_processor=processor, size=2)
 
-            seq2seq = AlbertSeq2Seq(lm)
+            seq2seq = AlbertSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             src_inputs = torch.tensor([[1, 2, 3, 4, 5, processor.pad_token_id(), processor.pad_token_id()],
                                        [1, 2, 3, 4, 5, 6, processor.pad_token_id()]])
@@ -82,10 +80,11 @@ class TestModel(unittest.TestCase):
         path_dir_name = os.path.dirname(os.path.realpath(__file__))
         data_path = os.path.join(path_dir_name, "sample.txt")
 
-        with tempfile.TemporaryDirectory() as tmpdirname, tempfile.TemporaryDirectory() as tmpdirname2:
+        with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
             processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname)
-            create_batches.write(text_processor=processor, cache_dir=tmpdirname2, seq_len=512, txt_file=data_path)
+            create_batches.write(text_processor=processor, cache_dir=tmpdirname, seq_len=512, txt_file=data_path,
+                                 sen_block_size=10)
             dataset = TextDataset(save_cache_dir=tmpdirname, max_cache_size=3)
             assert dataset.line_num == 92
 

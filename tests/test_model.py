@@ -134,8 +134,9 @@ class TestModel(unittest.TestCase):
 
             lm = LM(text_processor=processor, size=4)
             image_seq2seq = ImageSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
-            output = image_seq2seq('cpu', image_data[4])
+            output, gold_outputs = image_seq2seq('cpu', image_data[4])
             assert list(output.size()) == [139, processor.vocab_size()]
+            assert list(gold_outputs.size()) == [139]
 
 
 if __name__ == '__main__':

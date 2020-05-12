@@ -25,7 +25,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 class Trainer:
-    def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.15, clip: int = 1, optimizer=None,
+    def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.3, clip: int = 1, optimizer=None,
                  warmup: int = 12500, step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
                  beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5, len_penalty_ratio: float = 0.8,
                  self_translate: bool = False):
@@ -106,7 +106,8 @@ class Trainer:
 
             try:
                 if self.self_translate:
-                    mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
+                    mask, masked_ids, src_inputs = LM.mask_text(mask_prob=self.mask_prob, pads=src_mask,
+                                                                texts=src_inputs,
                                                                 text_processor=model_to_save.text_processor,
                                                                 mask_eos=False)
 
@@ -142,7 +143,8 @@ class Trainer:
                     tgt_inputs = batched[1]["dst_texts"].squeeze(0)
                     tgt_mask = batched[1]["dst_pad_mask"].squeeze(0)
 
-                    mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
+                    mask, masked_ids, src_inputs = LM.mask_text(mask_prob=self.mask_prob, pads=src_mask,
+                                                                texts=src_inputs,
                                                                 text_processor=model_to_save.text_processor,
                                                                 mask_eos=False)
 
@@ -276,7 +278,8 @@ class Trainer:
 
                 try:
                     if self.self_translate:
-                        mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
+                        mask, masked_ids, src_inputs = LM.mask_text(mask_prob=self.mask_prob, pads=src_mask,
+                                                                    texts=src_inputs,
                                                                     text_processor=model.text_processor, mask_eos=False)
 
                     predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
@@ -444,7 +447,7 @@ def get_options():
     parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
     parser.add_option("--capacity", dest="total_capacity", help="Batch capcity", type="int", default=150)
     parser.add_option("--batch", dest="batch", help="Batch num_tokens", type="int", default=20000)
-    parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
+    parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.3)
     parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
     parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.002)
     parser.add_option("--warmup", dest="warmup", help="Number of warmup steps", type="int", default=12500)

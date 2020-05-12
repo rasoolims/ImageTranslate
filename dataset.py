@@ -218,3 +218,8 @@ class TextCollator(object):
         padded_text = pad_sequence(batch, batch_first=True, padding_value=self.pad_idx)
         pad_mask = (padded_text != self.pad_idx)
         return {"texts": padded_text, "pad_mask": pad_mask}
+
+
+class ImageTextCollator(object):
+    def __call__(self, batch):
+        return batch

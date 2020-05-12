@@ -22,8 +22,7 @@ class AlbertSeq2Seq(nn.Module):
         self.text_processor: TextProcessor = text_processor
         self.config: AlbertConfig = config
         self.encoder: AlbertModel = encoder
-        self.decoder: AlbertDecoderModel = decoder if isinstance(decoder, AlbertDecoderModel) else AlbertDecoderModel(
-            decoder)
+        self.decoder: AlbertDecoderModel = AlbertDecoderModel(decoder) if isinstance(decoder, AlbertModel) else decoder
         self.output_layer: AlbertMLMHead = output_layer
         self.checkpoint = checkpoint
         self.checkpoint_num = 0
@@ -95,8 +94,8 @@ class AlbertSeq2Seq(nn.Module):
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
-            mt_model = AlbertSeq2Seq(config=config, encoder=lm.encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
-                                     text_processor=lm.text_processor, checkpoint=checkpoint)
+            mt_model = self.__class__(config=config, encoder=lm.encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
+                                      text_processor=lm.text_processor, checkpoint=checkpoint)
 
             params_dict = collections.OrderedDict()
             num_models = 0
@@ -154,7 +153,7 @@ class AlbertDecoderAttention(nn.Module):
         else:
             return x.permute(0, 3, 1, 2, 4)
 
-    def forward(self, encoder_states, decoder_inputs, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
+    def forward(self, encoder_states, decoder_inputs, src_attention_mask=None, tgt_attention_mask=None):
         output_attention = self.attention(self.query(decoder_inputs), self.key(decoder_inputs),
                                           self.value(decoder_inputs),
                                           attention_mask=tgt_attention_mask)
@@ -163,7 +162,7 @@ class AlbertDecoderAttention(nn.Module):
                                          attention_mask=src_attention_mask)
         return cross_attention
 
-    def attention(self, q, k, v, attention_mask=None, head_mask=None):
+    def attention(self, q, k, v, attention_mask=None):
         query_layer = self.transpose_for_scores(q)
         key_layer = self.transpose_for_scores(k)
         value_layer = self.transpose_for_scores(v)
@@ -191,10 +190,6 @@ class AlbertDecoderAttention(nn.Module):
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
         attention_probs = self.dropout(attention_probs)
-
-        # Mask heads if we want to
-        if head_mask is not None:
-            attention_probs = attention_probs * head_mask
 
         if attention_probs.dim() > 4 and value_layer.dim() == 4:
             context_layer = torch.matmul(attention_probs, value_layer.unsqueeze(2))
@@ -238,9 +233,8 @@ class AlbertDecoderLayer(nn.Module):
         self.ffn_output = albert_layer.ffn_output  # nn.Linear(self.config.intermediate_size, self.config.hidden_size) #todo clone
         self.activation = albert_layer.activation  # ACT2FN[self.config.hidden_act]
 
-    def forward(self, encoder_states, hidden_states, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
-        attention_output = self.attention(encoder_states, hidden_states, src_attention_mask, tgt_attention_mask,
-                                          head_mask)
+    def forward(self, encoder_states, hidden_states, src_attention_mask=None, tgt_attention_mask=None):
+        attention_output = self.attention(encoder_states, hidden_states, src_attention_mask, tgt_attention_mask)
         ffn_output = self.ffn(attention_output[0])
         ffn_output = self.activation(ffn_output)
         ffn_output = self.ffn_output(ffn_output)
@@ -254,10 +248,9 @@ class AlbertDecoderLayerGroup(nn.Module):
         super().__init__()
         self.albert_layers = nn.ModuleList([AlbertDecoderLayer(layer) for layer in layer_groups.albert_layers])
 
-    def forward(self, encoder_states, hidden_states, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
+    def forward(self, encoder_states, hidden_states, src_attention_mask=None, tgt_attention_mask=None):
         for layer_index, albert_layer in enumerate(self.albert_layers):
-            layer_output = albert_layer(encoder_states, hidden_states, src_attention_mask, tgt_attention_mask,
-                                        head_mask[layer_index])
+            layer_output = albert_layer(encoder_states, hidden_states, src_attention_mask, tgt_attention_mask)
             hidden_states = layer_output[0]
 
         outputs = (hidden_states,)
@@ -274,13 +267,10 @@ class AlbertDecoderTransformer(nn.Module):
             [AlbertDecoderLayerGroup(albert_transformer.albert_layer_groups[i]) for i in
              range(self.config.num_hidden_groups)])
 
-    def forward(self, encoder_states, hidden_states, src_attention_mask=None, tgt_attention_mask=None, head_mask=None):
+    def forward(self, encoder_states, hidden_states, src_attention_mask=None, tgt_attention_mask=None):
         hidden_states = self.embedding_hidden_mapping_in(hidden_states)
 
         for i in range(self.config.num_hidden_layers):
-            # Number of layers in a hidden group
-            layers_per_group = int(self.config.num_hidden_layers / self.config.num_hidden_groups)
-
             # Index of the hidden group
             group_idx = int(i / (self.config.num_hidden_layers / self.config.num_hidden_groups))
 
@@ -289,7 +279,6 @@ class AlbertDecoderTransformer(nn.Module):
                 hidden_states,
                 src_attention_mask,
                 tgt_attention_mask,
-                head_mask[group_idx * layers_per_group: (group_idx + 1) * layers_per_group],
             )
             hidden_states = layer_group_output[0]
 
@@ -324,7 +313,6 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
             tgt_attention_mask=None,
             token_type_ids=None,
             position_ids=None,
-            head_mask=None,
             inputs_embeds=None,
     ):
         if input_ids is not None and inputs_embeds is not None:
@@ -339,38 +327,25 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
         device = input_ids.device if input_ids is not None else inputs_embeds.device
 
         if src_attention_mask is None:
-            src_attention_mask = torch.ones(input_shape, device=device)
+            extended_src_attention_mask = None
+        else:
+            extended_src_attention_mask = src_attention_mask.unsqueeze(1).unsqueeze(2)
+            extended_src_attention_mask = extended_src_attention_mask.to(
+                dtype=next(self.parameters()).dtype)  # fp16 compatibility
+            extended_src_attention_mask = (1.0 - extended_src_attention_mask) * -10000.0
+
         if token_type_ids is None:
             token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=device)
-
-        extended_src_attention_mask = src_attention_mask.unsqueeze(1).unsqueeze(2)
-        extended_src_attention_mask = extended_src_attention_mask.to(
-            dtype=next(self.parameters()).dtype)  # fp16 compatibility
-        extended_src_attention_mask = (1.0 - extended_src_attention_mask) * -10000.0
 
         extended_tgt_attention_mask = tgt_attention_mask.unsqueeze(1).unsqueeze(2)
         extended_tgt_attention_mask = extended_tgt_attention_mask.to(
             dtype=next(self.parameters()).dtype)  # fp16 compatibility
         extended_tgt_attention_mask = (1.0 - extended_tgt_attention_mask) * -10000.0
 
-        if head_mask is not None:
-            if head_mask.dim() == 1:
-                head_mask = head_mask.unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
-                head_mask = head_mask.expand(self.config.num_hidden_layers, -1, -1, -1, -1)
-            elif head_mask.dim() == 2:
-                head_mask = (
-                    head_mask.unsqueeze(1).unsqueeze(-1).unsqueeze(-1)
-                )  # We can specify head_mask for each layer
-            head_mask = head_mask.to(
-                dtype=next(self.parameters()).dtype
-            )  # switch to fload if need + fp16 compatibility
-        else:
-            head_mask = [None] * self.config.num_hidden_layers
-
         embedding_output = self.embeddings(
             input_ids, position_ids=position_ids, token_type_ids=token_type_ids, inputs_embeds=inputs_embeds
         )
         outputs = self.decoder(encoder_states, embedding_output, extended_src_attention_mask,
-                               extended_tgt_attention_mask, head_mask=head_mask)
+                               extended_tgt_attention_mask)
 
         return outputs

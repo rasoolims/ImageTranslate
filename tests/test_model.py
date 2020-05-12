@@ -9,6 +9,7 @@ import binarize_image_doc_data
 import create_batches
 from albert_seq2seq import AlbertSeq2Seq
 from dataset import TextDataset, ImageDocDataset
+from image_doc_model import ImageSeq2Seq
 from lm import LM
 from textprocessor import TextProcessor
 
@@ -59,7 +60,7 @@ class TestModel(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
             processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname)
-            lm = LM(text_processor=processor, size=2)
+            lm = LM(text_processor=processor, size=4)
 
             seq2seq = AlbertSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -106,7 +107,7 @@ class TestModel(unittest.TestCase):
             dataset.__getitem__(50)
             assert len(dataset.current_cache) == 3
 
-    def test_image_data(self):
+    def test_image_data_model(self):
         transform = transforms.Compose([  # [1]
             transforms.Resize(256),  # [2]
             transforms.CenterCrop(224),  # [3]
@@ -126,10 +127,15 @@ class TestModel(unittest.TestCase):
             binarize_image_doc_data.write(text_processor=processor, output_file=os.path.join(tmpdirname, "image.bin"),
                                           max_seq_len=512, json_dir=data_path, files_to_use="mzn,glk")
             image_data = ImageDocDataset(os.getcwd(), os.path.join(tmpdirname, "image.bin"), transform,
-                                         max_doc_batch_capacity=10,
+                                         max_doc_batch_capacity=1,
                                          pad_index=processor.pad_token_id())
-            assert len(image_data[4]) == 4
-            assert len(image_data) == 21
+            assert len(image_data[4]) == 7
+            assert len(image_data) == 89
+
+            lm = LM(text_processor=processor, size=4)
+            image_seq2seq = ImageSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
+            output = image_seq2seq('cpu', image_data[4])
+            assert list(output.size()) == [139, processor.vocab_size()]
 
 
 if __name__ == '__main__':

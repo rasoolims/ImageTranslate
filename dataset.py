@@ -140,13 +140,13 @@ class MTDataset(Dataset):
 class ImageDocDataset(Dataset):
     def __init__(self, root_img_dir: str, data_bin_file: str, transform, max_doc_batch_capacity: int, pad_index: int):
         self.transform = transform
-
+        self.pad_idx = pad_index
         self.batches = []
         self.root_img_dir = root_img_dir
         max_doc_batch_capacity *= 1000000
         with open(data_bin_file, "rb") as fp:
             doc_ids, images, captions = pickle.load(fp)
-            cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices = [], [], [], []
+            cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices, doc_split_sizes = [], [], [], [], []
             cur_max_doc_cap = 0
 
             # We can sort the captions based on their corresponding document sentence length (second dim) to
@@ -166,22 +166,24 @@ class ImageDocDataset(Dataset):
                     assert len(doc_indices) == all_docs.size(0)
                     assert len(cur_image_batch) == all_captions.size(0)
                     entry = {"docs": all_docs, "captions": all_captions, "images": cur_image_batch,
-                             "doc_idx": doc_indices}
+                             "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}
                     self.batches.append(entry)
-                    cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices = [], [], [], []
+                    cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices, doc_split_sizes = [], [], [], [], []
                     cur_max_doc_cap = 0
                 else:
                     cur_max_doc_cap = max(cur_max_doc_cap, doc_len)
                     cur_image_batch.append(images[captions[id]["image_id"]])
                     caption_id = len(cur_caption_batch)
                     doc_indices += [caption_id] * len(docs)
+                    doc_split_sizes.append(len(docs))
                     cur_caption_batch.append(torch.LongTensor(caption))
                     cur_doc_batch += docs
 
             if len(cur_image_batch) > 0:
                 all_docs = pad_sequence(cur_doc_batch, batch_first=True, padding_value=pad_index)
                 all_captions = pad_sequence(cur_caption_batch, batch_first=True, padding_value=pad_index)
-                entry = {"docs": all_docs, "captions": all_captions, "images": cur_image_batch, "doc_idx": doc_indices}
+                entry = {"docs": all_docs, "captions": all_captions, "images": cur_image_batch,
+                         "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}
                 self.batches.append(entry)
 
             print("loaded %d images, %d captions, %d docs in %d batches!" % (
@@ -200,7 +202,12 @@ class ImageDocDataset(Dataset):
                 image = self.transform(image)
             images.append(image)
 
-        return {"images": images, "caption": batch["captions"], "doc": batch["docs"], "doc_idx": batch["doc_idx"]}
+        images = torch.stack(images)
+        doc_mask = (batch["docs"] != self.pad_idx)
+        caption_mask = (batch["captions"] != self.pad_idx)
+
+        return {"images": images, "captions": batch["captions"], "docs": batch["docs"], "doc_mask": doc_mask,
+                "caption_mask": caption_mask, "doc_idx": batch["doc_idx"], "doc_split": batch["doc_split"]}
 
 
 class TextCollator(object):

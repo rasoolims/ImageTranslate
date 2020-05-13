@@ -15,6 +15,7 @@ import torch
 import torch.cuda.comm as comm
 from torch.autograd import Variable, Function
 from torch.nn.parallel._functions import Broadcast
+from torch.nn.parallel._functions import Scatter
 from torch.nn.parallel.data_parallel import DataParallel
 from torch.nn.parallel.parallel_apply import get_a_var
 
@@ -105,22 +106,46 @@ class DataParallelModel(DataParallel):
         execute_replication_callbacks(modules)
         return modules
 
-    def scatter(self, inputs, kwargs, device_ids):
-        if isinstance(inputs, list):
-            r"""Scatter with support for kwargs dictionary"""
-            assert len(inputs) == len(device_ids)
-            inputs = [inputs[i] for i, targets in enumerate(device_ids)]
-            kwargs = [kwargs[i] for i, targets in enumerate(device_ids)] if kwargs else []
-            if len(inputs) < len(kwargs):
-                inputs.extend([() for _ in range(len(kwargs) - len(inputs))])
-            elif len(kwargs) < len(inputs):
-                kwargs.extend([{} for _ in range(len(inputs) - len(kwargs))])
-            inputs = tuple(inputs)
-            kwargs = tuple(kwargs)
-            return inputs, kwargs
-        else:
-            return super().scatter(inputs, kwargs, device_ids)
+    def _scatter(inputs, target_gpus, dim=0):
+        r"""
+        Slices tensors into approximately equal chunks and
+        distributes them across given GPUs. Duplicates
+        references to objects that are not tensors.
+        """
 
+        def scatter_map(obj):
+            if isinstance(obj, torch.Tensor):
+                return Scatter.apply(target_gpus, None, dim, obj)
+            if isinstance(obj, tuple) and len(obj) > 0:
+                return list(zip(*map(scatter_map, obj)))
+            if isinstance(obj, list) and len(obj) > 0:
+                return [obj[i] for i, targets in enumerate(target_gpus)]  # Keep it as listed!
+            if isinstance(obj, dict) and len(obj) > 0:
+                return list(map(type(obj), zip(*map(scatter_map, obj.items()))))
+            return [obj for targets in target_gpus]
+
+        # After scatter_map is called, a scatter_map cell will exist. This cell
+        # has a reference to the actual function scatter_map, which has references
+        # to a closure that has a reference to the scatter_map cell (because the
+        # fn is recursive). To avoid this reference cycle, we set the function to
+        # None, clearing the cell
+        try:
+            res = scatter_map(inputs)
+        finally:
+            scatter_map = None
+        return res
+
+    def scatter(self, inputs, kwargs, device_ids):
+        r"""Scatter with support for kwargs dictionary"""
+        inputs = DataParallelModel._scatter(inputs, device_ids, 0) if inputs else []
+        kwargs = DataParallelModel._scatter(kwargs, device_ids, 0) if kwargs else []
+        if len(inputs) < len(kwargs):
+            inputs.extend([() for _ in range(len(kwargs) - len(inputs))])
+        elif len(kwargs) < len(inputs):
+            kwargs.extend([{} for _ in range(len(inputs) - len(kwargs))])
+        inputs = tuple(inputs)
+        kwargs = tuple(kwargs)
+        return inputs, kwargs
 
 
 class DataParallelCriterion(DataParallel):

@@ -57,8 +57,8 @@ class Trainer:
     def build_optimizer(model, learning_rate, weight_decay):
         return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
-    def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader, saving_path: str,
-                    step: int, max_grad_norm: float = 1.0):
+    def train_epoch(self, data_iter: data_utils.DataLoader, step: int, max_grad_norm: float = 1.0,
+                    valid_data_iter: data_utils.DataLoader = None, saving_path: str = None, ):
         if self.fp16:
             try:
                 import apex
@@ -119,7 +119,7 @@ class Trainer:
                     # Save every 1000 steps!
                     model_to_save.save_checkpoint(saving_path)
 
-                if step % 500 == 0:
+                if step % 500 == 0 and valid_data_iter is not None:
                     self.validate(valid_data_iter)
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
@@ -127,7 +127,8 @@ class Trainer:
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model_to_save.save(saving_path + ".latest")
 
-        self.validate(valid_data_iter)
+        if valid_data_iter is not None:
+            self.validate(valid_data_iter)
         return step
 
     def validate(self, valid_data_iter):
@@ -186,10 +187,6 @@ class Trainer:
                                              data_bin_file=options.train_path, transform=transform,
                                              max_doc_batch_capacity=options.total_capacity,
                                              pad_index=mt_model.text_processor.pad_token_id())
-        valid_data = dataset.ImageDocDataset(root_img_dir=options.image_dir, data_bin_file=options.valid_path,
-                                             transform=transform,
-                                             max_doc_batch_capacity=options.total_capacity,
-                                             pad_index=mt_model.text_processor.pad_token_id())
 
         pin_memory = torch.cuda.is_available()
 
@@ -199,8 +196,15 @@ class Trainer:
 
         train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True, pin_memory=pin_memory,
                                              collate_fn=collator)
-        valid_loader = data_utils.DataLoader(valid_data, batch_size=num_batches, shuffle=False, pin_memory=pin_memory,
-                                             collate_fn=collator)
+        valid_loader = None
+        if options.valid_path is not None:
+            valid_data = dataset.ImageDocDataset(root_img_dir=options.image_dir, data_bin_file=options.valid_path,
+                                                 transform=transform,
+                                                 max_doc_batch_capacity=options.total_capacity,
+                                                 pad_index=mt_model.text_processor.pad_token_id())
+            valid_loader = data_utils.DataLoader(valid_data, batch_size=num_batches, shuffle=False,
+                                                 pin_memory=pin_memory,
+                                                 collate_fn=collator)
 
         trainer = Trainer(model=mt_model,
                           optimizer=Trainer.build_optimizer(mt_model, options.learning_rate, options.weight_decay),

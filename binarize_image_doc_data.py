@@ -8,8 +8,7 @@ import torch
 from textprocessor import TextProcessor
 
 
-def write(text_processor: TextProcessor, output_file: str,
-          max_seq_len: int, json_dir: str, files_to_use: str = None):
+def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_to_use: str = None):
     relevant_files = None
     if files_to_use is not None:
         relevant_files = {f + ".json" for f in files_to_use.strip().split(",")}
@@ -84,7 +83,6 @@ if __name__ == "__main__":
     print("writing batches")
     write(text_processor=tokenizer,
           output_file=options.output_file,
-          max_seq_len=512,
           json_dir=options.data_path,
           files_to_use=options.files_to_use)
     print("finished")

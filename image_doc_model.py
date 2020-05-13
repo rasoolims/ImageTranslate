@@ -52,11 +52,10 @@ class ImageSeq2Seq(AlbertSeq2Seq):
         diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
         tgt_mask_flat = caption_mask[:, 1:].contiguous().view(-1)
         non_padded_outputs = diag_outputs_flat[tgt_mask_flat]
-        gold_outputs = captions[:, 1:].contiguous().view(-1)[tgt_mask_flat]
         outputs = self.output_layer(non_padded_outputs)
         if log_softmax:
             outputs = F.log_softmax(outputs, dim=-1)
-        return outputs, gold_outputs
+        return outputs
 
     @staticmethod
     def load(out_dir: str):

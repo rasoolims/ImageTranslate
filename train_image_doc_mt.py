@@ -81,7 +81,7 @@ class Trainer:
             predictions = self.model(device=self.device, batch=batch, log_softmax=True)
             targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
             tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
-            targets = torch.cat([targets[i][tgt_mask_flat] for i in range(len(batch))])
+            targets = torch.cat([targets[i][tgt_mask_flat[i]] for i in range(len(batch))])
 
             ntokens = targets.size(0)
 
@@ -143,7 +143,10 @@ class Trainer:
         with torch.no_grad():
             total_valid_loss, total_valid_tokens = 0, 0
             for batch in valid_data_iter:
-                predictions, targets = self.model(device=self.device, batch=batch, log_softmax=True)
+                predictions = self.model(device=self.device, batch=batch, log_softmax=True)
+                targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
+                tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
+                targets = torch.cat([targets[i][tgt_mask_flat[i]] for i in range(len(batch))])
                 ntokens = targets.size(0)
 
                 if ntokens == 0:  # Nothing to predict!

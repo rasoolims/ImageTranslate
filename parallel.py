@@ -105,6 +105,23 @@ class DataParallelModel(DataParallel):
         execute_replication_callbacks(modules)
         return modules
 
+    def scatter(self, inputs, kwargs, device_ids):
+        if isinstance(inputs, list):
+            r"""Scatter with support for kwargs dictionary"""
+            assert len(inputs) == len(device_ids)
+            inputs = [inputs[i] for i, targets in enumerate(device_ids)]
+            kwargs = [kwargs[i] for i, targets in enumerate(device_ids)] if kwargs else []
+            if len(inputs) < len(kwargs):
+                inputs.extend([() for _ in range(len(kwargs) - len(inputs))])
+            elif len(kwargs) < len(inputs):
+                kwargs.extend([{} for _ in range(len(inputs) - len(kwargs))])
+            inputs = tuple(inputs)
+            kwargs = tuple(kwargs)
+            return inputs, kwargs
+        else:
+            return super().scatter(inputs, kwargs, device_ids)
+
+
 
 class DataParallelCriterion(DataParallel):
     """

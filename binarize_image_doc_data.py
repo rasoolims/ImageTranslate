@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+from collections import defaultdict
 from optparse import OptionParser
 
 import torch
@@ -15,9 +16,7 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
 
     num_captions, num_docs, max_doc_size = 0, 0, 0
     unique_docs = {}
-    unique_images = {}
-    caption_dict = {}
-    image_path_dict = {}
+    image_info_dict = defaultdict(list)
 
     for file in os.listdir(json_dir):
         if not file.endswith(".json"):
@@ -42,27 +41,15 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
                 num_captions += len(doc["images"])
                 for image in doc["images"]:
                     path = image["img_path"]
-
-                    if path not in image_path_dict:
-                        image_id = len(unique_images)
-                        unique_images[image_id] = path
-                        image_path_dict[path] = image_id
-                    else:
-                        image_id = image_path_dict[path]
-                        unique_images[image_id] = path
-
                     caption = text_processor.tokenize_one_line(image["caption"], ignore_middle_eos=True)
-
-                    caption_id = len(caption_dict)
-                    caption_dict[caption_id] = {"caption": caption, "language": lang, "doc_id": doc_id,
-                                                "image_id": image_id}
+                    image_info_dict[path].append((caption, lang, doc_id))
                     max_caption_len = max(len(caption), max_caption_len)
 
             print(len(doc_dicts), max_caption_len, max_doc_size)
     print("%d images, %d docs, %d captions, max doc vec %d" % (
-        len(unique_images), len(unique_docs), len(caption_dict), max_doc_size))
+        len(image_info_dict), len(unique_docs), num_captions, max_doc_size))
     with open(output_file, "wb") as fp:
-        pickle.dump((unique_docs, unique_images, caption_dict), fp)
+        pickle.dump((image_info_dict, unique_docs), fp)
 
 
 def get_options():

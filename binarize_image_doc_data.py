@@ -3,13 +3,14 @@ import os
 import pickle
 from collections import defaultdict
 from optparse import OptionParser
+import math
 
 import torch
 
 from textprocessor import TextProcessor
 
 
-def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_to_use: str = None):
+def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_to_use: str = None, max_sen_per_doc:int=32):
     relevant_files = None
     if files_to_use is not None:
         relevant_files = {f + ".json" for f in files_to_use.strip().split(",")}
@@ -37,37 +38,44 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
             for d_num, doc in enumerate(doc_dicts):
                 content = doc["content"]
                 lang = doc["lang"]
-                tok_lines = text_processor.tokenize_lines(content.strip())
+                tok_lines = text_processor.tokenize_lines(content.strip(), blind_split=True, split_len=128)
+                doc_lines = torch.Tensor(tok_lines)
 
-                doc_id = len(unique_docs)
-                unique_docs[doc_id] = [torch.LongTensor(t) for t in tok_lines]
+                num_segments = int(math.ceil(int(doc_lines.size(0))/max_sen_per_doc))
+                doc_segments = torch.split(doc_lines, num_segments)
 
-                max_doc_size = max(max_doc_size, len(unique_docs[doc_id]))
-                num_captions += len(doc["images"])
-                for image in doc["images"]:
-                    path = image["img_path"]
-                    if path not in image_path_dict:
-                        image_id = len(unique_images)
-                        unique_images[image_id] = path
-                        image_path_dict[path] = image_id
-                    else:
-                        image_id = image_path_dict[path]
-                        unique_images[image_id] = path
+                for doc_segment in doc_segments:
+                    doc_id = len(unique_docs)
+                    unique_docs[doc_id] = doc_segment
 
-                    caption = text_processor.tokenize_one_line(image["caption"], ignore_middle_eos=True)
-                    image_info_dict[image_id].append((caption, lang, doc_id))
-                    max_caption_len = max(len(caption), max_caption_len)
+                    max_doc_size = max(max_doc_size, len(unique_docs[doc_id]))
+                    num_captions += len(doc["images"])
+                    for image in doc["images"]:
+                        path = image["img_path"]
+                        if path not in image_path_dict:
+                            image_id = len(unique_images)
+                            unique_images[image_id] = path
+                            image_path_dict[path] = image_id
+                        else:
+                            image_id = image_path_dict[path]
+                            unique_images[image_id] = path
+
+                        caption = text_processor.tokenize_one_line(image["caption"], ignore_middle_eos=True)
+                        image_info_dict[image_id].append((caption, lang, doc_id))
+                        max_caption_len = max(len(caption), max_caption_len)
 
                 if (d_num + 1) % 10000 == 0:
                     print("***", d_num + 1, len(image_info_dict))
 
             print(len(doc_dicts), max_caption_len, max_doc_size, "->", num_docs, len(image_info_dict))
+
     num_instances = sum([len(im) ** 2 for im in image_info_dict.values()])
     print("%d images, %d docs, %d captions, max doc vec %d, training instances %d" % (
         len(image_info_dict), len(unique_docs), num_captions, max_doc_size, num_instances))
 
     with open(output_file, "wb") as fp:
         pickle.dump((image_info_dict, unique_images, unique_docs), fp)
+
 
 
 def get_options():
@@ -77,6 +85,7 @@ def get_options():
     parser.add_option("--files", dest="files_to_use", help="Which files to use", type="str", default=None)
     parser.add_option("--output", dest="output_file", help="Output pickle file.", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
+    parser.add_option("--max_sen", dest="max_sen", help="Maximum number of sentences in one document. If more, will split", type=int, default=32)
     (options, args) = parser.parse_args()
     return options
 
@@ -89,5 +98,6 @@ if __name__ == "__main__":
     write(text_processor=tokenizer,
           output_file=options.output_file,
           json_dir=options.data_path,
-          files_to_use=options.files_to_use)
+          files_to_use=options.files_to_use,
+          max_sen_per_doc=options.max_sen)
     print("finished")

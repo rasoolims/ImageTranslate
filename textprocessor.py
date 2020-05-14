@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from tokenizers import Encoding
 from tokenizers import SentencePieceBPETokenizer
-
+import numpy as np
 
 class TextProcessor:
     def __init__(self, tok_model_path: Optional[str] = None):
@@ -78,7 +78,14 @@ class TextProcessor:
             tokenized += [self.sep_token_id()]
         return tokenized
 
-    def tokenize_lines(self, line) -> List[List[int]]:
+    def tokenize_lines(self, line, blind_split:bool=False, split_len:int=512) -> List[List[int]]:
+        """
+
+        :param line:
+        :param blind_split: If True, just splits the tokenized data into chunks without considering that every vector
+        should start with a first word in sentence.
+        :return:
+        """
         tokenized = []
         spl = [sen for sen in line.split("</s>") if len(sen.strip()) > 0]
         if spl[0].startswith("<"):
@@ -91,8 +98,14 @@ class TextProcessor:
             toks = self._tokenize(sen).ids
             tokenized += toks + [self.sep_token_id()]
             max_len = max(max_len, len(toks) + 1)
-
-        return self.split_tokenized(tokenized, min(max_len, self.max_len))
+        if blind_split:
+            num_pads = (split_len - (len(tokenized) % split_len))
+            pad_arr = [self.pad_token_id()]*num_pads
+            tokenized = np.array(tokenized+pad_arr)
+            reshaped = tokenized.reshape((-1, split_len))
+            return reshaped
+        else:
+            return self.split_tokenized(tokenized, min(max_len, self.max_len))
 
     def tokenize(self, lines) -> List[List[int]]:
         lines = [line.strip() for line in lines.strip().split("\n") if len(line.strip()) > 0]

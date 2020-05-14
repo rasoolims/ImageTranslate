@@ -56,8 +56,10 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
                     max_caption_len = max(len(caption), max_caption_len)
 
             print(len(doc_dicts), max_caption_len, max_doc_size)
-    print("%d images, %d docs, %d captions, max doc vec %d" % (
-        len(image_info_dict), len(unique_docs), num_captions, max_doc_size))
+    num_instances = sum([len(im)**2 for im in image_info_dict.values()])
+    print("%d images, %d docs, %d captions, max doc vec %d, number of training instances %d" % (
+        len(image_info_dict), len(unique_docs), num_captions, max_doc_size, num_instances))
+
     with open(output_file, "wb") as fp:
         pickle.dump((image_info_dict, unique_images, unique_docs), fp)
 

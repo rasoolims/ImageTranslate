@@ -41,9 +41,7 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
                 lang = doc["lang"]
                 tok_lines = text_processor.tokenize_lines(content.strip(), blind_split=True, split_len=128)
                 doc_lines = torch.Tensor(tok_lines)
-
-                num_segments = int(math.ceil(int(doc_lines.size(0)) / max_sen_per_doc))
-                doc_segments = torch.split(doc_lines, num_segments)
+                doc_segments = torch.split(doc_lines, max_sen_per_doc)
 
                 for doc_segment in doc_segments:
                     doc_id = len(unique_docs)

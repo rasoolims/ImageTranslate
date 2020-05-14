@@ -59,7 +59,7 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
                     max_caption_len = max(len(caption), max_caption_len)
 
                 if (d_num + 1) % 10000 == 0:
-                    print("***", d_num + 1)
+                    print("***", d_num + 1, len(image_info_dict))
 
             print(len(doc_dicts), max_caption_len, max_doc_size, "->", num_docs, len(image_info_dict))
     num_instances = sum([len(im) ** 2 for im in image_info_dict.values()])

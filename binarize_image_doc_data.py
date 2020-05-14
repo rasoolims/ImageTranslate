@@ -19,6 +19,7 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
     unique_images = {}
     image_path_dict = {}
     image_info_dict = defaultdict(list)
+    num_docs = 0
 
     for file in os.listdir(json_dir):
         if not file.endswith(".json"):
@@ -31,7 +32,8 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
         with open(os.path.join(json_dir, file), "rb") as fp:
             doc_dicts = json.load(fp)
             max_caption_len = 0
-            print(len(doc_dicts))
+            num_docs += len(doc_dicts)
+            print(len(doc_dicts), num_docs)
             for doc in doc_dicts:
                 content = doc["content"]
                 lang = doc["lang"]
@@ -56,7 +58,7 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
                     image_info_dict[image_id].append((caption, lang, doc_id))
                     max_caption_len = max(len(caption), max_caption_len)
 
-            print(len(doc_dicts), max_caption_len, max_doc_size)
+            print(len(doc_dicts), max_caption_len, max_doc_size, "->", num_docs, len(image_info_dict))
     num_instances = sum([len(im) ** 2 for im in image_info_dict.values()])
     print("%d images, %d docs, %d captions, max doc vec %d, training instances %d" % (
         len(image_info_dict), len(unique_docs), num_captions, max_doc_size, num_instances))

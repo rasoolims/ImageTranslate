@@ -1,8 +1,9 @@
 from typing import List, Optional
 
+import numpy as np
 from tokenizers import Encoding
 from tokenizers import SentencePieceBPETokenizer
-import numpy as np
+
 
 class TextProcessor:
     def __init__(self, tok_model_path: Optional[str] = None):
@@ -78,7 +79,7 @@ class TextProcessor:
             tokenized += [self.sep_token_id()]
         return tokenized
 
-    def tokenize_lines(self, line, blind_split:bool=False, split_len:int=512) -> List[List[int]]:
+    def tokenize_lines(self, line, blind_split: bool = False, split_len: int = 512) -> List[List[int]]:
         """
 
         :param line:
@@ -100,8 +101,8 @@ class TextProcessor:
             max_len = max(max_len, len(toks) + 1)
         if blind_split:
             num_pads = (split_len - (len(tokenized) % split_len))
-            pad_arr = [self.pad_token_id()]*num_pads
-            tokenized = np.array(tokenized+pad_arr)
+            pad_arr = [self.pad_token_id()] * num_pads
+            tokenized = np.array(tokenized + pad_arr)
             reshaped = tokenized.reshape((-1, split_len))
             return reshaped
         else:

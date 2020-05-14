@@ -1,16 +1,17 @@
 import json
+import math
 import os
 import pickle
 from collections import defaultdict
 from optparse import OptionParser
-import math
 
 import torch
 
 from textprocessor import TextProcessor
 
 
-def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_to_use: str = None, max_sen_per_doc:int=32):
+def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_to_use: str = None,
+          max_sen_per_doc: int = 32):
     relevant_files = None
     if files_to_use is not None:
         relevant_files = {f + ".json" for f in files_to_use.strip().split(",")}
@@ -41,7 +42,7 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
                 tok_lines = text_processor.tokenize_lines(content.strip(), blind_split=True, split_len=128)
                 doc_lines = torch.Tensor(tok_lines)
 
-                num_segments = int(math.ceil(int(doc_lines.size(0))/max_sen_per_doc))
+                num_segments = int(math.ceil(int(doc_lines.size(0)) / max_sen_per_doc))
                 doc_segments = torch.split(doc_lines, num_segments)
 
                 for doc_segment in doc_segments:
@@ -77,7 +78,6 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
         pickle.dump((image_info_dict, unique_images, unique_docs), fp)
 
 
-
 def get_options():
     global options
     parser = OptionParser()
@@ -85,7 +85,8 @@ def get_options():
     parser.add_option("--files", dest="files_to_use", help="Which files to use", type="str", default=None)
     parser.add_option("--output", dest="output_file", help="Output pickle file.", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
-    parser.add_option("--max_sen", dest="max_sen", help="Maximum number of sentences in one document. If more, will split", type=int, default=32)
+    parser.add_option("--max_sen", dest="max_sen",
+                      help="Maximum number of sentences in one document. If more, will split", type=int, default=32)
     (options, args) = parser.parse_args()
     return options
 

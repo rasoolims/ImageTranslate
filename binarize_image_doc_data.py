@@ -1,5 +1,4 @@
 import json
-import math
 import os
 import pickle
 from collections import defaultdict
@@ -84,7 +83,7 @@ def get_options():
     parser.add_option("--output", dest="output_file", help="Output pickle file.", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--max_sen", dest="max_sen",
-                      help="Maximum number of sentences in one document. If more, will split", type=int, default=32)
+                      help="Maximum number of sentences in one document. If more, will split", type=int, default=64)
     (options, args) = parser.parse_args()
     return options
 

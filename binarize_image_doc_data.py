@@ -34,7 +34,7 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
             max_caption_len = 0
             num_docs += len(doc_dicts)
             print(len(doc_dicts), num_docs)
-            for doc in doc_dicts:
+            for d_num, doc in enumerate(doc_dicts):
                 content = doc["content"]
                 lang = doc["lang"]
                 tok_lines = text_processor.tokenize_lines(content.strip())
@@ -57,6 +57,9 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
                     caption = text_processor.tokenize_one_line(image["caption"], ignore_middle_eos=True)
                     image_info_dict[image_id].append((caption, lang, doc_id))
                     max_caption_len = max(len(caption), max_caption_len)
+
+                if (d_num + 1) % 10000 == 0:
+                    print("***", d_num)
 
             print(len(doc_dicts), max_caption_len, max_doc_size, "->", num_docs, len(image_info_dict))
     num_instances = sum([len(im) ** 2 for im in image_info_dict.values()])

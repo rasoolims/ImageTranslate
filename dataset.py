@@ -2,6 +2,7 @@ import logging
 import math
 import os
 import pickle
+import random
 from typing import Dict, List, Tuple
 
 import torch
@@ -145,39 +146,39 @@ class ImageDocDataset(Dataset):
         self.root_img_dir = root_img_dir
         max_doc_batch_capacity *= 1000000
         with open(data_bin_file, "rb") as fp:
-            doc_ids, images, captions = pickle.load(fp)
+            image_info_dict, unique_images, unique_docs = pickle.load(fp)
             cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices, doc_split_sizes = [], [], [], [], []
             cur_max_doc_cap = 0
 
-            # We can sort the captions based on their corresponding document sentence length (second dim) to
-            # maximize GPU utilization.
-            caption_len_dict = {id: doc_ids[captions[id]["doc_id"]][0].size(0) for id in captions.keys()}
-            sorted_caption_lens = sorted(caption_len_dict.items(), key=lambda x: x[1])
+            for image, caption_infos in image_info_dict.items():
+                captions = [c[0] for c in caption_infos]
+                langs = [c[1] for c in caption_infos]
+                docs = [c[2] for c in caption_infos]
 
-            for id, _ in sorted_caption_lens:
-                docs = doc_ids[captions[id]["doc_id"]]
-                caption = captions[id]["caption"]
-                doc_len = len(docs) * (docs[0].size(0) ** 2)  # based on transformer's memory consumption!
+                for d_i, doc in enumerate(docs):
+                    for caption in captions:
+                        docs = unique_docs[doc]
+                        doc_len = len(docs) * (docs[0].size(0) ** 2)  # based on transformer's memory consumption!
 
-                if cur_max_doc_cap > 0 and max(cur_max_doc_cap, doc_len) * (
-                        len(cur_caption_batch) + 1) > max_doc_batch_capacity:
-                    all_docs = pad_sequence(cur_doc_batch, batch_first=True, padding_value=pad_index)
-                    all_captions = pad_sequence(cur_caption_batch, batch_first=True, padding_value=pad_index)
-                    assert len(doc_indices) == all_docs.size(0)
-                    assert len(cur_image_batch) == all_captions.size(0)
-                    entry = {"docs": all_docs, "captions": all_captions, "images": cur_image_batch,
-                             "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}
-                    self.batches.append(entry)
-                    cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices, doc_split_sizes = [], [], [], [], []
-                    cur_max_doc_cap = 0
-                else:
-                    cur_max_doc_cap = max(cur_max_doc_cap, doc_len)
-                    cur_image_batch.append(images[captions[id]["image_id"]])
-                    caption_id = len(cur_caption_batch)
-                    doc_indices += [caption_id] * len(docs)
-                    doc_split_sizes.append(len(docs))
-                    cur_caption_batch.append(torch.LongTensor(caption))
-                    cur_doc_batch += docs
+                        if cur_max_doc_cap > 0 and max(cur_max_doc_cap, doc_len) * (
+                                len(cur_caption_batch) + 1) > max_doc_batch_capacity:
+                            all_docs = pad_sequence(cur_doc_batch, batch_first=True, padding_value=pad_index)
+                            all_captions = pad_sequence(cur_caption_batch, batch_first=True, padding_value=pad_index)
+                            assert len(doc_indices) == all_docs.size(0)
+                            assert len(cur_image_batch) == all_captions.size(0)
+                            entry = {"docs": all_docs, "captions": all_captions, "images": cur_image_batch,
+                                     "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}
+                            self.batches.append(entry)
+                            cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices, doc_split_sizes = [], [], [], [], []
+                            cur_max_doc_cap = 0
+                        else:
+                            cur_max_doc_cap = max(cur_max_doc_cap, doc_len)
+                            cur_image_batch.append(unique_images[image])
+                            caption_id = len(cur_caption_batch)
+                            doc_indices += [caption_id] * len(docs)
+                            doc_split_sizes.append(len(docs))
+                            cur_caption_batch.append(torch.LongTensor(caption))
+                            cur_doc_batch += docs
 
             if len(cur_image_batch) > 0:
                 all_docs = pad_sequence(cur_doc_batch, batch_first=True, padding_value=pad_index)
@@ -186,8 +187,7 @@ class ImageDocDataset(Dataset):
                          "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}
                 self.batches.append(entry)
 
-            print("loaded %d images, %d captions, %d docs in %d batches!" % (
-                len(images), len(captions), len(docs), len(self.batches)))
+            print("loaded %d images, %d batches!" % (len(image_info_dict), len(self.batches)))
 
     def __len__(self):
         return len(self.batches)

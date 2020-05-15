@@ -19,7 +19,7 @@ def write(text_processor: TextProcessor, cache_dir: str,
     with open(txt_file, "r") as fp:
         for ln, line in enumerate(fp):
             if len(line.strip()) == 0: continue
-            tok_lines = text_processor.tokenize_lines(line.strip(), blind_split=True)
+            tok_lines = text_processor.tokenize_lines(line.strip(), blind_split=True, split_len=seq_len)
             current_cache += list(tok_lines)
 
             if len(current_cache) >= 100000:

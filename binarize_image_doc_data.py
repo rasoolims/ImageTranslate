@@ -67,7 +67,19 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
 
             print(len(doc_dicts), max_caption_len, max_doc_size, "->", num_docs, len(image_info_dict))
 
-    num_instances = sum([len(im) ** 2 for im in image_info_dict.values()])
+    num_instances = 0
+    for image, caption_infos in image_info_dict.items():
+        captions = [c[0] for c in caption_infos]
+        langs = [c[1] for c in caption_infos]
+        docs = [c[2] for c in caption_infos]
+
+        for d_i, doc in enumerate(docs):
+            for c_i, caption in enumerate(captions):
+                if c_i != d_i and langs[c_i] == langs[d_i]:
+                    # Skip different docs with same language.
+                    continue
+                num_instances += 1
+
     print("%d images, %d docs, %d captions, max doc vec %d, training instances %d" % (
         len(image_info_dict), len(unique_docs), num_captions, max_doc_size, num_instances))
 

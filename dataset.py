@@ -2,7 +2,6 @@ import logging
 import math
 import os
 import pickle
-import random
 from typing import Dict, List, Tuple
 
 import torch
@@ -156,7 +155,11 @@ class ImageDocDataset(Dataset):
                 docs = [c[2] for c in caption_infos]
 
                 for d_i, doc in enumerate(docs):
-                    for caption in captions:
+                    for c_i, caption in enumerate(captions):
+                        if c_i != d_i and langs[c_i] == langs[d_i]:
+                            # Skip different docs with same language.
+                            continue
+
                         docs = unique_docs[doc]
                         doc_len = len(docs) * (docs[0].size(0) ** 2)  # based on transformer's memory consumption!
 

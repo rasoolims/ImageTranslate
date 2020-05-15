@@ -19,9 +19,8 @@ def write(text_processor: TextProcessor, cache_dir: str,
     with open(txt_file, "r") as fp:
         for ln, line in enumerate(fp):
             if len(line.strip()) == 0: continue
-            tok_line = text_processor.tokenize_one_line(line.strip())
-            tok_lines = text_processor.split_tokenized(tok_line, max_length=seq_len)
-            current_cache += tok_lines
+            tok_lines = text_processor.tokenize_lines(line.strip(), blind_split=True)
+            current_cache += list(tok_lines)
 
             if len(current_cache) >= 100000:
                 for tok_line in current_cache:

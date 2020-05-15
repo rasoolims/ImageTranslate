@@ -89,15 +89,16 @@ class TextProcessor:
         """
         tokenized = []
         spl = [sen for sen in line.split("</s>") if len(sen.strip()) > 0]
+        lang_id = []
         if spl[0].startswith("<"):
             words = spl[0].strip().split(" ")
+            lang_id = [self.token_id(words[0])]
             spl[0] = " ".join(words[1:])
-            tokenized += [self.token_id(words[0])]
 
         max_len = 0
         for sen in spl:
             toks = self._tokenize(sen).ids
-            tokenized += toks + [self.sep_token_id()]
+            tokenized += lang_id + toks + [self.sep_token_id()]
             max_len = max(max_len, len(toks) + 1)
         if blind_split:
             num_pads = (split_len - (len(tokenized) % split_len))

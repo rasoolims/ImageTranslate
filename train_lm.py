@@ -198,7 +198,7 @@ class Trainer:
                                          load_all=True)
 
         trainer = Trainer(model=lm, mask_prob=options.mask_prob,
-                          optimizer=Trainer.build_optimizer(lm.encoder, options.learning_rate, options.weight_decay),
+                          optimizer=Trainer.build_optimizer(lm, options.learning_rate, options.weight_decay),
                           clip=options.clip, warmup=options.warmup, step=options.step,
                           fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, distributed=options.distributed,
                           local_rank=options.local_rank)

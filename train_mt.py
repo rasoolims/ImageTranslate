@@ -24,7 +24,7 @@ from textprocessor import TextProcessor
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
 
-class Trainer:
+class MTTrainer:
     def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.3, clip: int = 1, optimizer=None,
                  warmup: int = 12500, step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
                  beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5, len_penalty_ratio: float = 0.8,
@@ -87,7 +87,7 @@ class Trainer:
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
         cur_loss = 0
         sentences = 0
-        model_to_save = (
+        model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
 
@@ -108,7 +108,7 @@ class Trainer:
                 if self.self_translate:
                     mask, masked_ids, src_inputs = LM.mask_text(mask_prob=self.mask_prob, pads=src_mask,
                                                                 texts=src_inputs,
-                                                                text_processor=model_to_save.text_processor,
+                                                                text_processor=model.text_processor,
                                                                 mask_eos=False)
 
                 predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
@@ -145,7 +145,7 @@ class Trainer:
 
                     mask, masked_ids, src_inputs = LM.mask_text(mask_prob=self.mask_prob, pads=src_mask,
                                                                 texts=src_inputs,
-                                                                text_processor=model_to_save.text_processor,
+                                                                text_processor=model.text_processor,
                                                                 mask_eos=False)
 
                     predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
@@ -197,7 +197,7 @@ class Trainer:
 
                 if step % 1000 == 0:
                     # Save every 1000 steps!
-                    model_to_save.save_checkpoint(saving_path)
+                    model.save_checkpoint(saving_path)
 
                 if step % 500 == 0:
                     self.validate(valid_data_iter)
@@ -207,7 +207,7 @@ class Trainer:
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-        model_to_save.save(saving_path + ".latest")
+        model.save(saving_path + ".latest")
 
         self.validate(valid_data_iter)
         bleu = self.eval_bleu(valid_data_iter, saving_path)
@@ -346,12 +346,12 @@ class Trainer:
                                                    pin_memory=pin_memory) if monolingual_data is not None else None
         valid_loader = data_utils.DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
-        trainer = Trainer(model=mt_model, mask_prob=options.mask_prob,
-                          optimizer=Trainer.build_optimizer(mt_model, options.learning_rate, options.weight_decay),
-                          clip=options.clip, warmup=options.warmup, step=options.step, fp16=options.fp16,
-                          fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
-                          max_len_a=options.max_len_a, max_len_b=options.max_len_b,
-                          len_penalty_ratio=options.len_penalty_ratio, self_translate=options.pretrain)
+        trainer = MTTrainer(model=mt_model, mask_prob=options.mask_prob,
+                            optimizer=MTTrainer.build_optimizer(mt_model, options.learning_rate, options.weight_decay),
+                            clip=options.clip, warmup=options.warmup, step=options.step, fp16=options.fp16,
+                            fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
+                            max_len_a=options.max_len_a, max_len_b=options.max_len_b,
+                            len_penalty_ratio=options.len_penalty_ratio, self_translate=options.pretrain)
 
         print("creating reference")
         trainer.reference = []
@@ -363,7 +363,7 @@ class Trainer:
             trainer.reference += ref
 
         print("Trying if largest batch fits into memory")
-        Trainer.memory_test(train_data, trainer)
+        MTTrainer.memory_test(train_data, trainer)
 
         step, train_epoch = 0, 1
         while step <= options.step:
@@ -482,5 +482,5 @@ def get_options():
 if __name__ == "__main__":
     options = get_options()
     print(options)
-    Trainer.train(options=options)
+    MTTrainer.train(options=options)
     print("Finished Training!")

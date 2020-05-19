@@ -87,7 +87,7 @@ class TestModel(unittest.TestCase):
             create_batches.write(text_processor=processor, cache_dir=tmpdirname, seq_len=512, txt_file=data_path,
                                  sen_block_size=10)
             dataset = TextDataset(save_cache_dir=tmpdirname, max_cache_size=3)
-            assert dataset.line_num == 92
+            assert dataset.line_num == 75
 
             dataset.__getitem__(3)
             assert len(dataset.current_cache) == 3
@@ -95,17 +95,8 @@ class TestModel(unittest.TestCase):
             dataset.__getitem__(9)
             assert len(dataset.current_cache) == 3
 
-            dataset.__getitem__(90)
-            assert len(dataset.current_cache) == 1
-
             dataset.__getitem__(70)
-            assert len(dataset.current_cache) == 3
-
-            dataset.__getitem__(80)
-            assert len(dataset.current_cache) == 3
-
-            dataset.__getitem__(50)
-            assert len(dataset.current_cache) == 3
+            assert len(dataset.current_cache) == 1
 
     def test_image_data_model(self):
         transform = transforms.Compose([  # [1]
@@ -125,18 +116,17 @@ class TestModel(unittest.TestCase):
             processor = TextProcessor()
             processor.train_tokenizer([text_data_path], vocab_size=1000, to_save_dir=tmpdirname)
             binarize_image_doc_data.write(text_processor=processor, output_file=os.path.join(tmpdirname, "image.bin"),
-                                          max_seq_len=512, json_dir=data_path, files_to_use="mzn,glk")
+                                          json_dir=data_path, files_to_use="mzn,glk")
             image_data = ImageDocDataset(os.getcwd(), os.path.join(tmpdirname, "image.bin"), transform,
                                          max_doc_batch_capacity=1,
                                          pad_index=processor.pad_token_id())
             assert len(image_data[4]) == 7
-            assert len(image_data) == 89
+            assert len(image_data) == 192
 
             lm = LM(text_processor=processor, size=4)
             image_seq2seq = ImageSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
-            output, gold_outputs = image_seq2seq('cpu', image_data[4])
-            assert list(output.size()) == [139, processor.vocab_size()]
-            assert list(gold_outputs.size()) == [139]
+            output = image_seq2seq('cpu', image_data[4])
+            assert list(output.size()) == [21, processor.vocab_size()]
 
 
 if __name__ == '__main__':

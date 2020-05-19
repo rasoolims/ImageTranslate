@@ -58,12 +58,16 @@ class TextDataset(Dataset):
 class MTDataset(Dataset):
     def __init__(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
                  pad_idx: int, max_seq_len: int = 512):
+        self.build_batches(batch_pickle_dir, max_batch_capacity, max_batch, pad_idx, max_seq_len)
+
+    def build_batches(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
+                      pad_idx: int, max_seq_len: int = 512):
         """
-        Since training is fully-batched and has memory/computational need for cubic power of target length, and quadratic
-        power of source length, we need to make sure that each batch has similar length and it does not go over
-        max_batch_capacity. We also need to make sure not to include those batches that has less than num_gpu
-        sentence pairs (it will crash in multi-gpu).
-        """
+                Since training is fully-batched and has memory/computational need for cubic power of target length, and quadratic
+                power of source length, we need to make sure that each batch has similar length and it does not go over
+                max_batch_capacity. We also need to make sure not to include those batches that has less than num_gpu
+                sentence pairs (it will crash in multi-gpu).
+                """
         self.batches = []
         self.longest_batch = ([], 0)
         self.most_token_batch = ([], 0)
@@ -124,7 +128,7 @@ class MTDataset(Dataset):
                     self.most_token_batch = (entry, b * (s + d))
                 self.batches.append(entry)
 
-        print("loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
+        print("Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
         print("Longest batch size", self.longest_batch[0]["src_texts"].size(),
               self.longest_batch[0]["dst_texts"].size())
         print("Most token batch size", self.most_token_batch[0]["src_texts"].size(),
@@ -135,6 +139,71 @@ class MTDataset(Dataset):
 
     def __getitem__(self, item):
         return self.batches[item]
+
+
+class MassDataset(MTDataset):
+    def build_batches(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
+                      pad_idx: int, max_seq_len: int = 512):
+        """
+        Since training is fully-batched and has memory/computational need for cubic power of target length, and quadratic
+        power of source length, we need to make sure that each batch has similar length and it does not go over
+        max_batch_capacity. We also need to make sure not to include those batches that has less than num_gpu
+        sentence pairs (it will crash in multi-gpu).
+        MASS refers to https://arxiv.org/pdf/1905.02450.pdf
+        """
+        self.batches = []
+        self.longest_batch = ([], 0)
+        self.most_token_batch = ([], 0)
+        num_gpu = torch.cuda.device_count()
+        with open(batch_pickle_dir, "rb") as fr:
+            examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
+
+            cur_src_batch, cur_max_src_len = [], 0
+            for example in examples:
+                src = example[:max_seq_len]  # trim if longer than expected!
+
+                cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
+
+                cur_src_batch.append(src)
+
+                batch_capacity_size = 2 * (cur_max_src_len ** 3) * len(cur_src_batch)
+                batch_size = 2 * cur_max_src_len * len(cur_src_batch)
+
+                if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000:
+                    src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
+                    src_pad_mask = (src_batch != pad_idx)
+                    if src_batch.size(0) < num_gpu:
+                        print("skipping", src_batch.size())
+                    else:
+                        entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask}
+                        b, s = int(src_batch.size(0)), int(src_batch.size(1))
+                        this_batch_size = 2 * (s ** 3) * b
+                        if this_batch_size > self.longest_batch[1]:
+                            self.longest_batch = (entry, this_batch_size)
+                        if 2 * b * s > self.most_token_batch[1]:
+                            self.most_token_batch = (entry, 2 * b * s)
+                        self.batches.append(entry)
+                    cur_src_batch = cur_src_batch[-1]
+                    cur_max_src_len = int(cur_src_batch[0].size(0))
+
+        if len(cur_src_batch) > 0:
+            src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
+            src_pad_mask = (src_batch != pad_idx)
+            if src_batch.size(0) < num_gpu:
+                print("skipping", src_batch.size())
+            else:
+                entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask}
+                b, s = int(src_batch.size(0)), int(src_batch.size(1))
+                this_batch_size = 2 * (s ** 3) * b
+                if this_batch_size > self.longest_batch[1]:
+                    self.longest_batch = (entry, this_batch_size)
+                if 2 * b * s > self.most_token_batch[1]:
+                    self.most_token_batch = (entry, 2 * b * s)
+                self.batches.append(entry)
+
+        print("Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
+        print("Longest batch size", self.longest_batch[0]["src_texts"].size())
+        print("Most token batch size", self.most_token_batch[0]["src_texts"].size())
 
 
 class ImageDocDataset(Dataset):

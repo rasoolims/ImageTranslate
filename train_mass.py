@@ -5,14 +5,17 @@ import random
 import sys
 import time
 from optparse import OptionParser
+from typing import Dict
 
 import torch
 import torch.utils.data as data_utils
 from IPython.core import ultratb
+from torch.nn.utils.rnn import pad_sequence
 
 import dataset
 from albert_seq2seq import MassSeq2Seq
 from lm import LM
+from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mt import MTTrainer
 
@@ -61,6 +64,8 @@ class MassTrainer(MTTrainer):
         super().__init__(model=model, mask_prob=mask_prob, clip=clip, optimizer=optimizer, warmup=warmup, step=step,
                          fp16=fp16, fp16_opt_level=fp16_opt_level, beam_width=beam_width, max_len_a=max_len_a,
                          max_len_b=max_len_b, len_penalty_ratio=len_penalty_ratio)
+        self.generator = BeamDecoder(model, beam_width=beam_width, max_len_a=max_len_a, max_len_b=max_len_b,
+                                     len_penalty_ratio=len_penalty_ratio)
 
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader, saving_path: str,
                     step: int, max_grad_norm: float = 1.0, **kwargs):
@@ -150,6 +155,108 @@ class MassTrainer(MTTrainer):
         self.validate(valid_data_iter)
         return step
 
+    def fine_tune(self, data_iter: data_utils.DataLoader, lang_directions: Dict[int, int], saving_path: str,
+                  step: int, max_grad_norm: float = 1.0, valid_data_iter: data_utils.DataLoader = None):
+        if self.fp16:
+            try:
+                import apex
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
+
+        "Standard Training and Logging Function"
+        start = time.time()
+        total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
+        cur_loss = 0
+        sentences = 0
+        model = (
+            self.model.module if hasattr(self.model, "module") else self.model
+        )
+
+        for i, batch in enumerate(data_iter):
+            if self.optimizer is not None:
+                self.optimizer.zero_grad()
+            src_inputs = batch["src_texts"].squeeze(0)
+            src_pad_mask = batch["src_pad_mask"].squeeze(0)
+            target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
+            if src_inputs.size(0) < self.num_gpu:
+                continue
+
+            try:
+                with torch.no_grad():
+                    # We do not backpropagate the data generator following the MASS paper.
+                    model.eval()
+                    outputs = self.generator(device=self.device, src_inputs=src_inputs, tgt_langs=target_langs,
+                                             src_mask=src_pad_mask)
+                    translations = pad_sequence(outputs, batch_first=True)
+                    translation_pad_mask = (translations != model.text_processor.pad_token_id())
+                    model.train()
+
+                # Now use it for back-translation loss.
+                predictions = self.model(device=self.device, src_inputs=translations, tgt_inputs=src_inputs,
+                                         src_mask=translation_pad_mask, tgt_mask=src_pad_mask,
+                                         mask_pad_mask=src_pad_mask,  # Just pads for mask.
+                                         log_softmax=True)
+                src_targets = src_inputs[:, 1:].contiguous().view(-1)
+                src_mask_flat = src_pad_mask[:, 1:].contiguous().view(-1)
+                targets = src_targets[src_mask_flat]
+                ntokens = targets.size(0)
+
+                if ntokens == 0:  # Nothing to predict!
+                    continue
+
+                bt_loss = self.criterion(predictions, targets).mean()
+                if self.fp16:
+                    with apex.amp.scale_loss(bt_loss, self.optimizer) as scaled_loss:
+                        scaled_loss.backward()
+                else:
+                    bt_loss.backward()
+
+                bt_loss = float(bt_loss.data) * ntokens
+                total_loss += bt_loss
+                cur_loss += bt_loss
+                total_tokens += ntokens
+                tokens += ntokens
+                sentences += int(src_inputs.size(0))
+
+                if self.optimizer is not None:
+                    # We accumulate the gradients for both tasks!
+                    if self.fp16:
+                        torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
+                    else:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+
+                    self.optimizer.step()
+                    self.scheduler.step()
+                    step += 1
+
+            except RuntimeError as err:
+                print("Error in processing", src_inputs.size(), src_inputs.size())
+                torch.cuda.empty_cache()
+
+            if step % 50 == 0 and tokens > 0:
+                elapsed = time.time() - start
+                print(datetime.datetime.now(),
+                      "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
+                          step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
+
+                if step % 1000 == 0:
+                    # Save every 1000 steps!
+                    model.save_checkpoint(saving_path)
+
+                if step % 500 == 0 and valid_data_iter is not None:
+                    bleu = self.eval_bleu(valid_data_iter, saving_path)
+                    print("BLEU:", bleu)
+
+                start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
+
+        print("Total loss in this epoch: %f" % (total_loss / total_tokens))
+        model.save(saving_path + ".latest")
+
+        if valid_data_iter is not None:
+            bleu = self.eval_bleu(valid_data_iter, saving_path)
+            print("BLEU:", bleu)
+        return step
+
     def validate(self, valid_data_iter):
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
@@ -225,13 +332,45 @@ class MassTrainer(MTTrainer):
                               max_len_a=options.max_len_a, max_len_b=options.max_len_b,
                               len_penalty_ratio=options.len_penalty_ratio)
 
+        mt_valid_loader = None
+        if options.mt_valid_path is not None:
+            mt_valid_data = dataset.MTDataset(batch_pickle_dir=options.mt_valid_path,
+                                              max_batch_capacity=options.total_capacity,
+                                              max_batch=int(options.batch / options.beam_width),
+                                              pad_idx=mt_model.text_processor.pad_token_id())
+            mt_valid_loader = data_utils.DataLoader(mt_valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+
+            print("creating reference")
+            trainer.reference = []
+
+            for batch in mt_valid_loader:
+                tgt_inputs = batch["dst_texts"].squeeze()
+                refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
+                ref = [trainer.generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
+                trainer.reference += ref
+
         step, train_epoch = 0, 1
+
+        lang_directions = {}
+        for lang1 in train_data.lang_ids:
+            for lang2 in train_data.lang_ids:
+                if lang1 != lang2:
+                    # Assuming that we only have two languages!
+                    lang_directions[lang1] = lang2
+
         while step <= options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=train_loader, valid_data_iter=valid_loader,
                                        saving_path=options.model_path,
                                        step=step)
             train_epoch += 1
+
+        finetune_epoch = 0
+        while step <= options.finetune_step:
+            print("finetune epoch", finetune_epoch)
+            _ = trainer.fine_tune(data_iter=train_loader, lang_directions=lang_directions,
+                                  saving_path=options.model_path, step=step, valid_data_iter=mt_valid_loader)
+            finetune_epoch += 1
 
 
 def get_options():
@@ -240,7 +379,10 @@ def get_options():
     parser.add_option("--train", dest="train_path", help="Path to the train data pickle files", metavar="FILE",
                       default=None)
     parser.add_option("--valid", dest="valid_path",
-                      help="Path to the train data pickle files", metavar="FILE", default=None)
+                      help="Path to the dev data pickle files", metavar="FILE", default=None)
+    parser.add_option("--valid_mt", dest="mt_valid_path",
+                      help="Path to the MT dev data pickle files (SHOULD NOT BE USED IN UNSUPERVISED SETTING)",
+                      metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
                       default=None)
@@ -254,6 +396,7 @@ def get_options():
     parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.002)
     parser.add_option("--warmup", dest="warmup", help="Number of warmup steps", type="int", default=12500)
     parser.add_option("--step", dest="step", help="Number of training steps", type="int", default=125000)
+    parser.add_option("--fstep", dest="finetune_step", help="Number of finetuneing steps", type="int", default=125000)
     parser.add_option("--decay", dest="weight_decay", help="Weight decay", type="float", default=0.01)
     parser.add_option("--max_grad_norm", dest="max_grad_norm", help="Max grad norm", type="float", default=1.0)
     parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)

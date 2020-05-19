@@ -61,7 +61,7 @@ class BeamDecoder(nn.Module):
         length_penalty = torch.pow(torch.tensor(lengths).to(cur_beam_elements.device) / 6.0, self.len_penalty_ratio)
         return length_penalty.unsqueeze(-1)
 
-    def forward(self, device, src_inputs, tgt_langs, src_mask):
+    def forward(self, device, src_inputs, tgt_langs, src_mask, max_len: int = None):
         """
 
         :param device:
@@ -79,8 +79,9 @@ class BeamDecoder(nn.Module):
         top_beam_outputs = first_position_output
         top_beam_scores = torch.zeros(first_position_output.size()).to(first_position_output.device)
 
-        max_len = min(int(self.max_len_a * src_inputs.size(1) + self.max_len_b) + 1,
-                      self.seq2seq_model.encoder.embeddings.position_embeddings.num_embeddings)
+        if max_len is None:
+            max_len = min(int(self.max_len_a * src_inputs.size(1) + self.max_len_b) + 1,
+                          self.seq2seq_model.encoder.embeddings.position_embeddings.num_embeddings)
 
         for i in range(1, max_len):
             cur_outputs = top_beam_outputs.view(-1, top_beam_outputs.size(-1))
@@ -117,6 +118,10 @@ class BeamDecoder(nn.Module):
 
         outputs = top_beam_outputs[:, 0, :]
         actual_outputs = get_outputs_until_eos(eos, outputs)
+
+        # Force free memory.
+        del outputs
+        del top_beam_outputs
 
         return actual_outputs
 

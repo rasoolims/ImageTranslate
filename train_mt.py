@@ -438,7 +438,7 @@ def get_options():
                       help="Path to the monolingual data pickle files for auxiliary BART training", metavar="FILE",
                       default=None)
     parser.add_option("--valid", dest="valid_path",
-                      help="Path to the train data pickle files", metavar="FILE", default=None)
+                      help="Path to the dev data pickle files", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
                       default=None)

@@ -29,13 +29,18 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
                 examples[line_num] = torch.LongTensor(src_tok_line)
                 lens[line_num] = len(src_tok_line)
                 line_num += 1
+                if line_num % 10000 == 0:
+                    print(line_num)
 
+    print("Sorting")
     sorted_lens = sorted(lens.items(), key=lambda item: item[1])
     sorted_examples = []
+    print("Sorted examples")
     for len_item in sorted_lens:
         line_num = len(sorted_examples)
         sorted_examples.append(examples[len_item[0]])
 
+    print("Dumping")
     with open(output_file, "wb") as fw:
         pickle.dump(sorted_examples, fw)
 

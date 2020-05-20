@@ -52,7 +52,6 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
                     sorted_examples = []
                     print("Sorted examples")
                     for len_item in sorted_lens:
-                        line_num = len(sorted_examples)
                         sorted_examples.append(examples[len_item[0]])
 
                     print("Dumping")

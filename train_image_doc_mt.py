@@ -190,6 +190,8 @@ class Trainer:
                 std=[0.229, 0.224, 0.225]  # [7]
             )])
 
+        print("Model initialization done!")
+
         train_data = dataset.ImageDocDataset(root_img_dir=options.image_dir,
                                              data_bin_file=options.train_path, transform=transform,
                                              max_doc_batch_capacity=options.total_capacity,

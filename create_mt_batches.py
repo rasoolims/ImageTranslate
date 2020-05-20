@@ -9,7 +9,6 @@ from textprocessor import TextProcessor
 def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, dst_txt_file: str = None):
     examples = {}
     line_num = 0
-    part_num = 0
 
     lens = {}
     if dst_txt_file is not None:
@@ -21,7 +20,21 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
                 examples[line_num] = (torch.LongTensor(src_tok_line), torch.LongTensor(dst_tok_line))
                 lens[line_num] = len(dst_tok_line)
                 line_num += 1
+
+        print("Sorting")
+        sorted_lens = sorted(lens.items(), key=lambda item: item[1])
+        sorted_examples = []
+        print("Sorted examples")
+        for len_item in sorted_lens:
+            line_num = len(sorted_examples)
+            sorted_examples.append(examples[len_item[0]])
+
+        print("Dumping")
+        with open(output_file, "wb") as fw:
+            pickle.dump(sorted_examples, fw)
+
     else:
+        part_num = 0
         # Used for MASS training where we only have source sentences.
         with open(src_txt_file, "r") as s_fp:
             for src_line in s_fp:
@@ -48,18 +61,18 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
                     examples = {}
                     part_num += 1
 
-    if len(examples) > 0:
-        print("Sorting")
-        sorted_lens = sorted(lens.items(), key=lambda item: item[1])
-        sorted_examples = []
-        print("Sorted examples")
-        for len_item in sorted_lens:
-            line_num = len(sorted_examples)
-            sorted_examples.append(examples[len_item[0]])
+        if len(examples) > 0:
+            print("Sorting")
+            sorted_lens = sorted(lens.items(), key=lambda item: item[1])
+            sorted_examples = []
+            print("Sorted examples")
+            for len_item in sorted_lens:
+                line_num = len(sorted_examples)
+                sorted_examples.append(examples[len_item[0]])
 
-        print("Dumping")
-        with open(output_file + "." + str(part_num), "wb") as fw:
-            pickle.dump(sorted_examples, fw)
+            print("Dumping")
+            with open(output_file + "." + str(part_num), "wb") as fw:
+                pickle.dump(sorted_examples, fw)
 
     print(f"Dumped {line_num + 1} small vectors!")
 

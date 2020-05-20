@@ -15,8 +15,8 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
         with open(src_txt_file, "r") as s_fp, open(dst_txt_file, "r") as d_fp:
             for src_line, dst_line in zip(s_fp, d_fp):
                 if len(src_line.strip()) == 0 or len(dst_line.strip()) == 0: continue
-                src_tok_line = text_processor.tokenize_one_line(src_line.strip(), ignore_middle_eos=True)
-                dst_tok_line = text_processor.tokenize_one_line(dst_line.strip(), ignore_middle_eos=True)
+                src_tok_line = text_processor.tokenize_one_sentence(src_line.strip())
+                dst_tok_line = text_processor.tokenize_one_sentence(dst_line.strip())
                 examples[line_num] = (torch.LongTensor(src_tok_line), torch.LongTensor(dst_tok_line))
                 lens[line_num] = len(dst_tok_line)
                 line_num += 1
@@ -39,7 +39,7 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
         with open(src_txt_file, "r") as s_fp:
             for src_line in s_fp:
                 if len(src_line.strip()) == 0: continue
-                src_tok_line = text_processor.tokenize_one_line(src_line.strip(), ignore_middle_eos=True)
+                src_tok_line = text_processor.tokenize_one_sentence(src_line.strip())
                 examples[line_num] = torch.LongTensor(src_tok_line)
                 lens[line_num] = len(src_tok_line)
                 line_num += 1

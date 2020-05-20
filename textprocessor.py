@@ -79,6 +79,17 @@ class TextProcessor:
             tokenized += [self.sep_token_id()]
         return tokenized
 
+    def tokenize_one_sentence(self, line) -> List[int]:
+        """
+        Assume that the sentence has language id in the first token and end of sentence as the end!
+        :param line:
+        :return:
+        """
+        spl = line.strip().split(" ")
+        lang_id, sen, eos = spl[0], " ".join(spl[1:-1]), spl[-1]
+        tokenized = [self.token_id(lang_id)] + self._tokenize(sen).ids + [self.token_id(eos)]
+        return tokenized
+
     def tokenize_lines(self, line, blind_split: bool = False, split_len: int = 512) -> List[List[int]]:
         """
 

@@ -44,33 +44,24 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
                 lens[line_num] = len(src_tok_line)
                 line_num += 1
                 if line_num % 1000000 == 0:
-                    print(line_num)
+                    print(line_num / 1000000)
 
-                if len(examples) >= 4000000:
-                    print("Sorting")
-                    sorted_lens = sorted(lens.items(), key=lambda item: item[1])
-                    sorted_examples = []
-                    print("Sorted examples")
-                    for len_item in sorted_lens:
-                        sorted_examples.append(examples[len_item[0]])
+        print("Sorting")
+        sorted_lens = sorted(lens.items(), key=lambda item: item[1])
+        sorted_examples = []
+        print("Sorted examples")
+        for len_item in sorted_lens:
+            line_num = len(sorted_examples)
+            sorted_examples.append(examples[len_item[0]])
 
-                    print("Dumping")
-                    with open(output_file + "." + str(part_num), "wb") as fw:
-                        pickle.dump(sorted_examples, fw)
-                    examples = {}
-                    lens = {}
-                    part_num += 1
+            if len(sorted_examples) >= 4000000:
+                print("Dumping")
+                with open(output_file + "." + str(part_num), "wb") as fw:
+                    pickle.dump(sorted_examples, fw)
+                sorted_examples = []
+                part_num += 1
 
-        if len(examples) > 0:
-            print("Sorting")
-            sorted_lens = sorted(lens.items(), key=lambda item: item[1])
-            sorted_examples = []
-            print("Sorted examples")
-            for len_item in sorted_lens:
-                line_num = len(sorted_examples)
-                sorted_examples.append(examples[len_item[0]])
-
-            print("Dumping")
+        if len(sorted_examples) > 0:
             with open(output_file + "." + str(part_num), "wb") as fw:
                 pickle.dump(sorted_examples, fw)
 

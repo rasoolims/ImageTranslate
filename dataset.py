@@ -1,3 +1,4 @@
+import glob
 import logging
 import math
 import os
@@ -156,37 +157,38 @@ class MassDataset(MTDataset):
         self.lang_ids = set()
         self.most_token_batch = ([], 0)
         num_gpu = torch.cuda.device_count()
-        with open(batch_pickle_dir, "rb") as fr:
-            examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
+        for f in glob.glob(batch_pickle_dir + "*"):
+            with open(f, "rb") as fr:
+                examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
 
-            cur_src_batch, cur_max_src_len = [], 0
-            for example in examples:
-                src = example[:max_seq_len]  # trim if longer than expected!
-                self.lang_ids.add(int(src[0]))
+                cur_src_batch, cur_max_src_len = [], 0
+                for example in examples:
+                    src = example[:max_seq_len]  # trim if longer than expected!
+                    self.lang_ids.add(int(src[0]))
 
-                cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
+                    cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
 
-                cur_src_batch.append(src)
+                    cur_src_batch.append(src)
 
-                batch_capacity_size = 2 * (cur_max_src_len ** 3) * len(cur_src_batch)
-                batch_size = 2 * cur_max_src_len * len(cur_src_batch)
+                    batch_capacity_size = 2 * (cur_max_src_len ** 3) * len(cur_src_batch)
+                    batch_size = 2 * cur_max_src_len * len(cur_src_batch)
 
-                if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000:
-                    src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
-                    src_pad_mask = (src_batch != pad_idx)
-                    if src_batch.size(0) < num_gpu:
-                        print("skipping", src_batch.size())
-                    else:
-                        entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask}
-                        b, s = int(src_batch.size(0)), int(src_batch.size(1))
-                        this_batch_size = 2 * (s ** 3) * b
-                        if this_batch_size > self.longest_batch[1]:
-                            self.longest_batch = (entry, this_batch_size)
-                        if 2 * b * s > self.most_token_batch[1]:
-                            self.most_token_batch = (entry, 2 * b * s)
-                        self.batches.append(entry)
-                    cur_src_batch = cur_src_batch[-1]
-                    cur_max_src_len = int(cur_src_batch[0].size(0))
+                    if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000:
+                        src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
+                        src_pad_mask = (src_batch != pad_idx)
+                        if src_batch.size(0) < num_gpu:
+                            print("skipping", src_batch.size())
+                        else:
+                            entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask}
+                            b, s = int(src_batch.size(0)), int(src_batch.size(1))
+                            this_batch_size = 2 * (s ** 3) * b
+                            if this_batch_size > self.longest_batch[1]:
+                                self.longest_batch = (entry, this_batch_size)
+                            if 2 * b * s > self.most_token_batch[1]:
+                                self.most_token_batch = (entry, 2 * b * s)
+                            self.batches.append(entry)
+                        cur_src_batch = cur_src_batch[-1]
+                        cur_max_src_len = int(cur_src_batch[0].size(0))
 
         if len(cur_src_batch) > 0:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)

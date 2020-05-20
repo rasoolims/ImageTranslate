@@ -59,6 +59,7 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
                     with open(output_file + "." + str(part_num), "wb") as fw:
                         pickle.dump(sorted_examples, fw)
                     examples = {}
+                    lens = {}
                     part_num += 1
 
         if len(examples) > 0:

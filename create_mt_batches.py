@@ -44,9 +44,9 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
                 lens[line_num] = len(src_tok_line)
                 line_num += 1
                 if line_num % 1000000 == 0:
-                    print(int(line_num / 1000000), "M")
+                    print(int(line_num / 1000000), "M", "\r", end="")
 
-        print("Sorting")
+        print("\nSorting")
         sorted_lens = sorted(lens.items(), key=lambda item: item[1])
         sorted_examples = []
         print("Sorted examples")

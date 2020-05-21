@@ -158,7 +158,7 @@ class MassDataset(MTDataset):
         self.most_token_batch = ([], 0)
         num_gpu = torch.cuda.device_count()
         for f in glob.glob(batch_pickle_dir + "*"):
-            print("Loading", f, "\r", end="")
+            print("Loading", f)
             with open(f, "rb") as fr:
                 examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
 

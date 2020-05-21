@@ -43,7 +43,7 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
                 examples[line_num] = torch.LongTensor(src_tok_line)
                 lens[line_num] = len(src_tok_line)
                 line_num += 1
-                print(line_num, "M", "\r", end="")
+                print(line_num, "\r", end="")
 
         print("\nSorting")
         sorted_lens = sorted(lens.items(), key=lambda item: item[1])

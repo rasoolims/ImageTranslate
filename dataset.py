@@ -1,3 +1,4 @@
+import concurrent.futures
 import glob
 import logging
 import math
@@ -270,19 +271,25 @@ class ImageDocDataset(Dataset):
                 entry = {"docs": all_docs, "captions": all_captions, "images": cur_image_batch,
                          "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}
                 self.batches.append(entry)
+
             del image_info_dict
             del unique_images
             del unique_docs
 
         print("Loaded %d batches!" % (len(self.batches)))
-        self.image_batches = []
-        for image_path_list in images_paths:
-            images = self.read_transform_images(image_path_list)
-            self.image_batches.append(images)
-            print("Loaded", len(self.image_batches), "from", len(self.batches), "batches", "\r", end="")
+        futures = {}
+        images = []
+
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            for i, path in enumerate(images_paths):
+                futures[i] = executor.submit(self.read_transform_images, images_paths[i], i)
+            for i, future in futures.items():
+                images.append(future.result())
+                print("Loaded", (i + 1), "from", len(self.batches), "batches", "\r", end="")
+        self.image_batches = {i: im for im, i in images}
         print("Loaded %d images for %d batches!" % (num_images, len(self.batches)))
 
-    def read_transform_images(self, cur_image_batch):
+    def read_transform_images(self, cur_image_batch, i):
         images = []
         for image_path in cur_image_batch:
             # make sure not to deal with rgba or grayscale images.
@@ -291,7 +298,7 @@ class ImageDocDataset(Dataset):
                 image = self.transform(image)
             images.append(image)
         images = torch.stack(images)
-        return images
+        return images, i
 
     def __len__(self):
         return len(self.batches)

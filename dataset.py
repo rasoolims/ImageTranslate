@@ -252,7 +252,7 @@ class ImageDocDataset(Dataset):
                             self.batches.append(entry)
                             cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices, doc_split_sizes = [], [], [], [], []
                             cur_max_doc_cap = 0
-                            print("Loaded", len(self.image_batches), "batches", "\r", end="")
+                            print("Loaded", len(self.batches), "batches", "\r", end="")
                         else:
                             cur_max_doc_cap = max(cur_max_doc_cap, doc_len)
                             cur_image_batch.append(unique_images[image])

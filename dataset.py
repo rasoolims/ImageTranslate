@@ -154,6 +154,7 @@ class MassDataset(MTDataset):
         """
         self.batches = []
         self.longest_batch = ([], 0)
+        self.lang_ids = set()
         self.most_token_batch = ([], 0)
         num_gpu = torch.cuda.device_count()
         for f in glob.glob(batch_pickle_dir + "*"):
@@ -164,6 +165,8 @@ class MassDataset(MTDataset):
                 cur_src_batch, cur_max_src_len = [], 0
                 for example in examples:
                     src = example[:max_seq_len]  # trim if longer than expected!
+                    self.lang_ids.add(int(src[0]))
+
                     cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
 
                     cur_src_batch.append(src)
@@ -206,6 +209,7 @@ class MassDataset(MTDataset):
         print("Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
         print("Longest batch size", self.longest_batch[0]["src_texts"].size())
         print("Most token batch size", self.most_token_batch[0]["src_texts"].size())
+        print("Number of languages", len(self.lang_ids))
 
 
 class ImageDocDataset(Dataset):

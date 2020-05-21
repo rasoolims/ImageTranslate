@@ -78,40 +78,48 @@ class Trainer:
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
 
-            predictions = self.model(device=self.device, batch=batch, log_softmax=True)
-            targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
-            tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
-            targets = torch.cat([targets[i][tgt_mask_flat[i]] for i in range(len(batch))])
+            try:
+                predictions = self.model(device=self.device, batch=batch, log_softmax=True)
+                targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
+                tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
+                targets = torch.cat([targets[i][tgt_mask_flat[i]] for i in range(len(batch))])
 
-            ntokens = targets.size(0)
+                ntokens = targets.size(0)
 
-            if ntokens == 0:  # Nothing to predict!
-                continue
+                if ntokens == 0:  # Nothing to predict!
+                    continue
 
-            loss = self.criterion(predictions, targets).mean()
-            if self.fp16:
-                with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                    scaled_loss.backward()
-            else:
-                loss.backward()
-
-            loss = float(loss.data) * ntokens
-            total_loss += loss
-            cur_loss += loss
-            total_tokens += ntokens
-            tokens += ntokens
-            sentences += sum([int(b["docs"].size(0)) + int(b["captions"].size(0)) for b in batch])
-
-            if self.optimizer is not None:
-                # We accumulate the gradients for both tasks!
+                loss = self.criterion(predictions, targets).mean()
                 if self.fp16:
-                    torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
+                    with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                        scaled_loss.backward()
                 else:
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+                    loss.backward()
 
-                self.optimizer.step()
-                self.scheduler.step()
-                step += 1
+                loss = float(loss.data) * ntokens
+                total_loss += loss
+                cur_loss += loss
+                total_tokens += ntokens
+                tokens += ntokens
+                sentences += sum([int(b["docs"].size(0)) + int(b["captions"].size(0)) for b in batch])
+
+                if self.optimizer is not None:
+                    # We accumulate the gradients for both tasks!
+                    if self.fp16:
+                        torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
+                    else:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+
+                    self.optimizer.step()
+                    self.scheduler.step()
+                    step += 1
+            except:
+                print("Error processing")
+                for b in batch:
+                    if isinstance(b, list):
+                        b = b[0]
+                    print(b["images"].size(), b["captions"].size(), b["docs"].size())
+                print("****")
 
             if step % 50 == 0 and tokens > 0:
                 elapsed = time.time() - start
@@ -204,7 +212,7 @@ class Trainer:
         num_batches = max(1, torch.cuda.device_count())
 
         train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True, pin_memory=pin_memory,
-                                             collate_fn=collator, num_workers=num_batches)
+                                             collate_fn=collator)
         valid_loader = None
         if options.valid_path is not None:
             valid_data = dataset.ImageDocDataset(root_img_dir=options.image_dir, data_bin_file=options.valid_path,
@@ -212,8 +220,7 @@ class Trainer:
                                                  max_doc_batch_capacity=options.total_capacity,
                                                  pad_index=mt_model.text_processor.pad_token_id())
             valid_loader = data_utils.DataLoader(valid_data, batch_size=num_batches, shuffle=False,
-                                                 pin_memory=pin_memory, num_workers=num_batches,
-                                                 collate_fn=collator)
+                                                 pin_memory=pin_memory, collate_fn=collator)
 
         trainer = Trainer(model=mt_model,
                           optimizer=Trainer.build_optimizer(mt_model, options.learning_rate, options.weight_decay),

@@ -276,7 +276,7 @@ class ImageDocDataset(Dataset):
         futures = {}
         images = []
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=8) as executor:
+        with concurrent.futures.ProcessPoolExecutor() as executor:
             for i, path in enumerate(images_paths):
                 futures[i] = executor.submit(self.read_transform_images, images_paths[i], i)
             for i, future in futures.items():
@@ -288,9 +288,10 @@ class ImageDocDataset(Dataset):
     def read_transform_images(self, cur_image_batch, i):
         images = []
         for image_path in cur_image_batch:
-            with Image.open(os.path.join(self.root_img_dir, image_path)) as image:
+            with Image.open(os.path.join(self.root_img_dir, image_path)) as im:
                 # make sure not to deal with rgba or grayscale images.
-                image = self.transform(image.convert("RGB"))
+                image = self.transform(im.convert("RGB"))
+                im.load()  # Make sure file handle is released.
                 images.append(image)
         images = torch.stack(images)
         return images, i

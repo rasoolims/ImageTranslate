@@ -243,7 +243,10 @@ class ImageDocDataset(Dataset):
                             all_captions = pad_sequence(cur_caption_batch, batch_first=True, padding_value=pad_index)
                             assert len(doc_indices) == all_docs.size(0)
                             assert len(cur_image_batch) == all_captions.size(0)
-                            entry = {"docs": all_docs, "captions": all_captions, "images": cur_image_batch,
+
+                            images = self.read_transform_images(cur_image_batch)
+
+                            entry = {"docs": all_docs, "captions": all_captions, "images": images,
                                      "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}
                             self.batches.append(entry)
                             cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices, doc_split_sizes = [], [], [], [], []
@@ -264,26 +267,28 @@ class ImageDocDataset(Dataset):
                          "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}
                 self.batches.append(entry)
 
-            print("loaded %d images, %d batches!" % (len(image_info_dict), len(self.batches)))
+            print("Loaded %d images, %d batches!" % (len(image_info_dict), len(self.batches)))
+
+    def read_transform_images(self, cur_image_batch):
+        images = []
+        for image_path in cur_image_batch:
+            # make sure not to deal with rgba or grayscale images.
+            image = Image.open(os.path.join(self.root_img_dir, image_path)).convert("RGB")
+            if self.transform is not None:
+                image = self.transform(image)
+            images.append(image)
+        images = torch.stack(images)
+        return images
 
     def __len__(self):
         return len(self.batches)
 
     def __getitem__(self, item):
         batch = self.batches[item]
-        images = []
-        for image_path in batch["images"]:  # todo do it parallel?
-            # make sure not to deal with rgba or grayscale images.
-            image = Image.open(os.path.join(self.root_img_dir, image_path)).convert("RGB")
-            if self.transform is not None:
-                image = self.transform(image)
-            images.append(image)
-
-        images = torch.stack(images)
         doc_mask = (batch["docs"] != self.pad_idx)
         caption_mask = (batch["captions"] != self.pad_idx)
 
-        return {"images": images, "captions": batch["captions"], "docs": batch["docs"], "doc_mask": doc_mask,
+        return {"images": batch["images"], "captions": batch["captions"], "docs": batch["docs"], "doc_mask": doc_mask,
                 "caption_mask": caption_mask, "doc_idx": batch["doc_idx"], "doc_split": batch["doc_split"]}
 
 

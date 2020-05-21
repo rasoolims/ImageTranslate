@@ -246,7 +246,7 @@ class ImageDocDataset(Dataset):
                             assert len(cur_image_batch) == all_captions.size(0)
 
                             images = self.read_transform_images(cur_image_batch)
-                            print("Loaded", len(self.batches), "\r", end="")
+                            print("Loaded", len(self.batches), "batches", "\r", end="")
 
                             entry = {"docs": all_docs, "captions": all_captions, "images": images,
                                      "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}

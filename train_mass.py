@@ -1,9 +1,9 @@
 import copy
 import datetime
+import glob
 import os
 import random
 import sys
-import glob
 import time
 from optparse import OptionParser
 from typing import Dict
@@ -348,10 +348,10 @@ class MassTrainer(MTTrainer):
 
         step, train_epoch = 0, 1
 
-        train_data_loaders = {} # Used because we might have many batch files.
+        train_data_loaders = {}  # Used because we might have many batch files.
 
         lang_directions = {}
-        lang_ids = [text_processor.token_id("<"+lang+">") for lang in options.langs.split(",")]
+        lang_ids = [text_processor.token_id("<" + lang + ">") for lang in options.langs.split(",")]
         for lang1 in lang_ids:
             for lang2 in lang_ids:
                 if lang1 != lang2:
@@ -368,9 +368,8 @@ class MassTrainer(MTTrainer):
                     train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
                     train_data_loaders[f] = train_loader
 
-                step = trainer.train_epoch(data_iter=train_loader, valid_data_iter=valid_loader,
-                                           saving_path=options.model_path,
-                                           step=step)
+                step = trainer.train_epoch(data_iter=train_data_loaders[f], valid_data_iter=valid_loader,
+                                           saving_path=options.model_path, step=step)
             train_epoch += 1
 
         finetune_epoch = 0

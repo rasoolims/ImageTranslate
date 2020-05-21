@@ -313,16 +313,12 @@ class MassTrainer(MTTrainer):
 
         mt_model.save_config_and_tok(options.model_path)
 
-        train_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
-                                         max_batch_capacity=options.total_capacity, max_batch=options.batch,
-                                         pad_idx=mt_model.text_processor.pad_token_id())
+        pin_memory = torch.cuda.is_available()
         valid_data = dataset.MassDataset(batch_pickle_dir=options.valid_path,
                                          max_batch_capacity=options.total_capacity,
                                          max_batch=int(options.batch / options.beam_width),
                                          pad_idx=mt_model.text_processor.pad_token_id())
 
-        pin_memory = torch.cuda.is_available()
-        train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
         valid_loader = data_utils.DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
         trainer = MassTrainer(model=mt_model, mask_prob=options.mask_prob,
@@ -352,18 +348,28 @@ class MassTrainer(MTTrainer):
 
         step, train_epoch = 0, 1
 
+        train_data_loaders = {}  # Used because we might have many batch files.
+
         lang_directions = {}
-        for lang1 in train_data.lang_ids:
-            for lang2 in train_data.lang_ids:
+        lang_ids = [text_processor.token_id("<" + lang + ">") for lang in options.langs.split(",")]
+        for lang1 in lang_ids:
+            for lang2 in lang_ids:
                 if lang1 != lang2:
                     # Assuming that we only have two languages!
                     lang_directions[lang1] = lang2
 
         while step <= options.step:
             print("train epoch", train_epoch)
-            step = trainer.train_epoch(data_iter=train_loader, valid_data_iter=valid_loader,
-                                       saving_path=options.model_path,
-                                       step=step)
+            for f in glob.glob(options.train_path + "*"):
+                if f not in train_data_loaders:
+                    train_data = dataset.MassDataset(batch_pickle_dir=f, max_batch_capacity=options.total_capacity,
+                                                     max_batch=options.batch,
+                                                     pad_idx=mt_model.text_processor.pad_token_id())
+                    train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+                    train_data_loaders[f] = train_loader
+
+                step = trainer.train_epoch(data_iter=train_data_loaders[f], valid_data_iter=valid_loader,
+                                           saving_path=options.model_path, step=step)
             train_epoch += 1
 
         finetune_epoch = 0
@@ -412,6 +418,7 @@ def get_options():
     parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)
     parser.add_option("--len-penalty", dest="len_penalty_ratio", help="Length penalty", type="float", default=0.8)
     parser.add_option("--checkpoint", dest="checkpoint", help="Number of checkpoints to average", type="int", default=5)
+    parser.add_option("--langs", dest="langs", help="Language ids separated by ,", type="str", default=None)
     parser.add_option(
         "--fp16_opt_level",
         type=str,

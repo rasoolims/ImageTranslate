@@ -36,7 +36,7 @@ class ModifiedResnet(models.ResNet):
 
 
 def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False):
-    model = models.resnet50(pretrained=True)
+    model = models.resnet18(pretrained=True)
     model.__class__ = ModifiedResnet
     model.dropout = dropout
     model.layer_norm = torch.nn.LayerNorm(embed_dim, eps=1e-12)

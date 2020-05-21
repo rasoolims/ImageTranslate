@@ -247,10 +247,12 @@ class ImageDocDataset(Dataset):
                             assert len(cur_image_batch) == all_captions.size(0)
 
                             images_paths.append(cur_image_batch)
-                            entry = {"docs": all_docs, "captions": all_captions, "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}
+                            entry = {"docs": all_docs, "captions": all_captions,
+                                     "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}
                             self.batches.append(entry)
                             cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices, doc_split_sizes = [], [], [], [], []
                             cur_max_doc_cap = 0
+                            print("Loaded", len(self.image_batches), "batches", "\r", end="")
                         else:
                             cur_max_doc_cap = max(cur_max_doc_cap, doc_len)
                             cur_image_batch.append(unique_images[image])
@@ -272,7 +274,7 @@ class ImageDocDataset(Dataset):
             for image_path_list in images_paths:
                 images = self.read_transform_images(image_path_list)
                 self.image_batches.append(images)
-                print("Loaded", len(self.image_batches), "from", len(self.batches),"batches", "\r", end="")
+                print("Loaded", len(self.image_batches), "from", len(self.batches), "batches", "\r", end="")
             print("Loaded %d images for %d batches!" % (len(image_info_dict), len(self.batches)))
 
     def read_transform_images(self, cur_image_batch):
@@ -294,7 +296,8 @@ class ImageDocDataset(Dataset):
         doc_mask = (batch["docs"] != self.pad_idx)
         caption_mask = (batch["captions"] != self.pad_idx)
 
-        return {"images": self.image_batches[item], "captions": batch["captions"], "docs": batch["docs"], "doc_mask": doc_mask,
+        return {"images": self.image_batches[item], "captions": batch["captions"], "docs": batch["docs"],
+                "doc_mask": doc_mask,
                 "caption_mask": caption_mask, "doc_idx": batch["doc_idx"], "doc_split": batch["doc_split"]}
 
 

@@ -284,8 +284,8 @@ class ImageDocDataset(Dataset):
             with Image.open(os.path.join(self.root_img_dir, image_path)) as im:
                 # make sure not to deal with rgba or grayscale images.
                 image = self.transform(im.convert("RGB"))
-                im.load()  # Make sure file handle is released.
                 images.append(image)
+                im.close()
         images = torch.stack(images)
         return images
 

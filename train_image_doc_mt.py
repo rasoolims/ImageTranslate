@@ -204,7 +204,7 @@ class Trainer:
         num_batches = max(1, torch.cuda.device_count())
 
         train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True, pin_memory=pin_memory,
-                                             collate_fn=collator)
+                                             collate_fn=collator, num_workers=num_batches)
         valid_loader = None
         if options.valid_path is not None:
             valid_data = dataset.ImageDocDataset(root_img_dir=options.image_dir, data_bin_file=options.valid_path,
@@ -212,7 +212,7 @@ class Trainer:
                                                  max_doc_batch_capacity=options.total_capacity,
                                                  pad_index=mt_model.text_processor.pad_token_id())
             valid_loader = data_utils.DataLoader(valid_data, batch_size=num_batches, shuffle=False,
-                                                 pin_memory=pin_memory,
+                                                 pin_memory=pin_memory, num_workers=num_batches,
                                                  collate_fn=collator)
 
         trainer = Trainer(model=mt_model,

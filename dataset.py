@@ -219,7 +219,7 @@ class ImageDocDataset(Dataset):
         self.batches = []
         self.root_img_dir = root_img_dir
         max_doc_batch_capacity *= 1000000
-        images_paths = []
+        self.images_paths = []
         num_images = 0
         with open(data_bin_file, "rb") as fp:
             image_info_dict, unique_images, unique_docs = pickle.load(fp)
@@ -248,7 +248,7 @@ class ImageDocDataset(Dataset):
                             assert len(doc_indices) == all_docs.size(0)
                             assert len(cur_image_batch) == all_captions.size(0)
 
-                            images_paths.append(cur_image_batch)
+                            self.images_paths.append(cur_image_batch)
                             entry = {"docs": all_docs, "captions": all_captions,
                                      "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}
                             self.batches.append(entry)
@@ -276,12 +276,7 @@ class ImageDocDataset(Dataset):
             del unique_docs
 
         print("Loaded %d batches!" % (len(self.batches)))
-        self.image_batches = [None] * len(self.batches)
-        for i, images_path in enumerate(images_paths):
-            self.image_batches[i] = self.read_transform_images(images_path)
-            print("Loaded", (i + 1), "from", len(self.batches), "batches", "\r", end="")
-
-        print("Loaded %d images for %d batches!" % (num_images, len(self.batches)))
+        self.image_batches = {}
 
     def read_transform_images(self, cur_image_batch):
         images = []
@@ -299,6 +294,8 @@ class ImageDocDataset(Dataset):
 
     def __getitem__(self, item):
         batch = self.batches[item]
+        if item not in self.image_batches:
+            self.image_batches[item] = self.read_transform_images(self.images_paths[item])
         doc_mask = (batch["docs"] != self.pad_idx)
         caption_mask = (batch["captions"] != self.pad_idx)
 

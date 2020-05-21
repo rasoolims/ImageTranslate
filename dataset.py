@@ -187,7 +187,7 @@ class MassDataset(MTDataset):
                             if 2 * b * s > self.most_token_batch[1]:
                                 self.most_token_batch = (entry, 2 * b * s)
                             self.batches.append(entry)
-                        cur_src_batch = cur_src_batch[-1]
+                        cur_src_batch = [cur_src_batch[-1]]
                         cur_max_src_len = int(cur_src_batch[0].size(0))
 
         if len(cur_src_batch) > 0:

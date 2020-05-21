@@ -158,6 +158,7 @@ class MassDataset(MTDataset):
         self.most_token_batch = ([], 0)
         num_gpu = torch.cuda.device_count()
         for f in glob.glob(batch_pickle_dir + "*"):
+            print("Loading", f, "\r", end="")
             with open(f, "rb") as fr:
                 examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
 
@@ -245,6 +246,7 @@ class ImageDocDataset(Dataset):
                             assert len(cur_image_batch) == all_captions.size(0)
 
                             images = self.read_transform_images(cur_image_batch)
+                            print("Loaded", len(self.batches), "\r", end="")
 
                             entry = {"docs": all_docs, "captions": all_captions, "images": images,
                                      "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}

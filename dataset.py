@@ -296,11 +296,10 @@ class ImageDocDataset(Dataset):
     def read_transform_images(self, cur_image_batch, i):
         images = []
         for image_path in cur_image_batch:
-            # make sure not to deal with rgba or grayscale images.
-            image = Image.open(os.path.join(self.root_img_dir, image_path)).convert("RGB")
-            if self.transform is not None:
-                image = self.transform(image)
-            images.append(image)
+            with Image.open(os.path.join(self.root_img_dir, image_path)) as image:
+                # make sure not to deal with rgba or grayscale images.
+                image = self.transform(image.convert("RGB"))
+                images.append(image)
         images = torch.stack(images)
         return images, i
 

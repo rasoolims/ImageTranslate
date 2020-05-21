@@ -362,8 +362,8 @@ class MassTrainer(MTTrainer):
             print("train epoch", train_epoch)
             for f in glob.glob(options.train_path + "*"):
                 if f not in train_data_loaders:
-                    train_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
-                                                     max_batch_capacity=options.total_capacity, max_batch=options.batch,
+                    train_data = dataset.MassDataset(batch_pickle_dir=f, max_batch_capacity=options.total_capacity,
+                                                     max_batch=options.batch,
                                                      pad_idx=mt_model.text_processor.pad_token_id())
                     train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
                     train_data_loaders[f] = train_loader

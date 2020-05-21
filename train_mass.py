@@ -327,7 +327,8 @@ class MassTrainer(MTTrainer):
         trainer = MassTrainer(model=mt_model, mask_prob=options.mask_prob,
                               optimizer=MassTrainer.build_optimizer(mt_model, options.learning_rate,
                                                                     options.weight_decay),
-                              clip=options.clip, warmup=options.warmup, step=options.step, fp16=options.fp16,
+                              clip=options.clip, warmup=options.warmup, step=options.step + options.finetune_step,
+                              fp16=options.fp16,
                               fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
                               max_len_a=options.max_len_a, max_len_b=options.max_len_b,
                               len_penalty_ratio=options.len_penalty_ratio)
@@ -395,8 +396,8 @@ def get_options():
     parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
     parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.002)
     parser.add_option("--warmup", dest="warmup", help="Number of warmup steps", type="int", default=12500)
-    parser.add_option("--step", dest="step", help="Number of training steps", type="int", default=125000)
-    parser.add_option("--fstep", dest="finetune_step", help="Number of finetuneing steps", type="int", default=125000)
+    parser.add_option("--step", dest="step", help="Number of training steps", type="int", default=75000)
+    parser.add_option("--fstep", dest="finetune_step", help="Number of finetuneing steps", type="int", default=75000)
     parser.add_option("--decay", dest="weight_decay", help="Weight decay", type="float", default=0.01)
     parser.add_option("--max_grad_norm", dest="max_grad_norm", help="Max grad norm", type="float", default=1.0)
     parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)

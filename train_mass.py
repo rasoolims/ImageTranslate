@@ -358,9 +358,11 @@ class MassTrainer(MTTrainer):
                     # Assuming that we only have two languages!
                     lang_directions[lang1] = lang2
 
+        files = glob.glob(options.train_path + "*")
         while step <= options.step:
             print("train epoch", train_epoch)
-            for f in glob.glob(options.train_path + "*"):
+            random.shuffle(files)
+            for f in files:
                 if f not in train_data_loaders:
                     train_data = dataset.MassDataset(batch_pickle_dir=f, max_batch_capacity=options.total_capacity,
                                                      max_batch=options.batch,

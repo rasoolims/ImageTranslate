@@ -280,7 +280,7 @@ class ImageDocDataset(Dataset):
         futures = {}
         images = []
 
-        with concurrent.futures.ProcessPoolExecutor() as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=8) as executor:
             for i, path in enumerate(images_paths):
                 futures[i] = executor.submit(self.read_transform_images, images_paths[i], i)
             for i, future in futures.items():

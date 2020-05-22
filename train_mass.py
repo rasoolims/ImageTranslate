@@ -315,6 +315,10 @@ class MassTrainer(MTTrainer):
         train_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
                                          max_batch_capacity=options.total_capacity, max_batch=options.batch,
                                          pad_idx=mt_model.text_processor.pad_token_id())
+        finetune_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
+                                            max_batch_capacity=int(options.batch / options.beam_width),
+                                            max_batch=int(options.batch / options.beam_width),
+                                            pad_idx=mt_model.text_processor.pad_token_id())
         valid_data = dataset.MassDataset(batch_pickle_dir=options.valid_path,
                                          max_batch_capacity=options.total_capacity,
                                          max_batch=int(options.batch / options.beam_width),
@@ -322,6 +326,7 @@ class MassTrainer(MTTrainer):
 
         pin_memory = torch.cuda.is_available()
         train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+        finetune_loader = data_utils.DataLoader(finetune_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
         valid_loader = data_utils.DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
         trainer = MassTrainer(model=mt_model, mask_prob=options.mask_prob,
@@ -361,7 +366,7 @@ class MassTrainer(MTTrainer):
 
         while step <= options.step:
             print("train epoch", train_epoch)
-            step = trainer.train_epoch(data_iter=train_loader, valid_data_iter=valid_loader,
+            step = trainer.train_epoch(data_iter=finetune_loader, valid_data_iter=valid_loader,
                                        saving_path=options.model_path,
                                        step=step)
             train_epoch += 1

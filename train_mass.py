@@ -316,8 +316,8 @@ class MassTrainer(MTTrainer):
                                          max_batch_capacity=options.total_capacity, max_batch=options.batch,
                                          pad_idx=mt_model.text_processor.pad_token_id())
         finetune_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
-                                            max_batch_capacity=int(options.batch / options.beam_width),
-                                            max_batch=int(options.batch / options.beam_width),
+                                            max_batch_capacity=int(options.batch / (options.beam_width ** 2)),
+                                            max_batch=int(options.batch / (options.beam_width ** 2)),
                                             pad_idx=mt_model.text_processor.pad_token_id())
         valid_data = dataset.MassDataset(batch_pickle_dir=options.valid_path,
                                          max_batch_capacity=options.total_capacity,

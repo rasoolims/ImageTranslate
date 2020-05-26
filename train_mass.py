@@ -377,7 +377,7 @@ class MassTrainer(MTTrainer):
         finetune_epoch = 0
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
             print("finetune epoch", finetune_epoch)
-            _ = trainer.fine_tune(data_iter=train_loader, lang_directions=lang_directions,
+            _ = trainer.fine_tune(data_iter=finetune_loader, lang_directions=lang_directions,
                                   saving_path=options.model_path, step=step, valid_data_iter=mt_valid_loader)
             finetune_epoch += 1
 

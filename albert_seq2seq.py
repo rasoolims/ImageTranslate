@@ -84,8 +84,8 @@ class AlbertSeq2Seq(nn.Module):
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
-            mt_model = AlbertSeq2Seq(config=config, encoder=lm.encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
-                                     text_processor=lm.text_processor, checkpoint=checkpoint)
+            mt_model = MassSeq2Seq(config=config, encoder=lm.encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
+                                   text_processor=lm.text_processor, checkpoint=checkpoint)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm
 

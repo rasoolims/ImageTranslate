@@ -311,23 +311,33 @@ class MassTrainer(MTTrainer):
                                    text_processor=lm.text_processor, checkpoint=options.checkpoint)
 
         mt_model.save_config_and_tok(options.model_path)
-
-        train_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
-                                         max_batch_capacity=options.total_capacity, max_batch=options.batch,
-                                         pad_idx=mt_model.text_processor.pad_token_id())
-        finetune_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
-                                            max_batch_capacity=int(options.batch / (options.beam_width ** 2)),
-                                            max_batch=int(options.batch / (options.beam_width ** 2)),
-                                            pad_idx=mt_model.text_processor.pad_token_id())
-        valid_data = dataset.MassDataset(batch_pickle_dir=options.valid_path,
-                                         max_batch_capacity=options.total_capacity,
-                                         max_batch=int(options.batch / options.beam_width),
-                                         pad_idx=mt_model.text_processor.pad_token_id())
-
         pin_memory = torch.cuda.is_available()
-        train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
-        finetune_loader = data_utils.DataLoader(finetune_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
-        valid_loader = data_utils.DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+
+        train_loader, valid_loader, finetune_loader, mt_valid_loader = None, None, None, None
+        if options.step > 0:
+            train_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
+                                             max_batch_capacity=options.total_capacity, max_batch=options.batch,
+                                             pad_idx=mt_model.text_processor.pad_token_id())
+
+            valid_data = dataset.MassDataset(batch_pickle_dir=options.valid_path,
+                                             max_batch_capacity=options.total_capacity,
+                                             max_batch=int(options.batch / options.beam_width),
+                                             pad_idx=mt_model.text_processor.pad_token_id())
+            train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+            valid_loader = data_utils.DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+
+        lang_directions = {}
+        if options.finetune_step > 0:
+            finetune_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
+                                                max_batch_capacity=int(options.batch / (options.beam_width * 2)),
+                                                max_batch=int(options.batch / (options.beam_width * 2)),
+                                                pad_idx=mt_model.text_processor.pad_token_id())
+            finetune_loader = data_utils.DataLoader(finetune_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+            for lang1 in finetune_data.lang_ids:
+                for lang2 in finetune_data.lang_ids:
+                    if lang1 != lang2:
+                        # Assuming that we only have two languages!
+                        lang_directions[lang1] = lang2
 
         trainer = MassTrainer(model=mt_model, mask_prob=options.mask_prob,
                               optimizer=MassTrainer.build_optimizer(mt_model, options.learning_rate,
@@ -357,14 +367,7 @@ class MassTrainer(MTTrainer):
 
         step, train_epoch = 0, 1
 
-        lang_directions = {}
-        for lang1 in train_data.lang_ids:
-            for lang2 in train_data.lang_ids:
-                if lang1 != lang2:
-                    # Assuming that we only have two languages!
-                    lang_directions[lang1] = lang2
-
-        while step <= options.step:
+        while options.step > 0 and step <= options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=finetune_loader, valid_data_iter=valid_loader,
                                        saving_path=options.model_path,
@@ -372,7 +375,7 @@ class MassTrainer(MTTrainer):
             train_epoch += 1
 
         finetune_epoch = 0
-        while step <= options.finetune_step:
+        while options.finetune_step > 0 and step <= options.finetune_step + options.step:
             print("finetune epoch", finetune_epoch)
             _ = trainer.fine_tune(data_iter=train_loader, lang_directions=lang_directions,
                                   saving_path=options.model_path, step=step, valid_data_iter=mt_valid_loader)

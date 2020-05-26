@@ -91,43 +91,38 @@ class MTDataset(Dataset):
                     cur_src_batch) * cur_max_dst_len
                 batch_size = (cur_max_src_len + cur_max_dst_len) * len(cur_src_batch)
 
-                if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000:
+                if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000 and src_batch.size(
+                        0) >= num_gpu:
                     src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
                     dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
                     src_pad_mask = (src_batch != pad_idx)
                     dst_pad_mask = (dst_batch != pad_idx)
-                    if src_batch.size(0) < num_gpu:
-                        print("skipping", src_batch.size(), dst_batch.size())
-                    else:
-                        entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                                 "dst_pad_mask": dst_pad_mask}
-                        b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
-                        this_batch_size = (s ** 2 + d ** 2) * b * d
-                        if this_batch_size > self.longest_batch[1]:
-                            self.longest_batch = (entry, this_batch_size)
-                        if b * (s + d) > self.most_token_batch[1]:
-                            self.most_token_batch = (entry, b * (s + d))
-                        self.batches.append(entry)
+                    entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
+                             "dst_pad_mask": dst_pad_mask}
+                    b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
+                    this_batch_size = (s ** 2 + d ** 2) * b * d
+                    if this_batch_size > self.longest_batch[1]:
+                        self.longest_batch = (entry, this_batch_size)
+                    if b * (s + d) > self.most_token_batch[1]:
+                        self.most_token_batch = (entry, b * (s + d))
+                    self.batches.append(entry)
                     cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
                     cur_max_src_len, cur_max_dst_len = int(cur_src_batch[0].size(0)), int(cur_dst_batch[0].size(0))
 
-        if len(cur_src_batch) > 0:
+        if len(cur_src_batch) > 0 and src_batch.size(0) >= num_gpu:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
             dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
             src_pad_mask = (src_batch != pad_idx)
             dst_pad_mask = (dst_batch != pad_idx)
-            if src_batch.size(0) < num_gpu:
-                print("skipping", src_batch.size(), dst_batch.size())
-            else:
-                entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                         "dst_pad_mask": dst_pad_mask}
-                b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
-                this_batch_size = (s ** 2 + d ** 2) * b * d
-                if this_batch_size > self.longest_batch[1]:
-                    self.longest_batch = (entry, this_batch_size)
-                if b * (s + d) > self.most_token_batch[1]:
-                    self.most_token_batch = (entry, b * (s + d))
-                self.batches.append(entry)
+            entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
+                     "dst_pad_mask": dst_pad_mask}
+            b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
+            this_batch_size = (s ** 2 + d ** 2) * b * d
+            if this_batch_size > self.longest_batch[1]:
+                self.longest_batch = (entry, this_batch_size)
+            if b * (s + d) > self.most_token_batch[1]:
+                self.most_token_batch = (entry, b * (s + d))
+            self.batches.append(entry)
 
         print("Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
         print("Longest batch size", self.longest_batch[0]["src_texts"].size(),
@@ -174,20 +169,19 @@ class MassDataset(MTDataset):
                     batch_capacity_size = 2 * (cur_max_src_len ** 3) * len(cur_src_batch)
                     batch_size = 2 * cur_max_src_len * len(cur_src_batch)
 
-                    if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000:
+                    if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000 and \
+                            src_batch.size(0) >= num_gpu:
                         src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
                         src_pad_mask = (src_batch != pad_idx)
-                        if src_batch.size(0) < num_gpu:
-                            print("skipping", src_batch.size())
-                        else:
-                            entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask}
-                            b, s = int(src_batch.size(0)), int(src_batch.size(1))
-                            this_batch_size = 2 * (s ** 3) * b
-                            if this_batch_size > self.longest_batch[1]:
-                                self.longest_batch = (entry, this_batch_size)
-                            if 2 * b * s > self.most_token_batch[1]:
-                                self.most_token_batch = (entry, 2 * b * s)
-                            self.batches.append(entry)
+
+                        entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask}
+                        b, s = int(src_batch.size(0)), int(src_batch.size(1))
+                        this_batch_size = 2 * (s ** 3) * b
+                        if this_batch_size > self.longest_batch[1]:
+                            self.longest_batch = (entry, this_batch_size)
+                        if 2 * b * s > self.most_token_batch[1]:
+                            self.most_token_batch = (entry, 2 * b * s)
+                        self.batches.append(entry)
                         cur_src_batch = [cur_src_batch[-1]]
                         cur_max_src_len = int(cur_src_batch[0].size(0))
 

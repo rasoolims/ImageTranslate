@@ -92,7 +92,6 @@ class Trainer:
             mask, target, texts = ReformerLM.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"],
                                                        model_to_call.text_processor)
             try:
-
                 predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
                 ntokens = target.size(0)
 
@@ -136,7 +135,7 @@ class Trainer:
 
                     start, tokens, cur_loss = time.time(), 0, 0
             except:
-                print("Skipped using batch for memory issues", texts.size)
+                print("Skipped using batch for memory issues", texts.size(), target.size())
 
         current_loss = total_loss / total_tokens
         print("Total loss in this epoch: %f" % current_loss)

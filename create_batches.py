@@ -67,6 +67,7 @@ def get_tokenizer(tokenizer_path: Optional[str] = None, train_path: Optional[str
             with open(train_path, "r") as rf:
                 for i, line in enumerate(rf):
                     spl = [sen.strip() for sen in line.split("</s>") if len(sen.strip()) > 0]
+                    if len(spl) == 0: continue
                     if spl[0].startswith("<"):
                         sen_split = spl[0].strip().split(" ")
                         spl[0] = " ".join(sen_split[1:])

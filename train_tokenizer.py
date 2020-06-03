@@ -1,9 +1,6 @@
 import os
-import pickle
 from optparse import OptionParser
 from typing import Optional
-
-import torch
 
 from textprocessor import TextProcessor
 
@@ -31,6 +28,7 @@ def get_tokenizer(train_path: Optional[str] = None,
                 print(i + 1, "\r", end="")
     print("Writing raw text done!")
 
+    print(" ".join(languages))
     text_processor.train_tokenizer(paths=[train_path + ".tmp"], vocab_size=vocab_size, to_save_dir=model_path,
                                    languages=list(languages))
     print("Removing temporary file!")

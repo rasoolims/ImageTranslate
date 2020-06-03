@@ -80,7 +80,7 @@ class TextProcessor:
         :return:
         """
         tokenized = []
-        if len(self.languages)>0:
+        if len(self.languages) > 0:
             spl = [sen for sen in line.split("</s>") if len(sen.strip()) > 0]
             lang_id = []
             if spl[0].startswith("<"):

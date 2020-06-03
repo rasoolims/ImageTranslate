@@ -80,18 +80,22 @@ class TextProcessor:
         :return:
         """
         tokenized = []
-        spl = [sen for sen in line.split("</s>") if len(sen.strip()) > 0]
-        lang_id = []
-        if spl[0].startswith("<") and len(self.languages)>0:
-            words = spl[0].strip().split(" ")
-            lang_id = [self.token_id(words[0])]
-            spl[0] = " ".join(words[1:])
+        if len(self.languages)>0:
+            spl = [sen for sen in line.split("</s>") if len(sen.strip()) > 0]
+            lang_id = []
+            if spl[0].startswith("<"):
+                words = spl[0].strip().split(" ")
+                lang_id = [self.token_id(words[0])]
+                spl[0] = " ".join(words[1:])
 
-        max_len = 0
-        for sen in spl:
-            toks = self._tokenize(sen).ids
-            tokenized += lang_id + toks + [self.sep_token_id()]
-            max_len = max(max_len, len(toks) + 1)
+            max_len = 0
+            for sen in spl:
+                toks = self._tokenize(sen).ids
+                tokenized += lang_id + toks + [self.sep_token_id()]
+                max_len = max(max_len, len(toks) + 1)
+        else:
+            tokenized = self._tokenize(line.strip()).ids
+
         if blind_split:
             num_pads = (split_len - (len(tokenized) % split_len))
             pad_arr = [self.pad_token_id()] * num_pads

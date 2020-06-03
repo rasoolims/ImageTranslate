@@ -91,48 +91,52 @@ class Trainer:
             model_to_call = self.model.module if hasattr(self.model, "module") else self.model
             mask, target, texts = ReformerLM.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"],
                                                        model_to_call.text_processor)
-            predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
-            ntokens = target.size(0)
+            try:
 
-            if ntokens == 0:  # Nothing to predict!
-                continue
+                predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
+                ntokens = target.size(0)
 
-            if self.distributed:
-                target = target.to(predictions.device)
-            loss = self.criterion(predictions, target).mean()
-            if self.fp16 or self.distributed:
-                with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                    scaled_loss.backward()
-            else:
-                loss.backward()
+                if ntokens == 0:  # Nothing to predict!
+                    continue
 
-            ReformerLM.unmask_text(mask, target, texts)
-
-            if self.optimizer is not None:
-                if self.fp16:
-                    torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
+                if self.distributed:
+                    target = target.to(predictions.device)
+                loss = self.criterion(predictions, target).mean()
+                if self.fp16 or self.distributed:
+                    with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                        scaled_loss.backward()
                 else:
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+                    loss.backward()
 
-                self.optimizer.step()
-                self.scheduler.step()
-                step += 1
+                ReformerLM.unmask_text(mask, target, texts)
 
-            loss = float(loss.data) * ntokens
-            total_loss += loss
-            cur_loss += loss
-            total_tokens += ntokens
-            tokens += ntokens
+                if self.optimizer is not None:
+                    if self.fp16:
+                        torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
+                    else:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
 
-            if step % 50 == 0:
-                elapsed = time.time() - start
-                print(datetime.datetime.now(),
-                      "Epoch Step: %d Loss: %f Tokens per Sec: %f" % (step, cur_loss / tokens, tokens / elapsed))
+                    self.optimizer.step()
+                    self.scheduler.step()
+                    step += 1
 
-                if step % 500 == 0:
-                    self.validate_and_save(saving_path, valid_data_iter)
+                loss = float(loss.data) * ntokens
+                total_loss += loss
+                cur_loss += loss
+                total_tokens += ntokens
+                tokens += ntokens
 
-                start, tokens, cur_loss = time.time(), 0, 0
+                if step % 50 == 0:
+                    elapsed = time.time() - start
+                    print(datetime.datetime.now(),
+                          "Epoch Step: %d Loss: %f Tokens per Sec: %f" % (step, cur_loss / tokens, tokens / elapsed))
+
+                    if step % 500 == 0:
+                        self.validate_and_save(saving_path, valid_data_iter)
+
+                    start, tokens, cur_loss = time.time(), 0, 0
+            except:
+                print("Skipped using batch for memory issues", texts.size)
 
         current_loss = total_loss / total_tokens
         print("Total loss in this epoch: %f" % current_loss)

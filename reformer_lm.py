@@ -81,7 +81,7 @@ class ReformerLM(nn.Module):
             pickle.dump(self.config, fp)
 
         torch.save(self.state_dict(), os.path.join(out_dir, "model.state_dict"))
-        self.text_processor.tokenizer.save(directory=out_dir)
+        self.text_processor.save(directory=out_dir)
 
     @staticmethod
     def load(out_dir: str):

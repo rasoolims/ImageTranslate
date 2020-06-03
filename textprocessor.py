@@ -1,3 +1,5 @@
+import os
+import pickle
 from typing import List, Optional
 
 import numpy as np
@@ -7,61 +9,40 @@ from tokenizers import SentencePieceBPETokenizer
 
 class TextProcessor:
     def __init__(self, tok_model_path: Optional[str] = None):
-        self.init_properties()
-
+        self.languages = []
         if tok_model_path is not None:
             self.tokenizer = SentencePieceBPETokenizer(
                 tok_model_path + "/vocab.json",
                 tok_model_path + "/merges.txt",
             )
+            with open(os.path.join(tok_model_path, "langs"), "rb") as fp:
+                self.languages = pickle.load(fp)
+        self.init_properties(self.languages)
 
-    def init_properties(self):
+    def init_properties(self, languages: List = None):
         self.max_len = 512
-        self.languages = ["<ab>", "<ast>", "<bg>", "<cbk_zam>", "<cv>", "<en>", "<frp>", "<got>", "<hy>", "<jam>",
-                          "<kn>", "<lbe>", "<mai>", "<mt>", "<nn>", "<pag>", "<pt>", "<sat>", "<so>", "<te>", "<tum>",
-                          "<vls>", "<zh>", "<ace>", "<atj>", "<bh>", "<cdo>", "<cy>", "<eo>", "<frr>", "<gu>", "<ia>",
-                          "<jbo>", "<ko>", "<lez>", "<map_bms>", "<mwl>", "<no>", "<pam>", "<qu>", "<sc>", "<sq>",
-                          "<tet>", "<tw>", "<vo>", "<zh_classical>", "<ady>", "<av>", "<bi>", "<ce>", "<da>", "<es>",
-                          "<fur>", "<gv>", "<id>", "<jv>", "<koi>", "<lfn>", "<mdf>", "<my>", "<nov>", "<pap>", "<rm>",
-                          "<scn>", "<sr>", "<tg>", "<ty>", "<wa>", "<zh_min_nan>", "<af>", "<ay>", "<bjn>", "<ch>",
-                          "<de>", "<et>", "<fy>", "<ha>", "<ie>", "<ka>", "<krc>", "<lg>", "<mg>", "<myv>", "<nrm>",
-                          "<pcd>", "<rmy>", "<sco>", "<srn>", "<th>", "<tyv>", "<war>", "<zh_yue>", "<ak>", "<az>",
-                          "<bm>", "<chr>", "<din>", "<eu>", "<ga>", "<hak>", "<ig>", "<kaa>", "<ks>", "<li>", "<mhr>",
-                          "<mzn>", "<nso>", "<pdc>", "<rn>", "<sd>", "<ss>", "<ti>", "<udm>", "<wo>", "<zu>", "<als>",
-                          "<azb>", "<bn>", "<chy>", "<diq>", "<ext>", "<gag>", "<haw>", "<ik>", "<kab>", "<ksh>",
-                          "<lij>", "<mi>", "<na>", "<nv>", "<pfl>", "<ro>", "<se>", "<st>", "<tk>", "<ug>", "<wuu>",
-                          "<am>", "<ba>", "<bo>", "<ckb>", "<dsb>", "<fa>", "<gan>", "<he>", "<ilo>", "<kbd>", "<ku>",
-                          "<lmo>", "<min>", "<nah>", "<ny>", "<pi>", "<roa_rup>", "<sg>", "<stq>", "<tl>", "<uk>",
-                          "<xal>", "<an>", "<ban>", "<bpy>", "<co>", "<dty>", "<ff>", "<gd>", "<hi>", "<inh>", "<kbp>",
-                          "<kv>", "<ln>", "<mk>", "<nap>", "<oc>", "<pih>", "<roa_tara>", "<sh>", "<su>", "<tn>",
-                          "<ur>", "<xh>", "<ang>", "<bar>", "<br>", "<cr>", "<dv>", "<fi>", "<gl>", "<hif>", "<io>",
-                          "<kg>", "<kw>", "<lo>", "<ml>", "<nds>", "<olo>", "<pl>", "<ru>", "<si>", "<sv>", "<to>",
-                          "<uz>", "<xmf>", "<ar>", "<bat_smg>", "<bs>", "<crh>", "<dz>", "<fiu_vro>", "<glk>", "<hr>",
-                          "<is>", "<ki>", "<ky>", "<lrc>", "<mn>", "<nds_nl>", "<om>", "<pms>", "<rue>", "<sk>", "<sw>",
-                          "<tpi>", "<ve>", "<yi>", "<arc>", "<bcl>", "<bug>", "<cs>", "<ee>", "<fj>", "<gn>", "<hsb>",
-                          "<it>", "<kk>", "<la>", "<lt>", "<mr>", "<ne>", "<or>", "<pnb>", "<rw>", "<sl>", "<szl>",
-                          "<tr>", "<vec>", "<yo>", "<arz>", "<be>", "<bxr>", "<csb>", "<el>", "<fo>", "<gom>", "<ht>",
-                          "<iu>", "<kl>", "<lad>", "<ltg>", "<mrj>", "<new>", "<os>", "<pnt>", "<sa>", "<sm>", "<ta>",
-                          "<ts>", "<vep>", "<za>", "<as>", "<be_x_old>", "<ca>", "<cu>", "<eml>", "<fr>", "<gor>",
-                          "<hu>", "<ja>", "<km>", "<lb>", "<lv>", "<ms>", "<nl>", "<pa>", "<ps>", "<sah>", "<sn>",
-                          "<tcy>", "<tt>", "<vi>", "<zea>"]
-        self.language_set = set(self.languages)
         self.pad_token = "<pad>"
         self.mask_token = "<mask>"
         self.unk_token = "<unk>"
         self.sep_token = "</s>"
         self.bos = "<s>"
         self.special_tokens = [self.bos, self.pad_token, self.unk_token, self.mask_token,
-                               self.sep_token] + self.languages
+                               self.sep_token] + languages
+        self.languages = languages
 
-    def train_tokenizer(self, paths: List[str], vocab_size: int, to_save_dir: str):
+    def train_tokenizer(self, paths: List[str], vocab_size: int, to_save_dir: str, languages: List):
         self.tokenizer = SentencePieceBPETokenizer()
-        self.init_properties()
+        self.init_properties(languages)
         self.tokenizer.train(files=paths, vocab_size=vocab_size, min_frequency=5, special_tokens=self.special_tokens)
-        self.tokenizer.save(directory=to_save_dir)
+        self.save(directory=to_save_dir)
 
     def _tokenize(self, line) -> Encoding:
         return self.tokenizer.encode(line)
+
+    def save(self, directory):
+        self.tokenizer.save(directory)
+        with open(os.path.join(directory, "langs"), "wb") as fp:
+            pickle.dump(self.languages, fp)
 
     def tokenize_one_line(self, line, ignore_middle_eos: bool = False) -> List[int]:
         tokenized = []

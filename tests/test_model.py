@@ -24,7 +24,7 @@ class TestModel(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname)
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages=["<en>"])
             assert processor.tokenizer.get_vocab_size() == 1000
             sen1 = "Obama signed many landmark bills into law during his first two years in office."
             assert processor._tokenize(sen1) is not None
@@ -43,7 +43,7 @@ class TestModel(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname)
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages=["<en>"])
             lm = LM(text_processor=processor)
             assert lm.encoder.base_model.embeddings.word_embeddings.num_embeddings == 1000
 
@@ -59,7 +59,7 @@ class TestModel(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname)
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages=["<en>"])
             lm = LM(text_processor=processor, size=4)
 
             seq2seq = AlbertSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
@@ -83,11 +83,11 @@ class TestModel(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname)
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages=["<en>"])
             create_batches.write(text_processor=processor, cache_dir=tmpdirname, seq_len=512, txt_file=data_path,
                                  sen_block_size=10)
             dataset = TextDataset(save_cache_dir=tmpdirname, max_cache_size=3)
-            assert dataset.line_num == 75
+            assert dataset.line_num == 68
 
             dataset.__getitem__(3)
             assert len(dataset.current_cache) == 3
@@ -95,7 +95,7 @@ class TestModel(unittest.TestCase):
             dataset.__getitem__(9)
             assert len(dataset.current_cache) == 3
 
-            dataset.__getitem__(70)
+            dataset.__getitem__(65)
             assert len(dataset.current_cache) == 1
 
     def test_image_data_model(self):
@@ -114,14 +114,15 @@ class TestModel(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer([text_data_path], vocab_size=1000, to_save_dir=tmpdirname)
+            processor.train_tokenizer([text_data_path], vocab_size=1000, to_save_dir=tmpdirname,
+                                      languages=["<mzn>", "<glk>", "<en>"])
             binarize_image_doc_data.write(text_processor=processor, output_file=os.path.join(tmpdirname, "image.bin"),
                                           json_dir=data_path, files_to_use="mzn,glk")
             image_data = ImageDocDataset(os.getcwd(), os.path.join(tmpdirname, "image.bin"), transform,
                                          max_doc_batch_capacity=1,
                                          pad_index=processor.pad_token_id())
             assert len(image_data[4]) == 7
-            assert len(image_data) == 192
+            assert len(image_data) == 191
 
             lm = LM(text_processor=processor, size=4)
             image_seq2seq = ImageSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)

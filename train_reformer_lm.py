@@ -135,7 +135,8 @@ class Trainer:
 
                     start, tokens, cur_loss = time.time(), 0, 0
             except:
-                print("Skipped using batch for memory issues", texts.size(), target.size())
+                pass
+                #print("Skipped using batch for memory issues", texts.size(), target.size())
 
         current_loss = total_loss / total_tokens
         print("Total loss in this epoch: %f" % current_loss)

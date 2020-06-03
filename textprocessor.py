@@ -82,7 +82,7 @@ class TextProcessor:
         tokenized = []
         spl = [sen for sen in line.split("</s>") if len(sen.strip()) > 0]
         lang_id = []
-        if spl[0].startswith("<"):
+        if spl[0].startswith("<") and len(self.languages)>0:
             words = spl[0].strip().split(" ")
             lang_id = [self.token_id(words[0])]
             spl[0] = " ".join(words[1:])

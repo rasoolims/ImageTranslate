@@ -74,7 +74,8 @@ def get_tokenizer(tokenizer_path: Optional[str] = None, train_path: Optional[str
                         languages.add(sen_split[0])
                     wf.write("\n".join(spl))
                     wf.write("\n")
-                    print(i + 1, "\r", end="")
+                    if ((i + 1) % 1000 == 0):
+                        print(i + 1, "\r", end="")
         print("Writing raw text done!")
 
         text_processor.train_tokenizer(paths=[train_path + ".tmp"], vocab_size=vocab_size, to_save_dir=model_path,

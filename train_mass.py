@@ -317,12 +317,14 @@ class MassTrainer(MTTrainer):
         if options.step > 0:
             train_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
                                              max_batch_capacity=options.total_capacity, max_batch=options.batch,
-                                             pad_idx=mt_model.text_processor.pad_token_id())
+                                             pad_idx=mt_model.text_processor.pad_token_id(),
+                                             max_seq_len=options.max_seq_len)
 
             valid_data = dataset.MassDataset(batch_pickle_dir=options.valid_path,
                                              max_batch_capacity=options.total_capacity,
                                              max_batch=int(options.batch / options.beam_width),
-                                             pad_idx=mt_model.text_processor.pad_token_id())
+                                             pad_idx=mt_model.text_processor.pad_token_id(),
+                                             max_seq_len=options.max_seq_len)
             train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
             valid_loader = data_utils.DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
@@ -331,7 +333,8 @@ class MassTrainer(MTTrainer):
             finetune_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
                                                 max_batch_capacity=int(options.batch / (options.beam_width * 2)),
                                                 max_batch=int(options.batch / (options.beam_width * 2)),
-                                                pad_idx=mt_model.text_processor.pad_token_id())
+                                                pad_idx=mt_model.text_processor.pad_token_id(),
+                                                max_seq_len=options.max_seq_len)
             finetune_loader = data_utils.DataLoader(finetune_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
             for lang1 in finetune_data.lang_ids:
                 for lang2 in finetune_data.lang_ids:
@@ -412,6 +415,7 @@ def get_options():
     parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
     parser.add_option("--layer", dest="num_layers", help="Number of Layers in cross-attention", type="int", default=2)
     parser.add_option("--beam", dest="beam_width", help="Beam width", type="int", default=5)
+    parser.add_option("--max_seq_len", dest="max_seq_len", help="Max sequence length", type="int", default=175)
     parser.add_option("--heads", dest="num_heads", help="Number of attention heads", type="int", default=8)
     parser.add_option("--fp16", action="store_true", dest="fp16", help="use fp16; should be compatible", default=False)
     parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Disjoint encoder/decoder", default=False)

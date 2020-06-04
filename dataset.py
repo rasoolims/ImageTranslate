@@ -139,7 +139,7 @@ class MTDataset(Dataset):
 
 class MassDataset(MTDataset):
     def build_batches(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
-                      pad_idx: int, max_seq_len: int = 512):
+                      pad_idx: int, max_seq_len: int = 175):
         """
         Since training is fully-batched and has memory/computational need for cubic power of target length, and quadratic
         power of source length, we need to make sure that each batch has similar length and it does not go over
@@ -159,7 +159,9 @@ class MassDataset(MTDataset):
 
                 cur_src_batch, cur_max_src_len = [], 0
                 for example in examples:
-                    src = example[:max_seq_len]  # trim if longer than expected!
+                    if len(example)>max_seq_len:
+                        continue
+                    src = example
                     self.lang_ids.add(int(src[0]))
 
                     cur_max_src_len = max(cur_max_src_len, int(src.size(0)))

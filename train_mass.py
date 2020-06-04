@@ -369,7 +369,7 @@ class MassTrainer(MTTrainer):
 
         while options.step > 0 and step <= options.step:
             print("train epoch", train_epoch)
-            step = trainer.train_epoch(data_iter=finetune_loader, valid_data_iter=valid_loader,
+            step = trainer.train_epoch(data_iter=train_loader, valid_data_iter=valid_loader,
                                        saving_path=options.model_path,
                                        step=step)
             train_epoch += 1

@@ -22,7 +22,7 @@ from train_mt import MTTrainer
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
 
-def mask_text(mask_prob, pads, texts, text_processor: TextProcessor, mask_eos: bool = True):
+def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
     src_text = texts.clone()
     tgt_text = texts.clone()
 
@@ -37,11 +37,6 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor, mask_eos: b
     tgt_mask = ~src_mask
     tgt_mask[~pads] = False  # We should not mask pads.
     tgt_mask[:, 0] = False  # Always unmask the first token (start symbol or language identifier).
-    if not mask_eos:
-        # Do not mask end-of-sentence.
-        eos_idx = src_text == text_processor.sep_token_id()
-        src_mask[eos_idx] = False
-        tgt_mask[eos_idx] = False
 
     replacements = src_text[src_mask]
     for i in range(len(replacements)):
@@ -56,10 +51,10 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor, mask_eos: b
             # keep the word
             pass
     src_text[src_mask] = replacements
-    masked_ids = tgt_text[tgt_mask]
+    masked_ids = texts[:, 1:][src_mask[:, 1:]]
     tgt_text[tgt_mask] = text_processor.mask_token_id()
 
-    return tgt_mask, masked_ids, src_text, tgt_text
+    return src_mask, masked_ids, src_text, tgt_text
 
 
 class MassTrainer(MTTrainer):
@@ -95,7 +90,7 @@ class MassTrainer(MTTrainer):
             src_inputs = batch["src_texts"].squeeze(0)
             src_pad_mask = batch["src_pad_mask"].squeeze(0)
 
-            tgt_mask, targets, src_text, tgt_text = mask_text(self.mask_prob, src_pad_mask, src_inputs,
+            src_mask, targets, src_text, tgt_text = mask_text(self.mask_prob, src_pad_mask, src_inputs,
                                                               model.text_processor)
 
             if src_inputs.size(0) < self.num_gpu:
@@ -103,7 +98,7 @@ class MassTrainer(MTTrainer):
 
             try:
                 predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=tgt_text,
-                                         src_mask=src_pad_mask, tgt_mask=src_pad_mask, mask_pad_mask=tgt_mask,
+                                         src_pads=src_pad_mask, mask_pad_mask=src_mask,
                                          log_softmax=True)
                 ntokens = targets.size(0)
 
@@ -273,12 +268,12 @@ class MassTrainer(MTTrainer):
                 src_inputs = batch["src_texts"].squeeze(0)
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
 
-                tgt_mask, targets, src_text, tgt_text = mask_text(self.mask_prob, src_pad_mask, src_inputs,
+                src_mask, targets, src_text, tgt_text = mask_text(self.mask_prob, src_pad_mask, src_inputs,
                                                                   model.text_processor)
 
                 try:
                     predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=tgt_text,
-                                             src_mask=src_pad_mask, tgt_mask=src_pad_mask, mask_pad_mask=tgt_mask,
+                                             src_pads=src_pad_mask, mask_pad_mask=src_mask,
                                              log_softmax=True)
                     ntokens = targets.size(0)
 

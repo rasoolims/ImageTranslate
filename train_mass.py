@@ -24,14 +24,20 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
     src_text = texts.clone()
-    tgt_text = texts.clone()
 
     pad_indices = ((pads.cumsum(0) == pads) & pads).max(1)[1]
     interval_sizes = pad_indices / 2
-    mask_indices = [random.randint(0, int(x)) for x in pad_indices - (1 - mask_prob) * pad_indices]
+    mask_indices = [random.randint(1, int(x)) for x in pad_indices - (1 - mask_prob) * pad_indices]
     src_mask = torch.zeros(src_text.size(), dtype=torch.bool)
+    to_recover = []
+    to_recover_pos = []
     for i, mask_start in enumerate(mask_indices):
         src_mask[i, mask_start: mask_start + int(pad_indices[i] / 2)] = True
+        to_recover.append(torch.cat([src_text[i, 0:1], src_text[i, mask_start: mask_start + int(pad_indices[i] / 2)]]))
+        to_recover_pos.append(
+            torch.cat([torch.arange(0, 1), torch.arange(mask_start, mask_start + int(pad_indices[i] / 2))]))
+    to_recover = pad_sequence(to_recover, batch_first=True, padding_value=text_processor.pad_token_id())
+    to_recover_pos = pad_sequence(to_recover_pos, batch_first=True, padding_value=int(src_text.size(-1)) - 1)
 
     assert 0 < mask_prob < 1
     tgt_mask = ~src_mask
@@ -52,9 +58,8 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
             pass
     src_text[src_mask] = replacements
     masked_ids = texts[:, 1:][src_mask[:, 1:]]
-    tgt_text[tgt_mask] = text_processor.mask_token_id()
 
-    return src_mask, masked_ids, src_text, tgt_text
+    return src_mask, masked_ids, src_text, to_recover, to_recover_pos
 
 
 class MassTrainer(MTTrainer):
@@ -90,16 +95,16 @@ class MassTrainer(MTTrainer):
             src_inputs = batch["src_texts"].squeeze(0)
             src_pad_mask = batch["src_pad_mask"].squeeze(0)
 
-            src_mask, targets, src_text, tgt_text = mask_text(self.mask_prob, src_pad_mask, src_inputs,
-                                                              model.text_processor)
+            src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, src_pad_mask, src_inputs,
+                                                                           model.text_processor)
 
             if src_inputs.size(0) < self.num_gpu:
                 continue
 
             try:
-                predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=tgt_text,
-                                         src_pads=src_pad_mask, mask_pad_mask=src_mask,
-                                         log_softmax=True)
+                predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=to_recover,
+                                         tgt_positions=positions, src_pads=src_pad_mask,
+                                         pad_idx=model.text_processor.pad_token_id(), log_softmax=True)
                 ntokens = targets.size(0)
 
                 if ntokens == 0:  # Nothing to predict!
@@ -268,13 +273,13 @@ class MassTrainer(MTTrainer):
                 src_inputs = batch["src_texts"].squeeze(0)
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
 
-                src_mask, targets, src_text, tgt_text = mask_text(self.mask_prob, src_pad_mask, src_inputs,
-                                                                  model.text_processor)
+                src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, src_pad_mask, src_inputs,
+                                                                               model.text_processor)
 
                 try:
-                    predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=tgt_text,
-                                             src_pads=src_pad_mask, mask_pad_mask=src_mask,
-                                             log_softmax=True)
+                    predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=to_recover,
+                                             tgt_positions=positions, src_pads=src_pad_mask,
+                                             pad_idx=model.text_processor.pad_token_id(), log_softmax=True)
                     ntokens = targets.size(0)
 
                     if ntokens == 0:  # Nothing to predict!

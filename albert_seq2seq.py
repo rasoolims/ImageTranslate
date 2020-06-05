@@ -123,7 +123,7 @@ class AlbertSeq2Seq(nn.Module):
 
 
 class MassSeq2Seq(AlbertSeq2Seq):
-    def forward(self, device, src_inputs, tgt_inputs, src_pads, mask_pad_mask, log_softmax: bool = False):
+    def forward(self, device, src_inputs, src_pads, tgt_inputs, tgt_positions, pad_idx: int, log_softmax: bool = False):
         """
         :param mask_pad_mask: # Since MASS also generates MASK tokens, we do not backpropagate them during training.
         :return:
@@ -133,12 +133,15 @@ class MassSeq2Seq(AlbertSeq2Seq):
 
         tgt_inputs = tgt_inputs.to(device)
 
-        subseq_mask = future_mask(src_pads[:, :-1]).to(device)
-        decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], src_pads, subseq_mask)
+        target_pads = tgt_inputs != pad_idx
+        subseq_mask = future_mask(target_pads[:, :-1]).to(device)
+        decoder_output = self.decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
+                                      src_attention_mask=src_pads, tgt_attention_mask=subseq_mask,
+                                      position_ids=tgt_positions[:, :-1])
         diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
         diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
 
-        tgt_mask_flat = mask_pad_mask[:, 1:].contiguous().view(-1)
+        tgt_mask_flat = target_pads[:, 1:].contiguous().view(-1)
         non_padded_outputs = diag_outputs_flat[tgt_mask_flat]
 
         outputs = self.output_layer(non_padded_outputs)
@@ -180,11 +183,9 @@ class AlbertDecoderAttention(nn.Module):
 
     def forward(self, encoder_states, decoder_inputs, src_attention_mask=None, tgt_attention_mask=None):
         output_attention = self.attention(self.query(decoder_inputs), self.key(decoder_inputs),
-                                          self.value(decoder_inputs),
-                                          attention_mask=tgt_attention_mask)
+                                          self.value(decoder_inputs), attention_mask=tgt_attention_mask)
         cross_attention = self.attention(self.src_attn_query(output_attention[0]), self.src_attn_key(encoder_states),
-                                         self.src_attn_value(encoder_states),
-                                         attention_mask=src_attention_mask)
+                                         self.src_attn_value(encoder_states), attention_mask=src_attention_mask)
         return cross_attention
 
     def attention(self, q, k, v, attention_mask=None):

@@ -327,7 +327,7 @@ class MassTrainer(MTTrainer):
 
             valid_data = dataset.MassDataset(batch_pickle_dir=options.valid_path,
                                              max_batch_capacity=options.total_capacity,
-                                             max_batch=int(options.batch / options.beam_width),
+                                             max_batch=options.batch,
                                              pad_idx=mt_model.text_processor.pad_token_id(),
                                              max_seq_len=options.max_seq_len)
             train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
@@ -337,7 +337,7 @@ class MassTrainer(MTTrainer):
         if options.finetune_step > 0:
             finetune_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
                                                 max_batch_capacity=int(options.batch / (options.beam_width * 2)),
-                                                max_batch=int(options.batch / (options.beam_width * 2)),
+                                                max_batch=int(options.batch / (options.beam_width * 4)),
                                                 pad_idx=mt_model.text_processor.pad_token_id(),
                                                 max_seq_len=options.max_seq_len)
             finetune_loader = data_utils.DataLoader(finetune_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
@@ -360,7 +360,7 @@ class MassTrainer(MTTrainer):
         if options.mt_valid_path is not None:
             mt_valid_data = dataset.MTDataset(batch_pickle_dir=options.mt_valid_path,
                                               max_batch_capacity=options.total_capacity,
-                                              max_batch=int(options.batch / options.beam_width),
+                                              max_batch=int(options.batch / (options.beam_width * 2)),
                                               pad_idx=mt_model.text_processor.pad_token_id())
             mt_valid_loader = data_utils.DataLoader(mt_valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 

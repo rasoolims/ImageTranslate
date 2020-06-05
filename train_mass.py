@@ -26,10 +26,15 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor, mask_eos: b
     src_text = texts.clone()
     tgt_text = texts.clone()
 
+    pad_indices = ((pads.cumsum(0) == pads) & pads).max(1)[1]
+    interval_sizes = pad_indices / 2
+    mask_indices = [random.randint(0, int(x)) for x in pad_indices - (1 - mask_prob) * pad_indices]
+    src_mask = torch.zeros(src_text.size(), dtype=torch.bool)
+    for i, mask_start in enumerate(mask_indices):
+        src_mask[i, mask_start: mask_start + int(pad_indices[i] / 2)] = True
+
     assert 0 < mask_prob < 1
-    src_mask = torch.empty(src_text.size()).uniform_(0, 1) < mask_prob
     tgt_mask = ~src_mask
-    src_mask[~pads] = False  # We should not mask pads.
     tgt_mask[~pads] = False  # We should not mask pads.
     tgt_mask[:, 0] = False  # Always unmask the first token (start symbol or language identifier).
     if not mask_eos:

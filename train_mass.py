@@ -73,7 +73,7 @@ class MassTrainer(MTTrainer):
                                      len_penalty_ratio=len_penalty_ratio)
 
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader, saving_path: str,
-                    step: int, max_grad_norm: float = 1.0, **kwargs):
+                    step: int, mt_valid_iter: data_utils.DataLoader = None, max_grad_norm: float = 1.0, **kwargs):
         if self.fp16:
             try:
                 import apex
@@ -158,6 +158,9 @@ class MassTrainer(MTTrainer):
         model.save(saving_path + ".latest")
 
         self.validate(valid_data_iter)
+        if mt_valid_iter is not None:
+            bleu = self.eval_bleu(mt_valid_iter, saving_path)
+            print("Pretraining BLEU:", bleu)
         return step
 
     def fine_tune(self, data_iter: data_utils.DataLoader, lang_directions: Dict[int, int], saving_path: str,
@@ -378,7 +381,7 @@ class MassTrainer(MTTrainer):
         while options.step > 0 and step <= options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=train_loader, valid_data_iter=valid_loader,
-                                       saving_path=options.model_path,
+                                       saving_path=options.model_path, mt_valid_iter=mt_valid_loader,
                                        step=step)
             train_epoch += 1
 

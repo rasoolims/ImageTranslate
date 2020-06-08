@@ -123,7 +123,8 @@ class AlbertSeq2Seq(nn.Module):
 
 
 class MassSeq2Seq(AlbertSeq2Seq):
-    def forward(self, device, src_inputs, src_pads, tgt_inputs, pad_idx: int, tgt_positions=None, log_softmax: bool = False):
+    def forward(self, device, src_inputs, src_pads, tgt_inputs, pad_idx: int, tgt_positions=None,
+                log_softmax: bool = False):
         """
         :param mask_pad_mask: # Since MASS also generates MASK tokens, we do not backpropagate them during training.
         :return:

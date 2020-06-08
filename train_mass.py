@@ -110,14 +110,14 @@ class MassTrainer(MTTrainer):
                 if ntokens == 0:  # Nothing to predict!
                     continue
 
-                loss = self.criterion(predictions, targets).mean()
+                loss = self.criterion(predictions, targets).mean() * ntokens
                 if self.fp16:
                     with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
                         scaled_loss.backward()
                 else:
                     loss.backward()
 
-                loss = float(loss.data) * ntokens
+                loss = float(loss.data)
                 total_loss += loss
                 cur_loss += loss
                 total_tokens += ntokens

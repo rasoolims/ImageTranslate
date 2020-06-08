@@ -134,16 +134,16 @@ class MassSeq2Seq(AlbertSeq2Seq):
 
         tgt_inputs = tgt_inputs.to(device)
 
-        target_pads = tgt_inputs != pad_idx
-        subseq_mask = future_mask(target_pads[:, :-1]).to(device)
+        target_non_pads = tgt_inputs != pad_idx
+        subseq_mask = future_mask(target_non_pads[:, :-1]).to(device)
         decoder_output = self.decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
                                       src_attention_mask=src_pads, tgt_attention_mask=subseq_mask,
                                       position_ids=tgt_positions[:, :-1] if tgt_positions is not None else None)
         diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
         diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
 
-        tgt_mask_flat = target_pads[:, 1:].contiguous().view(-1)
-        non_padded_outputs = diag_outputs_flat[tgt_mask_flat]
+        tgt_non_mask_flat = target_non_pads[:, 1:].contiguous().view(-1)
+        non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]
 
         outputs = self.output_layer(non_padded_outputs)
         if log_softmax:

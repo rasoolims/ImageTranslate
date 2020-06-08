@@ -40,8 +40,9 @@ class AlbertSeq2Seq(nn.Module):
         src_langs = src_langs.squeeze().unsqueeze(-1).expand(-1, src_inputs.size(-1))
         encoder_states = self.encode(device, src_inputs, src_mask, src_langs)[0]
 
-        tgt_langs = tgt_langs.squeeze().unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
+        tgt_langs = tgt_langs.squeeze().unsqueeze(-1).expand(-1, tgt_inputs.size(-1))
         tgt_inputs = tgt_inputs.to(device)
+        tgt_lang = tgt_langs.to(device)
 
         subseq_mask = future_mask(tgt_mask[:, :-1]).to(device)
         decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], src_mask, subseq_mask,
@@ -146,8 +147,9 @@ class MassSeq2Seq(AlbertSeq2Seq):
         src_langs_t = src_langs.squeeze().unsqueeze(-1).expand(-1, src_inputs.size(-1))
         encoder_states = self.encode(device, src_inputs, src_pads, src_langs_t)[0]
 
-        tgt_langs = src_langs.squeeze().unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
+        tgt_langs = src_langs.squeeze().unsqueeze(-1).expand(-1, tgt_inputs.size(-1))
         tgt_inputs = tgt_inputs.to(device)
+        tgt_langs = tgt_langs.to(device)
 
         subseq_mask = future_mask(target_non_pads[:, :-1]).to(device)
         decoder_output = self.decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],

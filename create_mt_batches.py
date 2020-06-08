@@ -20,7 +20,7 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
                 dst_tok_line = text_processor.tokenize_one_sentence(dst_line.strip())
                 dst_lang = text_processor.languages[text_processor.id2token(dst_tok_line[0])]
                 examples[line_num] = (
-                torch.LongTensor(src_tok_line), torch.LongTensor(dst_tok_line), src_lang, dst_lang)
+                    torch.LongTensor(src_tok_line), torch.LongTensor(dst_tok_line), src_lang, dst_lang)
                 lens[line_num] = len(dst_tok_line)
                 line_num += 1
 

@@ -91,7 +91,8 @@ class Trainer:
             model_to_call = self.model.module if hasattr(self.model, "module") else self.model
             mask, target, texts = LM.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"],
                                                model_to_call.text_processor)
-            predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
+            predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"],
+                                     langs=batch["langs"])
             ntokens = target.size(0)
 
             if ntokens == 0:  # Nothing to predict!
@@ -158,7 +159,8 @@ class Trainer:
                 model_to_call = self.model.module if hasattr(self.model, "module") else self.model
                 mask, target, texts = LM.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"].clone(),
                                                    model_to_call.text_processor)
-                predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
+                predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"],
+                                         langs=batch["langs"])
                 ntokens = target.size(0)
 
                 if ntokens == 0:  # Nothing to predict!

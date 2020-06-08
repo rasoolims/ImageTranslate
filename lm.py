@@ -1,6 +1,7 @@
 import os
 import pickle
 import random
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -56,14 +57,17 @@ class LM(nn.Module):
         else:
             self.encoder = encoder
 
-    def forward(self, device, mask: torch.Tensor, texts: torch.Tensor, pads: torch.Tensor):
+    def forward(self, device, mask: torch.Tensor, texts: torch.Tensor, pads: torch.Tensor, langs: List = None):
         """
         :param data: A minibatch as dictionary that has transformed image and tokenized text as long tensors.
         :return:
         """
+        langs_tensor = torch.LongTensor(langs).unsqueeze(1).expand(-1, texts.size(1))
+
         texts = texts.to(device)
         pads = pads.to(device)
-        text_hidden, text_cls_head = self.encoder(texts, attention_mask=pads)
+        langs_tensor = langs_tensor.to(device)
+        text_hidden, text_cls_head = self.encoder(texts, attention_mask=pads, token_type_ids=langs_tensor)
         output_predictions = F.log_softmax(self.masked_lm(text_hidden[mask]), dim=1)
         return output_predictions
 

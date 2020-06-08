@@ -77,10 +77,12 @@ class MTDataset(Dataset):
             examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
 
             cur_src_batch, cur_dst_batch, cur_max_src_len, cur_max_dst_len = [], [], 0, 0
+            cur_src_langs, cur_dst_langs = [], []
             for example in examples:
                 src = example[0][:max_seq_len]  # trim if longer than expected!
                 dst = example[1][:max_seq_len]  # trim if longer than expected!
-
+                cur_src_langs.append(example[2])
+                cur_dst_langs.append(example[3])
                 cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
                 cur_max_dst_len = max(cur_max_dst_len, int(dst.size(0)))
 
@@ -98,7 +100,8 @@ class MTDataset(Dataset):
                     src_pad_mask = (src_batch != pad_idx)
                     dst_pad_mask = (dst_batch != pad_idx)
                     entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                             "dst_pad_mask": dst_pad_mask}
+                             "dst_pad_mask": dst_pad_mask, "src_langs": cur_src_langs[:-1],
+                             "dst_langs": cur_dst_langs[:-1]}
                     b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
                     this_batch_size = (s ** 2 + d ** 2) * b * d
                     if this_batch_size > self.longest_batch[1]:
@@ -107,6 +110,7 @@ class MTDataset(Dataset):
                         self.most_token_batch = (entry, b * (s + d))
                     self.batches.append(entry)
                     cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
+                    cur_src_langs, cur_dst_langs = [cur_src_langs[-1]], [cur_dst_langs[-1]]
                     cur_max_src_len, cur_max_dst_len = int(cur_src_batch[0].size(0)), int(cur_dst_batch[0].size(0))
 
         if len(cur_src_batch) > 0 and len(cur_src_batch) >= num_gpu:
@@ -115,7 +119,7 @@ class MTDataset(Dataset):
             src_pad_mask = (src_batch != pad_idx)
             dst_pad_mask = (dst_batch != pad_idx)
             entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                     "dst_pad_mask": dst_pad_mask}
+                     "dst_pad_mask": dst_pad_mask, "src_langs": cur_src_langs[:-1], "dst_langs": cur_dst_langs}
             b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
             this_batch_size = (s ** 2 + d ** 2) * b * d
             if this_batch_size > self.longest_batch[1]:
@@ -157,12 +161,13 @@ class MassDataset(MTDataset):
             with open(f, "rb") as fr:
                 examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
 
-                cur_src_batch, cur_max_src_len = [], 0
+                cur_src_batch, cur_langs, cur_max_src_len = [], [], 0
                 for example in examples:
                     if len(example) > max_seq_len:
                         continue
-                    src = example
+                    src, lang = example[0], example[1]
                     self.lang_ids.add(int(src[0]))
+                    cur_langs.append(lang)
 
                     cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
 
@@ -176,7 +181,7 @@ class MassDataset(MTDataset):
                         src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
                         src_pad_mask = (src_batch != pad_idx)
 
-                        entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask}
+                        entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "langs": cur_langs[:-1]}
                         b, s = int(src_batch.size(0)), int(src_batch.size(1))
                         this_batch_size = 2 * (s ** 3) * b
                         if this_batch_size > self.longest_batch[1]:
@@ -185,6 +190,7 @@ class MassDataset(MTDataset):
                             self.most_token_batch = (entry, 2 * b * s)
                         self.batches.append(entry)
                         cur_src_batch = [cur_src_batch[-1]]
+                        cur_langs = [cur_langs[-1]]
                         cur_max_src_len = int(cur_src_batch[0].size(0))
 
         if len(cur_src_batch) > 0:
@@ -193,7 +199,7 @@ class MassDataset(MTDataset):
             if src_batch.size(0) < num_gpu:
                 print("skipping", src_batch.size())
             else:
-                entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask}
+                entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "langs": cur_langs}
                 b, s = int(src_batch.size(0)), int(src_batch.size(1))
                 this_batch_size = 2 * (s ** 3) * b
                 if this_batch_size > self.longest_batch[1]:
@@ -305,9 +311,13 @@ class TextCollator(object):
         self.pad_idx = pad_idx
 
     def __call__(self, batch):
-        padded_text = pad_sequence(batch, batch_first=True, padding_value=self.pad_idx)
+        langs, batch_text = [], []
+        for b in batch:
+            batch_text.append(b[0])
+            langs.append(b[1])
+        padded_text = pad_sequence(batch_text, batch_first=True, padding_value=self.pad_idx)
         pad_mask = (padded_text != self.pad_idx)
-        return {"texts": padded_text, "pad_mask": pad_mask}
+        return {"texts": padded_text, "pad_mask": pad_mask, "langs": langs}
 
 
 class ImageTextCollator(object):

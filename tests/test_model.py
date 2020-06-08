@@ -24,7 +24,7 @@ class TestModel(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages=["<en>"])
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages={"<en>": 0})
             assert processor.tokenizer.get_vocab_size() == 1000
             sen1 = "Obama signed many landmark bills into law during his first two years in office."
             assert processor._tokenize(sen1) is not None
@@ -43,7 +43,7 @@ class TestModel(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages=["<en>"])
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages={"<en>": 0})
             lm = LM(text_processor=processor)
             assert lm.encoder.base_model.embeddings.word_embeddings.num_embeddings == 1000
 
@@ -59,7 +59,7 @@ class TestModel(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages=["<en>"])
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages={"<en>": 0})
             lm = LM(text_processor=processor, size=4)
 
             seq2seq = AlbertSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
@@ -83,7 +83,7 @@ class TestModel(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages=["<en>"])
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages={"<en>": 0})
             create_batches.write(text_processor=processor, cache_dir=tmpdirname, seq_len=512, txt_file=data_path,
                                  sen_block_size=10)
             dataset = TextDataset(save_cache_dir=tmpdirname, max_cache_size=3)
@@ -115,7 +115,7 @@ class TestModel(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
             processor.train_tokenizer([text_data_path], vocab_size=1000, to_save_dir=tmpdirname,
-                                      languages=["<mzn>", "<glk>", "<en>"])
+                                      languages={"<mzn>": 0, "<glk>": 1, "<en>": 2})
             binarize_image_doc_data.write(text_processor=processor, output_file=os.path.join(tmpdirname, "image.bin"),
                                           json_dir=data_path, files_to_use="mzn,glk")
             image_data = ImageDocDataset(os.getcwd(), os.path.join(tmpdirname, "image.bin"), transform,

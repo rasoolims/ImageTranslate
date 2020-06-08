@@ -30,7 +30,7 @@ def get_tokenizer(train_path: Optional[str] = None,
 
     print(" ".join(languages))
     text_processor.train_tokenizer(paths=[train_path + ".tmp"], vocab_size=vocab_size, to_save_dir=model_path,
-                                   languages=list(languages))
+                                   languages={l: i for i, l in enumerate(sorted(languages))})
     print("Removing temporary file!")
     os.system("rm " + train_path + ".tmp &")
     print("done!")

@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 from tokenizers import Encoding
@@ -9,17 +9,17 @@ from tokenizers import SentencePieceBPETokenizer
 
 class TextProcessor:
     def __init__(self, tok_model_path: Optional[str] = None):
-        self.languages = []
+        self.languages = {}
         if tok_model_path is not None:
             self.tokenizer = SentencePieceBPETokenizer(
                 tok_model_path + "/vocab.json",
                 tok_model_path + "/merges.txt",
             )
             with open(os.path.join(tok_model_path, "langs"), "rb") as fp:
-                self.languages = pickle.load(fp)
+                self.languages: Dict[str, int] = pickle.load(fp)
         self.init_properties(self.languages)
 
-    def init_properties(self, languages: List = None):
+    def init_properties(self, languages: Dict[str, int] = None):
         self.max_len = 512
         self.pad_token = "<pad>"
         self.mask_token = "<mask>"
@@ -27,10 +27,10 @@ class TextProcessor:
         self.sep_token = "</s>"
         self.bos = "<s>"
         self.special_tokens = [self.bos, self.pad_token, self.unk_token, self.mask_token,
-                               self.sep_token] + languages
+                               self.sep_token] + list(languages.keys())
         self.languages = languages
 
-    def train_tokenizer(self, paths: List[str], vocab_size: int, to_save_dir: str, languages: List):
+    def train_tokenizer(self, paths: List[str], vocab_size: int, to_save_dir: str, languages: Dict[str, int]):
         self.tokenizer = SentencePieceBPETokenizer()
         self.init_properties(languages)
         self.tokenizer.train(files=paths, vocab_size=vocab_size, min_frequency=5, special_tokens=self.special_tokens)

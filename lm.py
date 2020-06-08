@@ -44,6 +44,8 @@ class LM(nn.Module):
                                                     pad_token_id=text_processor.pad_token_id(),
                                                     bos_token_id=text_processor.bos_token_id(),
                                                     eos_token_id=text_processor.sep_token_id())
+
+            self.config["type_vocab_size"] = len(text_processor.languages)
             self.config = AlbertConfig(**self.config)
 
         self.masked_lm = AlbertMLMHead(self.config)

@@ -11,7 +11,7 @@ from textprocessor import TextProcessor
 def write(text_processor: TextProcessor, cache_dir: str,
           seq_len: int, txt_file: str, sen_block_size: int = 10000):
     sen_block_size = sen_block_size
-    current_cache = []
+    current_cache, cur_cache_langs = [], []
     examples = {}
     line_num, file_count = 0, 0
     text_processor.max_len = seq_len
@@ -21,22 +21,24 @@ def write(text_processor: TextProcessor, cache_dir: str,
             if len(line.strip()) == 0: continue
             tok_lines = text_processor.tokenize_lines(line.strip(), blind_split=True, split_len=seq_len)
             current_cache += list(tok_lines)
+            cur_cache_langs += [text_processor.languages[text_processor.id2token(tok_lines[0, 0])]] * tok_lines.shape[0]
 
             if len(current_cache) >= 100000:
-                for tok_line in current_cache:
+                for tok_line, lang in zip(current_cache, cur_cache_langs):
                     # assuming that every list has same length due to correct padding.
-                    examples[line_num] = torch.LongTensor(tok_line)
+                    examples[line_num] = (torch.LongTensor(tok_line), lang)
                     line_num += 1
                     if len(examples) >= sen_block_size:
                         with open(os.path.join(cache_dir, str(file_count) + ".pkl"), "wb") as fw:
                             pickle.dump(examples, fw)
                         examples, file_count = {}, file_count + 1
-                current_cache = []
+                current_cache, cur_cache_langs = [], []
                 print(f"from {ln} actual documents, dumped {line_num} big vectors into {file_count} files")
 
     if len(current_cache) > 0:
-        for tok_line in current_cache:
-            examples[line_num] = torch.LongTensor(tok_line)
+        for tok_line, lang in zip(current_cache, cur_cache_langs):
+            # assuming that every list has same length due to correct padding.
+            examples[line_num] = (torch.LongTensor(tok_line), lang)
             line_num += 1
             if len(examples) >= sen_block_size:
                 with open(os.path.join(cache_dir, str(file_count) + ".pkl"), "wb") as fw:
@@ -79,7 +81,7 @@ def get_tokenizer(tokenizer_path: Optional[str] = None, train_path: Optional[str
         print("Writing raw text done!")
 
         text_processor.train_tokenizer(paths=[train_path + ".tmp"], vocab_size=vocab_size, to_save_dir=model_path,
-                                       languages=list(languages))
+                                       languages={l: i for i, l in enumerate(sorted(languages))})
         print("Removing temporary file!")
         os.system("rm " + train_path + ".tmp &")
         print("done!")

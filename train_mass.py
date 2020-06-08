@@ -301,11 +301,11 @@ class MassTrainer(MTTrainer):
         if not os.path.exists(options.model_path):
             os.makedirs(options.model_path)
 
-        text_processor = TextProcessor(options.tokenizer_path)
-
         if options.pretrained_path is not None:
-            mt_model, lm = MassSeq2Seq.load(options.pretrained_path)
+            mt_model, lm = MassSeq2Seq.load(out_dir=options.pretrained_path, tok_dir=options.tokenizer_path)
+            text_processor = mt_model.text_processor
         else:
+            text_processor = TextProcessor(options.tokenizer_path)
             if options.lm_path is None:
                 lm = LM(text_processor=text_processor, size=options.model_size)
             else:

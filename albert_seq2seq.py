@@ -79,8 +79,8 @@ class AlbertSeq2Seq(nn.Module):
         self.text_processor.tokenizer.save(directory=out_dir)
 
     @staticmethod
-    def load(out_dir: str):
-        text_processor = TextProcessor(tok_model_path=out_dir)
+    def load(out_dir: str, tok_dir: str):
+        text_processor = TextProcessor(tok_model_path=tok_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)

@@ -123,7 +123,7 @@ class AlbertSeq2Seq(nn.Module):
 
 
 class MassSeq2Seq(AlbertSeq2Seq):
-    def forward(self, device, src_inputs, src_pads, tgt_inputs, tgt_positions, pad_idx: int, log_softmax: bool = False):
+    def forward(self, device, src_inputs, src_pads, tgt_inputs, pad_idx: int, tgt_positions=None, log_softmax: bool = False):
         """
         :param mask_pad_mask: # Since MASS also generates MASK tokens, we do not backpropagate them during training.
         :return:
@@ -137,7 +137,7 @@ class MassSeq2Seq(AlbertSeq2Seq):
         subseq_mask = future_mask(target_pads[:, :-1]).to(device)
         decoder_output = self.decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
                                       src_attention_mask=src_pads, tgt_attention_mask=subseq_mask,
-                                      position_ids=tgt_positions[:, :-1])
+                                      position_ids=tgt_positions[:, :-1] if tgt_positions is not None else None)
         diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
         diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
 

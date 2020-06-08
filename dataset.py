@@ -119,7 +119,7 @@ class MTDataset(Dataset):
             src_pad_mask = (src_batch != pad_idx)
             dst_pad_mask = (dst_batch != pad_idx)
             entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                     "dst_pad_mask": dst_pad_mask, "src_langs": cur_src_langs[:-1], "dst_langs": cur_dst_langs}
+                     "dst_pad_mask": dst_pad_mask, "src_langs": cur_src_langs, "dst_langs": cur_dst_langs}
             b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
             this_batch_size = (s ** 2 + d ** 2) * b * d
             if this_batch_size > self.longest_batch[1]:

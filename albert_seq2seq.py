@@ -27,20 +27,25 @@ class AlbertSeq2Seq(nn.Module):
         self.checkpoint = checkpoint
         self.checkpoint_num = 0
 
-    def encode(self, device, src_inputs, src_mask):
+    def encode(self, device, src_inputs, src_mask, src_langs):
         src_inputs = src_inputs.to(device)
         src_mask = src_mask.to(device)
-        encoder_states = self.encoder(src_inputs, attention_mask=src_mask)
+        src_langs = src_langs.to(device)
+        encoder_states = self.encoder(src_inputs, attention_mask=src_mask, token_type_ids=src_langs)
         return encoder_states
 
-    def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask, log_softmax: bool = False):
+    def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs,
+                log_softmax: bool = False):
         "Take in and process masked src and target sequences."
-        encoder_states = self.encode(device, src_inputs, src_mask)[0]
+        src_langs = torch.LongTensor(src_langs).unsqueeze(-1).expand(-1, src_inputs.size(-1))
+        encoder_states = self.encode(device, src_inputs, src_mask, src_langs)[0]
 
+        tgt_langs = torch.LongTensor(tgt_langs).unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
         tgt_inputs = tgt_inputs.to(device)
 
         subseq_mask = future_mask(tgt_mask[:, :-1]).to(device)
-        decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], src_mask, subseq_mask)
+        decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], src_mask, subseq_mask,
+                                      token_type_ids=tgt_langs[:, :-1])
         diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
         diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
         tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
@@ -123,22 +128,32 @@ class AlbertSeq2Seq(nn.Module):
 
 
 class MassSeq2Seq(AlbertSeq2Seq):
-    def forward(self, device, src_inputs, src_pads, tgt_inputs, pad_idx: int, tgt_positions=None,
+    def forward(self, device, src_inputs, src_pads, tgt_inputs, src_langs, tgt_langs=None, pad_idx: int = 1,
+                tgt_positions=None,
                 log_softmax: bool = False):
         """
         :param mask_pad_mask: # Since MASS also generates MASK tokens, we do not backpropagate them during training.
         :return:
         """
-        "Take in and process masked src and target sequences."
-        encoder_states = self.encode(device, src_inputs, src_pads)[0]
+        target_non_pads = tgt_inputs != pad_idx
+        if tgt_langs is not None:
+            # Use back-translation loss
+            return super().forward(device=device, src_inputs=src_inputs, src_mask=src_pads, tgt_inputs=tgt_inputs,
+                                   tgt_mask=target_non_pads, src_langs=src_langs, tgt_langs=tgt_langs,
+                                   log_softmax=log_softmax)
 
+        "Take in and process masked src and target sequences."
+        src_langs_t = torch.LongTensor(src_langs).unsqueeze(-1).expand(-1, src_inputs.size(-1))
+        encoder_states = self.encode(device, src_inputs, src_pads, src_langs_t)[0]
+
+        tgt_langs = torch.LongTensor(src_langs).unsqueeze(-1).expand(-1, tgt_inputs.size(-1))
         tgt_inputs = tgt_inputs.to(device)
 
-        target_non_pads = tgt_inputs != pad_idx
         subseq_mask = future_mask(target_non_pads[:, :-1]).to(device)
         decoder_output = self.decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
                                       src_attention_mask=src_pads, tgt_attention_mask=subseq_mask,
-                                      position_ids=tgt_positions[:, :-1] if tgt_positions is not None else None)
+                                      position_ids=tgt_positions[:, :-1] if tgt_positions is not None else None,
+                                      token_type_ids=tgt_langs[:, :-1])
         diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
         diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
 

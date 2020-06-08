@@ -104,7 +104,8 @@ class MassTrainer(MTTrainer):
             try:
                 predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=to_recover,
                                          tgt_positions=positions, src_pads=src_pad_mask,
-                                         pad_idx=model.text_processor.pad_token_id(), log_softmax=True)
+                                         pad_idx=model.text_processor.pad_token_id(), src_langs=batch["langs"],
+                                         log_softmax=True)
                 ntokens = targets.size(0)
 
                 if ntokens == 0:  # Nothing to predict!
@@ -185,24 +186,30 @@ class MassTrainer(MTTrainer):
                 self.optimizer.zero_grad()
             src_inputs = batch["src_texts"].squeeze(0)
             src_pad_mask = batch["src_pad_mask"].squeeze(0)
+
             target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
+            dst_langs = [model.text_processor.languages[model.text_processor.id2token(lang_directions[int(l)])] for l in
+                         src_inputs[:, 0]]
             if src_inputs.size(0) < self.num_gpu:
                 continue
 
             try:
+                model.eval()
                 with torch.no_grad():
                     # We do not backpropagate the data generator following the MASS paper.
-                    model.eval()
-                    outputs = self.generator(device=self.device, src_inputs=src_inputs, tgt_langs=target_langs,
+                    outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=target_langs,
+                                             src_langs=batch["langs"], tgt_langs=dst_langs,
                                              src_mask=src_pad_mask)
                     translations = pad_sequence(outputs, batch_first=True)
                     translation_pad_mask = (translations != model.text_processor.pad_token_id())
-                    model.train()
+                model.train()
 
                 # Now use it for back-translation loss.
                 predictions = self.model(device=self.device, src_inputs=translations, tgt_inputs=src_inputs,
                                          src_pads=translation_pad_mask,
                                          pad_idx=model.text_processor.pad_token_id(),
+                                         src_langs=dst_langs,
+                                         tgt_langs=batch["langs"],
                                          log_softmax=True)
                 src_targets = src_inputs[:, 1:].contiguous().view(-1)
                 src_mask_flat = src_pad_mask[:, 1:].contiguous().view(-1)
@@ -282,7 +289,8 @@ class MassTrainer(MTTrainer):
                 try:
                     predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=to_recover,
                                              tgt_positions=positions, src_pads=src_pad_mask,
-                                             pad_idx=model.text_processor.pad_token_id(), log_softmax=True)
+                                             pad_idx=model.text_processor.pad_token_id(), src_langs=batch["langs"],
+                                             log_softmax=True)
                     ntokens = targets.size(0)
 
                     if ntokens == 0:  # Nothing to predict!

@@ -18,7 +18,7 @@ from lm import LM
 from loss import SmoothedNLLLoss
 from parallel import DataParallelModel, DataParallelCriterion
 from pytorch_lamb.pytorch_lamb import Lamb
-from seq_gen import BeamDecoder, get_outputs_until_eos, GreedyDecoder
+from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
@@ -60,12 +60,8 @@ class MTTrainer:
             self.model = DataParallelModel(self.model)
             self.criterion = DataParallelCriterion(self.criterion)
 
-        self.generator = GreedyDecoder(model, max_len_a=max_len_a,
-                                       max_len_b=max_len_b) if beam_width == 1 else BeamDecoder(model,
-                                                                                                beam_width=beam_width,
-                                                                                                max_len_a=max_len_a,
-                                                                                                max_len_b=max_len_b,
-                                                                                                len_penalty_ratio=len_penalty_ratio)
+        self.generator = BeamDecoder(model, beam_width=beam_width, max_len_a=max_len_a, max_len_b=max_len_b,
+                                     len_penalty_ratio=len_penalty_ratio)
         self.reference = None
         self.best_bleu = -1.0
 
@@ -100,7 +96,8 @@ class MTTrainer:
             src_mask = batch["src_pad_mask"].squeeze(0)
             tgt_inputs = batch["dst_texts"].squeeze(0)
             tgt_mask = batch["dst_pad_mask"].squeeze(0)
-
+            src_langs = batch["src_langs"]
+            dst_langs = batch["dst_langs"]
             if src_inputs.size(0) < self.num_gpu:
                 continue
 
@@ -112,7 +109,8 @@ class MTTrainer:
                                                                 mask_eos=False)
 
                 predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                         src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
+                                         src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=dst_langs,
+                                         log_softmax=True)
                 targets = tgt_inputs[:, 1:].contiguous().view(-1)
                 tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
                 targets = targets[tgt_mask_flat]
@@ -142,6 +140,8 @@ class MTTrainer:
                     src_mask = batched[1]["src_pad_mask"].squeeze(0)
                     tgt_inputs = batched[1]["dst_texts"].squeeze(0)
                     tgt_mask = batched[1]["dst_pad_mask"].squeeze(0)
+                    src_langs = batch["src_langs"]
+                    dst_langs = batch["dst_langs"]
 
                     mask, masked_ids, src_inputs = LM.mask_text(mask_prob=self.mask_prob, pads=src_mask,
                                                                 texts=src_inputs,
@@ -149,7 +149,8 @@ class MTTrainer:
                                                                 mask_eos=False)
 
                     predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                             src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
+                                             src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
+                                             tgt_langs=dst_langs, log_softmax=True)
                     targets = tgt_inputs[:, 1:].contiguous().view(-1)
                     tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
                     targets = targets[tgt_mask_flat]
@@ -227,6 +228,9 @@ class MTTrainer:
                 src_inputs = batch["src_texts"].squeeze(0)
                 src_mask = batch["src_pad_mask"].squeeze(0)
                 tgt_inputs = batch["dst_texts"].squeeze(0)
+                src_langs = batch["src_langs"]
+                dst_langs = batch["dst_langs"]
+
                 if self.self_translate:
                     mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
                                                                 text_processor=model.text_processor, mask_eos=False)
@@ -235,8 +239,8 @@ class MTTrainer:
                 src_text += [self.generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in
                              src_ids]
 
-                outputs = self.generator(device=self.device, src_inputs=src_inputs, tgt_langs=tgt_inputs[:, 0],
-                                         src_mask=src_mask)
+                outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=tgt_inputs[:, 0],
+                                         src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs)
                 for output in outputs:
                     mt_output.append(self.generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
 
@@ -275,6 +279,8 @@ class MTTrainer:
                 src_mask = batch["src_pad_mask"].squeeze(0)
                 tgt_inputs = batch["dst_texts"].squeeze(0)
                 tgt_mask = batch["dst_pad_mask"].squeeze(0)
+                src_langs = batch["src_langs"]
+                dst_langs = batch["dst_langs"]
 
                 try:
                     if self.self_translate:
@@ -283,7 +289,8 @@ class MTTrainer:
                                                                     text_processor=model.text_processor, mask_eos=False)
 
                     predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                             src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
+                                             src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
+                                             tgt_langs=dst_langs, log_softmax=True)
 
                     targets = tgt_inputs[:, 1:].contiguous().view(-1)
                     tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
@@ -385,10 +392,13 @@ class MTTrainer:
         src_mask = train_data.longest_batch[0]["src_pad_mask"]
         tgt_inputs = train_data.longest_batch[0]["dst_texts"]
         tgt_mask = train_data.longest_batch[0]["dst_pad_mask"]
+        src_langs = train_data.longest_batch[0]["src_langs"]
+        dst_langs = train_data.longest_batch[0]["dst_langs"]
         s, d, b = int(src_inputs.size(1)), int(tgt_inputs.size(1)), int(src_inputs.size(0))
         print(src_inputs.size(), tgt_inputs.size(), b * d * (s ** 2 + d ** 2))
         predictions = trainer.model(device=trainer.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                    src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
+                                    src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=dst_langs,
+                                    log_softmax=True)
         targets = tgt_inputs[:, 1:].contiguous().view(-1)
         tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
         targets = targets[tgt_mask_flat]
@@ -408,10 +418,13 @@ class MTTrainer:
         src_mask = train_data.most_token_batch[0]["src_pad_mask"]
         tgt_inputs = train_data.most_token_batch[0]["dst_texts"]
         tgt_mask = train_data.most_token_batch[0]["dst_pad_mask"]
+        src_langs = train_data.most_token_batch[0]["src_langs"]
+        dst_langs = train_data.most_token_batch[0]["dst_langs"]
         s, d, b = int(src_inputs.size(1)), int(tgt_inputs.size(1)), int(src_inputs.size(0))
         print(src_inputs.size(), tgt_inputs.size(), b * (s + d))
         predictions = trainer.model(device=trainer.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                    src_mask=src_mask, tgt_mask=tgt_mask, log_softmax=True)
+                                    src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=dst_langs,
+                                    log_softmax=True)
         targets = tgt_inputs[:, 1:].contiguous().view(-1)
         tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
         targets = targets[tgt_mask_flat]

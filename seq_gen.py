@@ -61,21 +61,22 @@ class BeamDecoder(nn.Module):
         length_penalty = torch.pow(torch.tensor(lengths).to(cur_beam_elements.device) / 6.0, self.len_penalty_ratio)
         return length_penalty.unsqueeze(-1)
 
-    def forward(self, device, src_inputs, tgt_langs, src_mask, max_len: int = None):
+    def forward(self, device, src_inputs, first_tokens, src_mask, src_langs, tgt_langs, max_len: int = None):
         """
 
         :param device:
         :param src_inputs:
-        :param tgt_langs: First token that is language identifier
+        :param first_tokens: First token that is language identifier
         :param src_mask:
         :return:
         """
         batch_size = src_inputs.size(0)
-        encoder_states = self.seq2seq_model.encode(device, src_inputs, src_mask)[0]
+        src_langs = torch.LongTensor(src_langs).unsqueeze(-1).expand(-1, src_inputs.size(-1))
+        encoder_states = self.seq2seq_model.encode(device, src_inputs, src_mask, src_langs)[0]
         eos = self.seq2seq_model.text_processor.sep_token_id()
 
         src_mask = src_mask.to(device)
-        first_position_output = tgt_langs.unsqueeze(1).to(device)
+        first_position_output = first_tokens.unsqueeze(1).to(device)
         top_beam_outputs = first_position_output
         top_beam_scores = torch.zeros(first_position_output.size()).to(first_position_output.device)
 
@@ -97,8 +98,12 @@ class BeamDecoder(nn.Module):
             cur_scores = top_beam_scores.view(-1).unsqueeze(-1)
             output_mask = torch.ones(cur_outputs.size()).to(cur_outputs.device)
             enc_states = encoder_states if i == 1 else torch.repeat_interleave(encoder_states, self.beam_width, 0)
+            dst_langs = torch.LongTensor(tgt_langs).unsqueeze(-1).expand(-1, cur_outputs.size(1)).to(device)
+            if i > 1:
+                dst_langs = torch.repeat_interleave(dst_langs, self.beam_width, 0)
             cur_src_mask = src_mask if i == 1 else torch.repeat_interleave(src_mask, self.beam_width, 0)
-            decoder_states = self.seq2seq_model.decoder(enc_states, cur_outputs, cur_src_mask, output_mask)
+            decoder_states = self.seq2seq_model.decoder(enc_states, cur_outputs, cur_src_mask, output_mask,
+                                                        token_type_ids=dst_langs)
             output = F.log_softmax(self.seq2seq_model.output_layer(decoder_states[:, -1, :]), dim=-1)
             output[eos_mask] = 0  # Disregard those items with EOS in them!
             beam_scores = ((cur_scores + output) / self.len_penalty(cur_outputs, eos)).view(batch_size, -1)
@@ -124,41 +129,3 @@ class BeamDecoder(nn.Module):
         del top_beam_outputs
 
         return actual_outputs
-
-
-class GreedyDecoder(nn.Module):
-    def __init__(self, seq2seq_model, max_len_a: float = 1.1, max_len_b: int = 5):
-        super(GreedyDecoder, self).__init__()
-        self.seq2seq_model = seq2seq_model
-        self.max_len_a = max_len_a
-        self.max_len_b = max_len_b
-
-    def forward(self, device, src_inputs, tgt_langs, src_mask):
-        """
-
-        :param device:
-        :param src_inputs:
-        :param tgt_langs: First token that is language identifier
-        :param src_mask:
-        :return:
-        """
-        encoder_states = self.seq2seq_model.encode(device, src_inputs, src_mask)[0]
-        eos = self.seq2seq_model.text_processor.sep_token_id()
-        pad_id = self.seq2seq_model.text_processor.pad_token_id()
-        src_mask = src_mask.to(device)
-        max_len = min(int(self.max_len_a * src_inputs.size(1) + self.max_len_b) + 1,
-                      self.seq2seq_model.encoder.embeddings.position_embeddings.num_embeddings)
-
-        outputs = tgt_langs.unsqueeze(1).to(device)
-        seen_eos = torch.zeros(outputs.size(0), dtype=torch.bool).to(outputs.device)
-        for i in range(1, max_len):
-            output_mask = (outputs != pad_id)
-            decoder_states = self.seq2seq_model.decoder(encoder_states, outputs, src_mask, output_mask)
-            output = self.seq2seq_model.output_layer(decoder_states[:, -1, :])
-            best_outputs = torch.argmax(output, dim=1)
-            outputs = torch.cat([outputs, best_outputs.unsqueeze(1)], dim=1)
-            seen_eos |= best_outputs == eos
-            if torch.all(seen_eos):
-                break
-
-        return get_outputs_until_eos(eos, outputs)

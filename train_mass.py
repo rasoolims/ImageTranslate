@@ -199,7 +199,7 @@ class MassTrainer(MTTrainer):
                 # Now use it for back-translation loss.
                 predictions = self.model(device=self.device, src_inputs=translations, tgt_inputs=src_inputs,
                                          src_pads=translation_pad_mask,
-                                         pad_idx=self.model.text_processor.pad_token_id(),
+                                         pad_idx=model.text_processor.pad_token_id(),
                                          log_softmax=True)
                 src_targets = src_inputs[:, 1:].contiguous().view(-1)
                 src_mask_flat = src_pad_mask[:, 1:].contiguous().view(-1)

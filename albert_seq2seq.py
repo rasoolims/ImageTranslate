@@ -146,7 +146,7 @@ class MassSeq2Seq(AlbertSeq2Seq):
         src_langs_t = torch.LongTensor(src_langs).unsqueeze(-1).expand(-1, src_inputs.size(-1))
         encoder_states = self.encode(device, src_inputs, src_pads, src_langs_t)[0]
 
-        tgt_langs = torch.LongTensor(src_langs).unsqueeze(-1).expand(-1, tgt_inputs.size(-1))
+        tgt_langs = torch.LongTensor(src_langs).unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
         tgt_inputs = tgt_inputs.to(device)
 
         subseq_mask = future_mask(target_non_pads[:, :-1]).to(device)

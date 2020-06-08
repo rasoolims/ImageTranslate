@@ -62,7 +62,7 @@ class LM(nn.Module):
         :param data: A minibatch as dictionary that has transformed image and tokenized text as long tensors.
         :return:
         """
-        langs_tensor = torch.LongTensor(langs).unsqueeze(1).expand(-1, texts.size(1))
+        langs_tensor = langs.squeeze().unsqueeze(1).expand(-1, texts.size(1))
 
         texts = texts.to(device)
         pads = pads.to(device)

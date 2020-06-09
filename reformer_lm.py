@@ -1,6 +1,6 @@
 import os
 import pickle
-import random
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -33,8 +33,9 @@ class ReformerLM(nn.Module):
         self.lm_head: ReformerOnlyLMHead = reformer.lm_head
         self.encoder: ReformerModel = reformer.reformer
 
-    def forward(self, device, mask: torch.Tensor, texts: torch.Tensor, pads: torch.Tensor):
+    def forward(self, device, mask: torch.Tensor, texts: torch.Tensor, pads: torch.Tensor, langs: List = None):
         """
+        We currently don't use langs.
         :param data: A minibatch as dictionary that has transformed image and tokenized text as long tensors.
         :return:
         """
@@ -43,36 +44,6 @@ class ReformerLM(nn.Module):
         text_hidden = self.encoder(texts, attention_mask=pads)[0]
         output_predictions = F.log_softmax(self.lm_head(text_hidden[mask]), dim=1)
         return output_predictions
-
-    @staticmethod
-    def mask_text(mask_prob, pads, texts, text_processor: TextProcessor, mask_eos: bool = True):
-        assert 0 < mask_prob < 1
-        mask = torch.empty(texts.size()).uniform_(0, 1) < mask_prob
-        mask[~pads] = False  # We should not mask pads.
-        if not mask_eos:
-            eos_idx = texts == text_processor.sep_token_id()
-            mask[eos_idx] = False  # We should not mask end-of-sentence (usually in case of BART training).
-
-        masked_ids = texts[mask]
-        replacements = masked_ids.clone()
-        for i in range(len(replacements)):
-            r = random.random()
-            if r < 0.8:
-                replacements[i] = text_processor.mask_token_id()
-            elif r < 0.9:
-                # Replace with another random word.
-                random_index = random.randint(len(text_processor.special_tokens), text_processor.vocab_size() - 1)
-                replacements[i] = random_index
-            else:
-                # keep the word
-                pass
-        texts[mask] = replacements
-        return mask, masked_ids, texts
-
-    @staticmethod
-    def unmask_text(mask, masked_ids, texts):
-        # Return back the original masked elements!
-        texts[mask] = masked_ids
 
     def save(self, out_dir: str):
         if not os.path.exists(out_dir):

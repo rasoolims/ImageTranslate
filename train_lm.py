@@ -1,5 +1,6 @@
 import datetime
 import os
+import pickle
 import sys
 import time
 from optparse import OptionParser
@@ -20,10 +21,10 @@ from textprocessor import TextProcessor
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
 
-class Trainer:
-    def __init__(self, model: LM, mask_prob: float = 0.15, clip: int = 1, optimizer=None, warmup: int = 12500,
+class LMTrainer:
+    def __init__(self, model, mask_prob: float = 0.15, clip: int = 1, optimizer=None, warmup: int = 12500,
                  step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01", distributed: bool = False,
-                 local_rank: int = 0):
+                 local_rank: int = 0, last_epoch: int = 0):
         self.model = model
 
         self.clip = clip
@@ -44,9 +45,10 @@ class Trainer:
             self.model, self.optimizer = apex.amp.initialize(self.model, self.optimizer, opt_level=fp16_opt_level)
 
         if self.optimizer is not None:
-            if self.optimizer is not None:
-                self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
-                                                                       num_training_steps=step)
+            self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
+                                                                   num_training_steps=step)
+            self.scheduler.last_epoch = last_epoch
+
         self.mask_prob = mask_prob
         self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
 
@@ -91,49 +93,52 @@ class Trainer:
             model_to_call = self.model.module if hasattr(self.model, "module") else self.model
             mask, target, texts = LM.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"],
                                                model_to_call.text_processor)
-            predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"],
-                                     langs=batch["langs"])
-            ntokens = target.size(0)
+            try:
+                predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"],
+                                         langs=batch["langs"])
+                ntokens = target.size(0)
 
-            if ntokens == 0:  # Nothing to predict!
-                continue
+                if ntokens == 0:  # Nothing to predict!
+                    continue
 
-            if self.distributed:
-                target = target.to(predictions.device)
-            loss = self.criterion(predictions, target).mean()
-            if self.fp16 or self.distributed:
-                with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                    scaled_loss.backward()
-            else:
-                loss.backward()
-
-            LM.unmask_text(mask, target, texts)
-
-            if self.optimizer is not None:
-                if self.fp16:
-                    torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
+                if self.distributed:
+                    target = target.to(predictions.device)
+                loss = self.criterion(predictions, target).mean()
+                if self.fp16 or self.distributed:
+                    with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                        scaled_loss.backward()
                 else:
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+                    loss.backward()
 
-                self.optimizer.step()
-                self.scheduler.step()
-                step += 1
+                LM.unmask_text(mask, target, texts)
 
-            loss = float(loss.data) * ntokens
-            total_loss += loss
-            cur_loss += loss
-            total_tokens += ntokens
-            tokens += ntokens
+                if self.optimizer is not None:
+                    if self.fp16:
+                        torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
+                    else:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
 
-            if step % 50 == 0:
-                elapsed = time.time() - start
-                print(datetime.datetime.now(),
-                      "Epoch Step: %d Loss: %f Tokens per Sec: %f" % (step, cur_loss / tokens, tokens / elapsed))
+                    self.optimizer.step()
+                    self.scheduler.step()
+                    step += 1
 
-                if step % 500 == 0:
-                    self.validate_and_save(saving_path, valid_data_iter)
+                loss = float(loss.data) * ntokens
+                total_loss += loss
+                cur_loss += loss
+                total_tokens += ntokens
+                tokens += ntokens
 
-                start, tokens, cur_loss = time.time(), 0, 0
+                if step % 50 == 0:
+                    elapsed = time.time() - start
+                    print(datetime.datetime.now(),
+                          "Epoch Step: %d Loss: %f Tokens per Sec: %f" % (step, cur_loss / tokens, tokens / elapsed))
+
+                    if step % 500 == 0:
+                        self.validate_and_save(saving_path, valid_data_iter)
+
+                    start, tokens, cur_loss = time.time(), 0, 0
+            except RuntimeError as err:
+                pass
 
         current_loss = total_loss / total_tokens
         print("Total loss in this epoch: %f" % current_loss)
@@ -143,6 +148,8 @@ class Trainer:
                 self.model.module if hasattr(self.model, "module") else self.model
             )
             model_to_save.save(saving_path + ".latest")
+            with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
         self.last_train_loss = current_loss
 
         self.validate_and_save(saving_path, valid_data_iter)
@@ -180,6 +187,8 @@ class Trainer:
                     self.model.module if hasattr(self.model, "module") else self.model
                 )
                 model_to_save.save(saving_path)
+                with open(os.path.join(saving_path, "optim"), "wb") as fp:
+                    pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
             model.train()
 
     @staticmethod
@@ -199,11 +208,17 @@ class Trainer:
         valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size,
                                          load_all=True)
 
-        trainer = Trainer(model=lm, mask_prob=options.mask_prob,
-                          optimizer=Trainer.build_optimizer(lm, options.learning_rate, options.weight_decay),
-                          clip=options.clip, warmup=options.warmup, step=options.step,
-                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, distributed=options.distributed,
-                          local_rank=options.local_rank)
+        if options.continue_train:
+            with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
+                optimizer, last_epoch = pickle.load(fp)
+        else:
+            optimizer, last_epoch = LMTrainer.build_optimizer(lm, options.learning_rate, options.weight_decay), 0
+
+        trainer = LMTrainer(model=lm, mask_prob=options.mask_prob,
+                            optimizer=optimizer,
+                            clip=options.clip, warmup=options.warmup, step=options.step,
+                            fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, distributed=options.distributed,
+                            local_rank=options.local_rank, last_epoch=last_epoch)
 
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
         train_sampler, valid_sampler = None, None
@@ -248,6 +263,8 @@ def get_options():
     parser.add_option("--step", dest="step", help="Number of training steps", type="int", default=125000)
     parser.add_option("--decay", dest="weight_decay", help="Weight decay", type="float", default=0.01)
     parser.add_option("--max_grad_norm", dest="max_grad_norm", help="Max grad norm", type="float", default=1.0)
+    parser.add_option("--cont", action="store_true", dest="continue_train",
+                      help="Continue training from pretrained model", default=False)
     parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)
     parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
     parser.add_option("--local_rank", dest="local_rank", help="For distributed training", type="int", default=0)
@@ -270,5 +287,5 @@ def get_options():
 if __name__ == "__main__":
     options = get_options()
     print(options)
-    Trainer.train(options=options)
+    LMTrainer.train(options=options)
     print("Finished Training!")

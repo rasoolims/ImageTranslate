@@ -1,6 +1,7 @@
 import copy
 import datetime
 import os
+import pickle
 import sys
 import time
 from optparse import OptionParser
@@ -28,7 +29,7 @@ class MTTrainer:
     def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.3, clip: int = 1, optimizer=None,
                  warmup: int = 12500, step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
                  beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5, len_penalty_ratio: float = 0.8,
-                 self_translate: bool = False):
+                 self_translate: bool = False, last_epoch: int = 0):
         self.model = model
 
         self.clip = clip
@@ -46,9 +47,9 @@ class MTTrainer:
                 raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
             self.model, self.optimizer = apex.amp.initialize(self.model, self.optimizer, opt_level=fp16_opt_level)
 
-        if self.optimizer is not None:
-            self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
-                                                                   num_training_steps=step)
+        self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
+                                                               num_training_steps=step)
+        self.scheduler.last_epoch = last_epoch
 
         self.mask_prob = mask_prob
         self.criterion = SmoothedNLLLoss(
@@ -86,9 +87,7 @@ class MTTrainer:
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
         cur_loss = 0
         sentences = 0
-        model = (
-            self.model.module if hasattr(self.model, "module") else self.model
-        )
+        model = self.model.module if hasattr(self.model, "module") else self.model
 
         data_to_iter = data_iter if monolingual_data_iter is None else zip(data_iter, monolingual_data_iter)
         for i, batched in enumerate(data_to_iter):
@@ -202,6 +201,8 @@ class MTTrainer:
                 if step % 1000 == 0:
                     # Save every 1000 steps!
                     model.save_checkpoint(saving_path)
+                    with open(os.path.join(saving_path, "optim"), "wb") as fp:
+                        pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
                 if step % 500 == 0:
                     self.validate(valid_data_iter)
@@ -212,6 +213,8 @@ class MTTrainer:
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model.save(saving_path + ".latest")
+        with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+            pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
         self.validate(valid_data_iter)
         bleu = self.eval_bleu(valid_data_iter, saving_path)
@@ -270,6 +273,8 @@ class MTTrainer:
             self.best_bleu = bleu.score
             print("Saving best BLEU", self.best_bleu)
             model.save(saving_path)
+            with open(os.path.join(saving_path, "optim"), "wb") as fp:
+                pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
             with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
                 writer.write("\n".join(
@@ -364,12 +369,18 @@ class MTTrainer:
                                                    pin_memory=pin_memory) if monolingual_data is not None else None
         valid_loader = data_utils.DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
+        if options.continue_train:
+            with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
+                optimizer, last_epoch = pickle.load(fp)
+        else:
+            optimizer, last_epoch = MTTrainer.build_optimizer(mt_model, options.learning_rate, options.weight_decay), 0
         trainer = MTTrainer(model=mt_model, mask_prob=options.mask_prob,
-                            optimizer=MTTrainer.build_optimizer(mt_model, options.learning_rate, options.weight_decay),
+                            optimizer=optimizer,
                             clip=options.clip, warmup=options.warmup, step=options.step, fp16=options.fp16,
                             fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
                             max_len_a=options.max_len_a, max_len_b=options.max_len_b,
-                            len_penalty_ratio=options.len_penalty_ratio, self_translate=options.pretrain)
+                            len_penalty_ratio=options.len_penalty_ratio, self_translate=options.pretrain,
+                            last_epoch=last_epoch)
 
         print("creating reference")
         trainer.reference = []
@@ -485,6 +496,8 @@ def get_options():
     parser.add_option("--beam", dest="beam_width", help="Beam width", type="int", default=5)
     parser.add_option("--fp16", action="store_true", dest="fp16", help="use fp16; should be compatible", default=False)
     parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Disjoint encoder/decoder", default=False)
+    parser.add_option("--cont", action="store_true", dest="continue_train",
+                      help="Continue training from pretrained model", default=False)
     parser.add_option("--size", dest="model_size", help="1 base, 2 medium, 3 small, 4 toy", type="int", default=3)
     parser.add_option("--max_len_a", dest="max_len_a", help="a for beam search (a*l+b)", type="float", default=1.8)
     parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)

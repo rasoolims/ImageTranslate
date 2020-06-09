@@ -1,6 +1,7 @@
 import copy
 import datetime
 import os
+import pickle
 import random
 import sys
 import time
@@ -354,14 +355,19 @@ class MassTrainer(MTTrainer):
                         # Assuming that we only have two languages!
                         lang_directions[lang1] = lang2
 
+        if options.continue_train:
+            with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
+                optimizer, last_epoch = pickle.load(fp)
+        else:
+            optimizer, last_epoch = MTTrainer.build_optimizer(mt_model, options.learning_rate, options.weight_decay), 0
+
         trainer = MassTrainer(model=mt_model, mask_prob=options.mask_prob,
-                              optimizer=MassTrainer.build_optimizer(mt_model, options.learning_rate,
-                                                                    options.weight_decay),
+                              optimizer=optimizer,
                               clip=options.clip, warmup=options.warmup, step=options.step + options.finetune_step,
                               fp16=options.fp16,
                               fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
                               max_len_a=options.max_len_a, max_len_b=options.max_len_b,
-                              len_penalty_ratio=options.len_penalty_ratio)
+                              len_penalty_ratio=options.len_penalty_ratio, last_epoch=last_epoch)
 
         mt_valid_loader = None
         if options.mt_valid_path is not None:
@@ -436,6 +442,8 @@ def get_options():
     parser.add_option("--size", dest="model_size", help="1 base, 2 medium, 3 small, 4 toy", type="int", default=3)
     parser.add_option("--max_len_a", dest="max_len_a", help="a for beam search (a*l+b)", type="float", default=1.8)
     parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)
+    parser.add_option("--cont", action="store_true", dest="continue_train",
+                      help="Continue training from pretrained model", default=False)
     parser.add_option("--len-penalty", dest="len_penalty_ratio", help="Length penalty", type="float", default=0.8)
     parser.add_option("--checkpoint", dest="checkpoint", help="Number of checkpoints to average", type="int", default=5)
     parser.add_option(

@@ -1,189 +1,21 @@
-import datetime
 import os
+import pickle
 import sys
-import time
 from optparse import OptionParser
 
 import torch
-import torch.backends.cudnn as cudnn
-import torch.nn as nn
 import torch.utils.data as data_utils
-import transformers.optimization as optim
 from IPython.core import ultratb
 
 import dataset
-from parallel import DataParallelModel, DataParallelCriterion
-from pytorch_lamb.pytorch_lamb import Lamb
 from reformer_lm import ReformerLM
 from textprocessor import TextProcessor
+from train_lm import LMTrainer
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
 
-class Trainer:
-    def __init__(self, model: ReformerLM, mask_prob: float = 0.15, clip: int = 1, optimizer=None, warmup: int = 12500,
-                 step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01", distributed: bool = False,
-                 local_rank: int = 0):
-        self.model = model
-
-        self.clip = clip
-        self.optimizer = optimizer
-        self.fp16 = fp16
-        self.distributed = distributed
-        self.local_rank = local_rank
-
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = self.model.to(self.device)
-
-        if fp16 or distributed:
-            cudnn.enabled = True
-            try:
-                import apex
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-            self.model, self.optimizer = apex.amp.initialize(self.model, self.optimizer, opt_level=fp16_opt_level)
-
-        if self.optimizer is not None:
-            if self.optimizer is not None:
-                self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
-                                                                       num_training_steps=step)
-        self.mask_prob = mask_prob
-        self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
-
-        num_gpu = torch.cuda.device_count()
-        if num_gpu > 1:
-            print("Let's use", num_gpu, "GPUs!")
-            if distributed:
-                torch.cuda.set_device(local_rank)
-                os.environ['MASTER_ADDR'] = "127.0.0.1"
-                os.environ['MASTER_PORT'] = "29500"
-                torch.distributed.init_process_group(backend='nccl', init_method='env://', rank=local_rank,
-                                                     world_size=1)
-                self.model = apex.parallel.DistributedDataParallel(self.model)
-            else:
-                self.model = DataParallelModel(self.model)
-                self.criterion = DataParallelCriterion(self.criterion)
-
-        self.best_valid_loss = float("inf")
-        self.best_train_loss = float("inf")
-        self.last_train_loss = float("inf")
-
-    @staticmethod
-    def build_optimizer(model, learning_rate, weight_decay):
-        return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
-
-    def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader,
-                    saving_path: str, step: int, max_grad_norm: float = 1.0):
-        if self.fp16 or self.distributed:
-            try:
-                import apex
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-
-        "Standard Training and Logging Function"
-        start = time.time()
-        total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
-        cur_loss = 0
-
-        for i, batch in enumerate(data_iter):
-            if self.optimizer is not None:
-                self.optimizer.zero_grad()
-            model_to_call = self.model.module if hasattr(self.model, "module") else self.model
-            mask, target, texts = ReformerLM.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"],
-                                                       model_to_call.text_processor)
-            try:
-                predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
-                ntokens = target.size(0)
-
-                if ntokens == 0:  # Nothing to predict!
-                    continue
-
-                if self.distributed:
-                    target = target.to(predictions.device)
-                loss = self.criterion(predictions, target).mean()
-                if self.fp16 or self.distributed:
-                    with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                        scaled_loss.backward()
-                else:
-                    loss.backward()
-
-                ReformerLM.unmask_text(mask, target, texts)
-
-                if self.optimizer is not None:
-                    if self.fp16:
-                        torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
-                    else:
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
-
-                    self.optimizer.step()
-                    self.scheduler.step()
-                    step += 1
-
-                loss = float(loss.data) * ntokens
-                total_loss += loss
-                cur_loss += loss
-                total_tokens += ntokens
-                tokens += ntokens
-
-                if step % 50 == 0:
-                    elapsed = time.time() - start
-                    print(datetime.datetime.now(),
-                          "Epoch Step: %d Loss: %f Tokens per Sec: %f" % (step, cur_loss / tokens, tokens / elapsed))
-
-                    if step % 500 == 0:
-                        self.validate_and_save(saving_path, valid_data_iter)
-
-                    start, tokens, cur_loss = time.time(), 0, 0
-            except:
-                pass
-                # print("Skipped using batch for memory issues", texts.size(), target.size())
-
-        current_loss = total_loss / total_tokens
-        print("Total loss in this epoch: %f" % current_loss)
-        if current_loss < self.best_train_loss:
-            self.best_train_loss = current_loss
-            model_to_save = (
-                self.model.module if hasattr(self.model, "module") else self.model
-            )
-            model_to_save.save(saving_path + ".latest")
-        self.last_train_loss = current_loss
-
-        self.validate_and_save(saving_path, valid_data_iter)
-        return step
-
-    def validate_and_save(self, saving_path, valid_data_iter):
-        with torch.no_grad():
-            model = (
-                self.model.module if hasattr(self.model, "module") else self.model
-            )
-            model.eval()
-            total_valid_loss, total_valid_tokens = 0, 0
-            for batch in valid_data_iter:
-                model_to_call = self.model.module if hasattr(self.model, "module") else self.model
-                mask, target, texts = ReformerLM.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"].clone(),
-                                                           model_to_call.text_processor)
-                predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"])
-                ntokens = target.size(0)
-
-                if ntokens == 0:  # Nothing to predict!
-                    continue
-                if self.distributed:
-                    target = target.to(predictions.device)
-                loss = self.criterion(predictions, target).mean().data * ntokens
-                total_valid_loss += float(loss)
-                total_valid_tokens += ntokens
-
-            valid_loss = total_valid_loss / total_valid_tokens
-            print("Current valid loss", valid_loss)
-            if self.best_valid_loss > float(valid_loss):
-                self.best_valid_loss = float(valid_loss)
-                print("saving best valid loss", self.best_valid_loss)
-                model_to_save = (
-                    self.model.module if hasattr(self.model, "module") else self.model
-                )
-                model_to_save.save(saving_path)
-            model.train()
-
+class ReformerTrainer(LMTrainer):
     @staticmethod
     def train(options):
         if not os.path.exists(options.model_path):
@@ -201,11 +33,17 @@ class Trainer:
         valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size,
                                          load_all=True)
 
-        trainer = Trainer(model=lm, mask_prob=options.mask_prob,
-                          optimizer=Trainer.build_optimizer(lm, options.learning_rate, options.weight_decay),
-                          clip=options.clip, warmup=options.warmup, step=options.step,
-                          fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, distributed=options.distributed,
-                          local_rank=options.local_rank)
+        if options.continue_train:
+            with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
+                optimizer, last_epoch = pickle.load(fp)
+        else:
+            optimizer, last_epoch = ReformerTrainer.build_optimizer(lm, options.learning_rate, options.weight_decay), 0
+        trainer = ReformerTrainer(model=lm, mask_prob=options.mask_prob,
+                                  optimizer=optimizer,
+                                  clip=options.clip, warmup=options.warmup, step=options.step,
+                                  fp16=options.fp16, fp16_opt_level=options.fp16_opt_level,
+                                  distributed=options.distributed,
+                                  local_rank=options.local_rank, last_epoch=last_epoch)
 
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
         train_sampler, valid_sampler = None, None
@@ -252,6 +90,8 @@ def get_options():
     parser.add_option("--max_grad_norm", dest="max_grad_norm", help="Max grad norm", type="float", default=1.0)
     parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)
     parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
+    parser.add_option("--cont", action="store_true", dest="continue_train",
+                      help="Continue training from pretrained model", default=False)
     parser.add_option("--local_rank", dest="local_rank", help="For distributed training", type="int", default=0)
     parser.add_option("--fp16", action="store_true", dest="fp16", help="use fp16; should be compatible", default=False)
     parser.add_option("--distributed", action="store_true", dest="distributed",
@@ -271,5 +111,5 @@ def get_options():
 if __name__ == "__main__":
     options = get_options()
     print(options)
-    Trainer.train(options=options)
+    ReformerTrainer.train(options=options)
     print("Finished Training!")

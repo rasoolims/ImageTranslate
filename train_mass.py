@@ -140,6 +140,8 @@ class MassTrainer(MTTrainer):
                 if step % 1000 == 0:
                     # Save every 1000 steps!
                     model.save_checkpoint(saving_path)
+                    with open(os.path.join(saving_path, "optim"), "wb") as fp:
+                        pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
                 if step % 500 == 0:
                     self.validate(valid_data_iter)
@@ -148,6 +150,8 @@ class MassTrainer(MTTrainer):
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model.save(saving_path + ".latest")
+        with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+            pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
         self.validate(valid_data_iter)
         if mt_valid_iter is not None:
@@ -254,6 +258,8 @@ class MassTrainer(MTTrainer):
                 if step % 1000 == 0:
                     # Save every 1000 steps!
                     model.save_checkpoint(saving_path)
+                    with open(os.path.join(saving_path, "optim"), "wb") as fp:
+                        pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
                 if step % 500 == 0 and valid_data_iter is not None:
                     bleu = self.eval_bleu(valid_data_iter, saving_path)
@@ -263,6 +269,8 @@ class MassTrainer(MTTrainer):
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model.save(saving_path + ".latest")
+        with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+            pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
         if valid_data_iter is not None:
             bleu = self.eval_bleu(valid_data_iter, saving_path)

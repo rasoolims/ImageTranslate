@@ -138,7 +138,6 @@ class MassTrainer(MTTrainer):
 
             except RuntimeError as err:
                 print("Error in processing", src_inputs.size(), src_inputs.size())
-                torch.cuda.empty_cache()
 
             if step % 50 == 0 and tokens > 0:
                 elapsed = time.time() - start
@@ -246,7 +245,6 @@ class MassTrainer(MTTrainer):
 
             except RuntimeError as err:
                 print("Error in processing", src_inputs.size(), src_inputs.size())
-                torch.cuda.empty_cache()
 
             if step % 50 == 0 and tokens > 0:
                 elapsed = time.time() - start
@@ -301,7 +299,6 @@ class MassTrainer(MTTrainer):
                     total_valid_tokens += ntokens
                 except RuntimeError:
                     print("Error in processing", src_inputs.size(), src_inputs.size())
-                    torch.cuda.empty_cache()
 
             valid_loss = total_valid_loss / total_valid_tokens
             print("Current valid loss", valid_loss)

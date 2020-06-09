@@ -89,7 +89,7 @@ class AlbertSeq2Seq(nn.Module):
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
-            mt_model = MassSeq2Seq(config=config, encoder=lm.encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
+            mt_model = AlbertSeq2Seq(config=config, encoder=lm.encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
                                    text_processor=lm.text_processor, checkpoint=checkpoint)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm
@@ -164,6 +164,12 @@ class MassSeq2Seq(AlbertSeq2Seq):
         if log_softmax:
             outputs = F.log_softmax(outputs, dim=-1)
         return outputs
+
+    @staticmethod
+    def load(out_dir: str, tok_dir: str):
+        mt_model, lm  = AlbertSeq2Seq.load(out_dir, tok_dir)
+        mt_model.__class__ = MassSeq2Seq
+        return mt_model, lm
 
 
 class AlbertDecoderAttention(nn.Module):

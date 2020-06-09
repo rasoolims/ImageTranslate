@@ -192,6 +192,12 @@ class MassTrainer(MTTrainer):
                     outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=target_langs,
                                              src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
                                              src_mask=src_pad_mask)
+                    if self.num_gpu > 1:
+                        new_outputs = []
+                        for output in outputs:
+                            new_outputs += output
+                        outputs = new_outputs
+                        
                     translations = pad_sequence(outputs, batch_first=True)
                     translation_pad_mask = (translations != model.text_processor.pad_token_id())
                 model.train()

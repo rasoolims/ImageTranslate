@@ -251,7 +251,7 @@ class MTTrainer:
                     for output in outputs:
                         new_outputs += output
                     outputs = new_outputs
-                    
+
                 for output in outputs:
                     mt_output.append(generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
 

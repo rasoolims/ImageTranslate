@@ -163,7 +163,7 @@ class MassDataset(MTDataset):
 
                 cur_src_batch, cur_langs, cur_max_src_len = [], [], 0
                 for example in examples:
-                    if len(example) > max_seq_len:
+                    if len(example[0]) > max_seq_len:
                         continue
                     src, lang = example[0], example[1]
                     self.lang_ids.add(int(src[0]))

@@ -26,7 +26,6 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
     src_text = texts.clone()
 
     pad_indices = ((pads.cumsum(0) == pads) & pads).max(1)[1]
-    interval_sizes = pad_indices / 2
     mask_indices = [random.randint(1, int(x)) for x in pad_indices - (1 - mask_prob) * pad_indices]
     src_mask = torch.zeros(src_text.size(), dtype=torch.bool)
     to_recover = []
@@ -197,7 +196,7 @@ class MassTrainer(MTTrainer):
                         for output in outputs:
                             new_outputs += output
                         outputs = new_outputs
-                        
+
                     translations = pad_sequence(outputs, batch_first=True)
                     translation_pad_mask = (translations != model.text_processor.pad_token_id())
                 model.train()

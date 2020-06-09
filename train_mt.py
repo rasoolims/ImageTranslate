@@ -234,13 +234,15 @@ class MTTrainer:
                 src_langs = batch["src_langs"]
                 dst_langs = batch["dst_langs"]
 
+                generator = (
+                    self.generator.module if hasattr(self.generator, "module") else self.generator
+                )
                 if self.self_translate:
                     mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
                                                                 text_processor=model.text_processor, mask_eos=False)
 
                 src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs)
-                src_text += [self.generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in
-                             src_ids]
+                src_text += [generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in src_ids]
 
                 outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=tgt_inputs[:, 0],
                                          src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs)
@@ -365,11 +367,13 @@ class MTTrainer:
 
         print("creating reference")
         trainer.reference = []
-
+        generator = (
+            trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
+        )
         for batch in valid_loader:
             tgt_inputs = batch["dst_texts"].squeeze()
             refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
-            ref = [trainer.generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
+            ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
             trainer.reference += ref
 
         print("Trying if largest batch fits into memory")

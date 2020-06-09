@@ -369,10 +369,14 @@ class MassTrainer(MTTrainer):
             print("creating reference")
             trainer.reference = []
 
+            generator = (
+                trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
+            )
+
             for batch in mt_valid_loader:
                 tgt_inputs = batch["dst_texts"].squeeze()
                 refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
-                ref = [trainer.generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
+                ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
                 trainer.reference += ref
 
         step, train_epoch = 0, 1

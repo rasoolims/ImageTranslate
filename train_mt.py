@@ -237,9 +237,6 @@ class MTTrainer:
                 src_langs = batch["src_langs"].squeeze(0)
                 dst_langs = batch["dst_langs"].squeeze(0)
 
-                generator = (
-                    self.generator.module if hasattr(self.generator, "module") else self.generator
-                )
                 if self.self_translate:
                     mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
                                                                 text_processor=model.text_processor, mask_eos=False)
@@ -249,6 +246,12 @@ class MTTrainer:
 
                 outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=tgt_inputs[:, 0],
                                          src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs)
+                if self.num_gpu > 1:
+                    new_outputs = []
+                    for output in outputs:
+                        new_outputs += output
+                    outputs = new_outputs
+                    
                 for output in outputs:
                     mt_output.append(generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
 

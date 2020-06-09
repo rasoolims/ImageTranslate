@@ -100,8 +100,8 @@ class MTDataset(Dataset):
                     src_pad_mask = (src_batch != pad_idx)
                     dst_pad_mask = (dst_batch != pad_idx)
                     entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                             "dst_pad_mask": dst_pad_mask, "src_langs": cur_src_langs[:-1],
-                             "dst_langs": cur_dst_langs[:-1]}
+                             "dst_pad_mask": dst_pad_mask, "src_langs": torch.LongTensor(cur_src_langs[:-1]),
+                             "dst_langs": torch.LongTensor(cur_dst_langs[:-1])}
                     b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
                     this_batch_size = (s ** 2 + d ** 2) * b * d
                     if this_batch_size > self.longest_batch[1]:
@@ -119,7 +119,8 @@ class MTDataset(Dataset):
             src_pad_mask = (src_batch != pad_idx)
             dst_pad_mask = (dst_batch != pad_idx)
             entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                     "dst_pad_mask": dst_pad_mask, "src_langs": cur_src_langs, "dst_langs": cur_dst_langs}
+                     "dst_pad_mask": dst_pad_mask, "src_langs": torch.LongTensor(cur_src_langs),
+                     "dst_langs": torch.LongTensor(cur_dst_langs)}
             b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
             this_batch_size = (s ** 2 + d ** 2) * b * d
             if this_batch_size > self.longest_batch[1]:
@@ -181,7 +182,8 @@ class MassDataset(MTDataset):
                         src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
                         src_pad_mask = (src_batch != pad_idx)
 
-                        entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "langs": cur_langs[:-1]}
+                        entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask,
+                                 "langs": torch.LongTensor(cur_langs[:-1])}
                         b, s = int(src_batch.size(0)), int(src_batch.size(1))
                         this_batch_size = 2 * (s ** 3) * b
                         if this_batch_size > self.longest_batch[1]:
@@ -199,7 +201,7 @@ class MassDataset(MTDataset):
             if src_batch.size(0) < num_gpu:
                 print("skipping", src_batch.size())
             else:
-                entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "langs": cur_langs}
+                entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "langs": torch.LongTensor(cur_langs)}
                 b, s = int(src_batch.size(0)), int(src_batch.size(1))
                 this_batch_size = 2 * (s ** 3) * b
                 if this_batch_size > self.longest_batch[1]:
@@ -317,7 +319,7 @@ class TextCollator(object):
             langs.append(b[1])
         padded_text = pad_sequence(batch_text, batch_first=True, padding_value=self.pad_idx)
         pad_mask = (padded_text != self.pad_idx)
-        return {"texts": padded_text, "pad_mask": pad_mask, "langs": langs}
+        return {"texts": padded_text, "pad_mask": pad_mask, "langs": torch.LongTensor(langs)}
 
 
 class ImageTextCollator(object):

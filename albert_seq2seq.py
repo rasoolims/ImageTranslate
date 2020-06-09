@@ -37,10 +37,10 @@ class AlbertSeq2Seq(nn.Module):
     def forward(self, device, src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs,
                 log_softmax: bool = False):
         "Take in and process masked src and target sequences."
-        src_langs = src_langs.squeeze().unsqueeze(-1).expand(-1, src_inputs.size(-1))
+        src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
         encoder_states = self.encode(device, src_inputs, src_mask, src_langs)[0]
 
-        tgt_langs = tgt_langs.squeeze().unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
+        tgt_langs = tgt_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
         tgt_inputs = tgt_inputs.to(device)
 
         subseq_mask = future_mask(tgt_mask[:, :-1]).to(device)
@@ -143,10 +143,10 @@ class MassSeq2Seq(AlbertSeq2Seq):
                                    log_softmax=log_softmax)
 
         "Take in and process masked src and target sequences."
-        src_langs_t = src_langs.squeeze().unsqueeze(-1).expand(-1, src_inputs.size(-1))
+        src_langs_t = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
         encoder_states = self.encode(device, src_inputs, src_pads, src_langs_t)[0]
 
-        tgt_langs = src_langs.squeeze().unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
+        tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
         tgt_inputs = tgt_inputs.to(device)
 
         subseq_mask = future_mask(target_non_pads[:, :-1]).to(device)

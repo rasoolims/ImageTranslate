@@ -20,6 +20,8 @@ mkdir [model-folder]
 ```bash
 python3 -u train_tokenizer.py --data [train-txt-file] --vocab_size [size] --model [tokenizer-folder]
 ```
+- Use ````[size]```` of 30000
+
 3. Tokenize and binarize the training and development file
 ```bash
 python3 -u create_batches.py --data [train-txt-file]  --cache  [train-binary-folder] --tok [tokenizer-folder] --len 4096
@@ -29,7 +31,7 @@ python3 -u create_batches.py --data [train-txt-file]  --cache  [train-binary-fol
 python3 -u create_batches.py --data [dev-txt-file]  --cache  [dev-binary-folder] --tok [tokenizer-folder] --len 4096
 ```
 
--- Note that this might take a long time. Try to use __screen__ or __nohup__.
+- Note that this might take a long time. Try to use __screen__ or __nohup__.
 
 4. Train
 ```bash

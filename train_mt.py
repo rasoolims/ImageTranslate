@@ -225,6 +225,9 @@ class MTTrainer:
             self.model.module if hasattr(self.model, "module") else self.model
         )
         model.eval()
+        generator = (
+            self.generator.module if hasattr(self.generator, "module") else self.generator
+        )
 
         with torch.no_grad():
             for batch in valid_data_iter:
@@ -247,7 +250,7 @@ class MTTrainer:
                 outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=tgt_inputs[:, 0],
                                          src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs)
                 for output in outputs:
-                    mt_output.append(self.generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
+                    mt_output.append(generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
 
                 if self.self_translate:
                     LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)

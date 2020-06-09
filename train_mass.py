@@ -187,8 +187,9 @@ class MassTrainer(MTTrainer):
             src_pad_mask = batch["src_pad_mask"].squeeze(0)
 
             target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
-            dst_langs = [model.text_processor.languages[model.text_processor.id2token(lang_directions[int(l)])] for l in
-                         src_inputs[:, 0]]
+            dst_langs = torch.LongTensor(
+                [model.text_processor.languages[model.text_processor.id2token(lang_directions[int(l)])] for l in
+                 src_inputs[:, 0]])
             if src_inputs.size(0) < self.num_gpu:
                 continue
 

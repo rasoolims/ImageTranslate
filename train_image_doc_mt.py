@@ -183,7 +183,7 @@ class Trainer:
             else:
                 lm = LM.load(options.lm_path)
 
-            decoder = copy.DeepCopy(lm.encoder) if options.sep_encoder else lm.encoder
+            decoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
             mt_model = ImageSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                     text_processor=lm.text_processor, checkpoint=options.checkpoint)
 

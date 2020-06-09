@@ -62,6 +62,9 @@ class MTTrainer:
 
         self.generator = BeamDecoder(model, beam_width=beam_width, max_len_a=max_len_a, max_len_b=max_len_b,
                                      len_penalty_ratio=len_penalty_ratio)
+        if self.num_gpu > 1:
+            self.generator = DataParallelModel(self.generator)
+
         self.reference = None
         self.best_bleu = -1.0
 

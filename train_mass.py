@@ -15,7 +15,7 @@ from torch.nn.utils.rnn import pad_sequence
 import dataset
 from albert_seq2seq import MassSeq2Seq
 from lm import LM
-from seq_gen import BeamDecoder, get_outputs_until_eos
+from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mt import MTTrainer
 
@@ -63,15 +63,6 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
 
 
 class MassTrainer(MTTrainer):
-    def __init__(self, model: MassSeq2Seq, mask_prob: float = 0.5, clip: int = 1, optimizer=None,
-                 warmup: int = 12500, step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
-                 beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5, len_penalty_ratio: float = 0.8):
-        super().__init__(model=model, mask_prob=mask_prob, clip=clip, optimizer=optimizer, warmup=warmup, step=step,
-                         fp16=fp16, fp16_opt_level=fp16_opt_level, beam_width=beam_width, max_len_a=max_len_a,
-                         max_len_b=max_len_b, len_penalty_ratio=len_penalty_ratio)
-        self.generator = BeamDecoder(model, beam_width=beam_width, max_len_a=max_len_a, max_len_b=max_len_b,
-                                     len_penalty_ratio=len_penalty_ratio)
-
     def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader, saving_path: str,
                     step: int, mt_valid_iter: data_utils.DataLoader = None, max_grad_norm: float = 1.0, **kwargs):
         if self.fp16:

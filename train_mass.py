@@ -104,7 +104,8 @@ class MassTrainer(MTTrainer):
             try:
                 predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=to_recover,
                                          tgt_positions=positions, src_pads=src_pad_mask,
-                                         pad_idx=model.text_processor.pad_token_id(), src_langs=batch["langs"],
+                                         pad_idx=model.text_processor.pad_token_id(),
+                                         src_langs=batch["langs"].squeeze(0),
                                          log_softmax=True)
                 ntokens = targets.size(0)
 
@@ -198,7 +199,7 @@ class MassTrainer(MTTrainer):
                 with torch.no_grad():
                     # We do not backpropagate the data generator following the MASS paper.
                     outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=target_langs,
-                                             src_langs=batch["langs"], tgt_langs=dst_langs,
+                                             src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
                                              src_mask=src_pad_mask)
                     translations = pad_sequence(outputs, batch_first=True)
                     translation_pad_mask = (translations != model.text_processor.pad_token_id())
@@ -209,7 +210,7 @@ class MassTrainer(MTTrainer):
                                          src_pads=translation_pad_mask,
                                          pad_idx=model.text_processor.pad_token_id(),
                                          src_langs=dst_langs,
-                                         tgt_langs=batch["langs"],
+                                         tgt_langs=batch["langs"].squeeze(0),
                                          log_softmax=True)
                 src_targets = src_inputs[:, 1:].contiguous().view(-1)
                 src_mask_flat = src_pad_mask[:, 1:].contiguous().view(-1)
@@ -288,7 +289,8 @@ class MassTrainer(MTTrainer):
                 try:
                     predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=to_recover,
                                              tgt_positions=positions, src_pads=src_pad_mask,
-                                             pad_idx=model.text_processor.pad_token_id(), src_langs=batch["langs"],
+                                             pad_idx=model.text_processor.pad_token_id(),
+                                             src_langs=batch["langs"].squeeze(0),
                                              log_softmax=True)
                     ntokens = targets.size(0)
 

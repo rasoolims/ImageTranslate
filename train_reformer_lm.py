@@ -28,8 +28,7 @@ class ReformerTrainer(LMTrainer):
         else:
             lm = ReformerLM.load(options.pretrained_path)
 
-        train_data = dataset.TextDataset(save_cache_dir=options.train_path, max_cache_size=options.cache_size,
-                                         load_all=options.distributed)
+        train_data = dataset.TextDataset(save_cache_dir=options.train_path, max_cache_size=options.cache_size)
         dev_data = dataset.TextDataset(save_cache_dir=options.dev_path, max_cache_size=options.cache_size,
                                        load_all=True)
 
@@ -37,19 +36,13 @@ class ReformerTrainer(LMTrainer):
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
                 optimizer, last_epoch = pickle.load(fp)
         else:
-            optimizer, last_epoch = ReformerTrainer.build_optimizer(lm, options.learning_rate, options.weight_decay), 0
-        trainer = ReformerTrainer(model=lm, mask_prob=options.mask_prob,
-                                  optimizer=optimizer,
-                                  clip=options.clip, warmup=options.warmup, step=options.step,
-                                  fp16=options.fp16, fp16_opt_level=options.fp16_opt_level,
-                                  distributed=options.distributed,
-                                  local_rank=options.local_rank, last_epoch=last_epoch)
+            optimizer, last_epoch = train_lm.LMTrainer.build_optimizer(lm, options.learning_rate,
+                                                                       options.weight_decay), 0
+        trainer = ReformerTrainer(model=lm, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
+                                  warmup=options.warmup, step=options.step, last_epoch=last_epoch)
 
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
         train_sampler, dev_sampler = None, None
-        if options.distributed:
-            train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
-            dev_sampler = torch.utils.data.distributed.DistributedSampler(dev_data)
 
         pin_memory = torch.cuda.is_available()
         loader = data_utils.DataLoader(train_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,

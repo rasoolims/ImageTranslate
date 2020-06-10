@@ -13,6 +13,7 @@ from IPython.core import ultratb
 from torch.nn.utils.rnn import pad_sequence
 
 import dataset
+import train_lm
 import train_mt
 from albert_seq2seq import MassSeq2Seq
 from lm import LM
@@ -65,12 +66,6 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
 class MassTrainer(MTTrainer):
     def train_epoch(self, data_iter: data_utils.DataLoader, dev_data_iter: data_utils.DataLoader, saving_path: str,
                     step: int, mt_dev_iter: data_utils.DataLoader = None, max_grad_norm: float = 1.0, **kwargs):
-        if self.fp16:
-            try:
-                import apex
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -104,11 +99,7 @@ class MassTrainer(MTTrainer):
                     continue
 
                 loss = self.criterion(predictions, targets).mean() * ntokens
-                if self.fp16:
-                    with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                        scaled_loss.backward()
-                else:
-                    loss.backward()
+                loss.backward()
 
                 loss = float(loss.data)
                 total_loss += loss
@@ -119,11 +110,7 @@ class MassTrainer(MTTrainer):
 
                 if self.optimizer is not None:
                     # We accumulate the gradients for both tasks!
-                    if self.fp16:
-                        torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
-                    else:
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
-
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
                     self.optimizer.step()
                     self.scheduler.step()
                     step += 1
@@ -161,12 +148,6 @@ class MassTrainer(MTTrainer):
 
     def fine_tune(self, data_iter: data_utils.DataLoader, lang_directions: Dict[int, int], saving_path: str,
                   step: int, max_grad_norm: float = 1.0, dev_data_iter: data_utils.DataLoader = None):
-        if self.fp16:
-            try:
-                import apex
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -222,11 +203,7 @@ class MassTrainer(MTTrainer):
                     continue
 
                 bt_loss = self.criterion(predictions, targets).mean()
-                if self.fp16:
-                    with apex.amp.scale_loss(bt_loss, self.optimizer) as scaled_loss:
-                        scaled_loss.backward()
-                else:
-                    bt_loss.backward()
+                bt_loss.backward()
 
                 bt_loss = float(bt_loss.data) * ntokens
                 total_loss += bt_loss
@@ -237,11 +214,7 @@ class MassTrainer(MTTrainer):
 
                 if self.optimizer is not None:
                     # We accumulate the gradients for both tasks!
-                    if self.fp16:
-                        torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
-                    else:
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
-
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
                     self.optimizer.step()
                     self.scheduler.step()
                     step += 1
@@ -367,14 +340,12 @@ class MassTrainer(MTTrainer):
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
                 optimizer, last_epoch = pickle.load(fp)
         else:
-            optimizer, last_epoch = MTTrainer.build_optimizer(mt_model, options.learning_rate, options.weight_decay), 0
+            optimizer, last_epoch = train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
+                                                                       options.weight_decay), 0
 
-        trainer = MassTrainer(model=mt_model, mask_prob=options.mask_prob,
-                              optimizer=optimizer,
-                              clip=options.clip, warmup=options.warmup, step=options.step + options.finetune_step,
-                              fp16=options.fp16,
-                              fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
-                              max_len_a=options.max_len_a, max_len_b=options.max_len_b,
+        trainer = MassTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
+                              warmup=options.warmup, step=options.step + options.finetune_step,
+                              beam_width=options.beam_width, max_len_a=options.max_len_a, max_len_b=options.max_len_b,
                               len_penalty_ratio=options.len_penalty_ratio, last_epoch=last_epoch)
 
         mt_dev_loader = None

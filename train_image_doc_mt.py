@@ -3,7 +3,6 @@ import datetime
 import os
 import sys
 import time
-from optparse import OptionParser
 
 import torch
 import torch.utils.data as data_utils
@@ -12,34 +11,24 @@ from IPython.core import ultratb
 from torchvision import transforms
 
 import dataset
+import train_lm
+import train_mt
 from image_doc_model import ImageSeq2Seq
 from lm import LM
 from loss import SmoothedNLLLoss
 from parallel import DataParallelModel, DataParallelCriterion
-from pytorch_lamb.pytorch_lamb import Lamb
 from textprocessor import TextProcessor
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
 
 class Trainer:
-    def __init__(self, model: ImageSeq2Seq, clip: int = 1, optimizer=None,
-                 warmup: int = 12500, step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01"):
+    def __init__(self, model: ImageSeq2Seq, clip: int = 1, optimizer=None, warmup: int = 12500, step: int = 125000):
         self.model: ImageSeq2Seq = model
-
         self.clip = clip
         self.optimizer = optimizer
-        self.fp16 = fp16
-
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.model.to(self.device)
-
-        if fp16:
-            try:
-                import apex
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-            self.model, self.optimizer = apex.amp.initialize(self.model, self.optimizer, opt_level=fp16_opt_level)
 
         if self.optimizer is not None:
             self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
@@ -53,18 +42,8 @@ class Trainer:
             self.model = DataParallelModel(self.model)
             self.criterion = DataParallelCriterion(self.criterion)
 
-    @staticmethod
-    def build_optimizer(model, learning_rate, weight_decay):
-        return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
-
     def train_epoch(self, data_iter: data_utils.DataLoader, step: int, max_grad_norm: float = 1.0,
                     dev_data_iter: data_utils.DataLoader = None, saving_path: str = None, ):
-        if self.fp16:
-            try:
-                import apex
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -90,11 +69,7 @@ class Trainer:
                     continue
 
                 loss = self.criterion(predictions, targets).mean()
-                if self.fp16:
-                    with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                        scaled_loss.backward()
-                else:
-                    loss.backward()
+                loss.backward()
 
                 loss = float(loss.data) * ntokens
                 total_loss += loss
@@ -105,11 +80,7 @@ class Trainer:
 
                 if self.optimizer is not None:
                     # We accumulate the gradients for both tasks!
-                    if self.fp16:
-                        torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
-                    else:
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
-
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
                     self.optimizer.step()
                     self.scheduler.step()
                     step += 1
@@ -223,9 +194,9 @@ class Trainer:
                                                pin_memory=pin_memory, collate_fn=collator)
 
         trainer = Trainer(model=mt_model,
-                          optimizer=Trainer.build_optimizer(mt_model, options.learning_rate, options.weight_decay),
-                          clip=options.clip, warmup=options.warmup, step=options.step, fp16=options.fp16,
-                          fp16_opt_level=options.fp16_opt_level)
+                          optimizer=train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
+                                                                       options.weight_decay),
+                          clip=options.clip, warmup=options.warmup, step=options.step)
 
         step, train_epoch = 0, 1
         while step <= options.step:
@@ -236,46 +207,15 @@ class Trainer:
             train_epoch += 1
 
 
-def get_options():
-    global options
-    parser = OptionParser()
-    parser.add_option("--train", dest="train_path", help="Path to the train data pickle files", metavar="FILE",
-                      default=None)
-    parser.add_option("--dev", dest="dev_path",
-                      help="Path to the train data pickle files", metavar="FILE", default=None)
+def get_options_parser():
+    parser = train_mt.get_option_parser()
     parser.add_option("--image", dest="image_dir", help="Path to the image files", metavar="FILE", default=None)
-    parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
-    parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
-                      default=None)
-    parser.add_option("--lm", dest="lm_path", help="LM pretrained model", metavar="FILE", default=None)
-    parser.add_option("--pretrained", dest="pretrained_path", help="MT pretrained model", metavar="FILE", default=None)
-    parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
-    parser.add_option("--capacity", dest="total_capacity", help="Batch capcity", type="int", default=40)
-    parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
-    parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.002)
-    parser.add_option("--warmup", dest="warmup", help="Number of warmup steps", type="int", default=12500)
-    parser.add_option("--step", dest="step", help="Number of training steps", type="int", default=125000)
-    parser.add_option("--decay", dest="weight_decay", help="Weight decay", type="float", default=0.01)
-    parser.add_option("--max_grad_norm", dest="max_grad_norm", help="Max grad norm", type="float", default=1.0)
-    parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)
-    parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
-    parser.add_option("--fp16", action="store_true", dest="fp16", help="use fp16; should be compatible", default=False)
-    parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Disjoint encoder/decoder", default=False)
-    parser.add_option("--size", dest="model_size", help="1 base, 2 medium, 3 small, 4 toy", type="int", default=3)
-    parser.add_option("--checkpoint", dest="checkpoint", help="Number of checkpoints to average", type="int", default=5)
-    parser.add_option(
-        "--fp16_opt_level",
-        type=str,
-        default="O1",
-        help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
-             "See details at https://nvidia.github.io/apex/amp.html",
-    )
-    (options, args) = parser.parse_args()
-    return options
+    return parser
 
 
 if __name__ == "__main__":
-    options = get_options()
+    parser = get_options_parser()
+    (options, args) = parser.parse_args()
     print(options)
     Trainer.train(options=options)
     print("Finished Training!")

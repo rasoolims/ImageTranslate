@@ -18,7 +18,6 @@ from albert_seq2seq import AlbertSeq2Seq
 from lm import LM
 from loss import SmoothedNLLLoss
 from parallel import DataParallelModel, DataParallelCriterion
-from pytorch_lamb.pytorch_lamb import Lamb
 from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
 
@@ -26,26 +25,17 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 class MTTrainer:
-    def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.3, clip: int = 1, optimizer=None,
-                 warmup: int = 12500, step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01",
-                 beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5, len_penalty_ratio: float = 0.8,
-                 self_translate: bool = False, last_epoch: int = 0):
+    def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
+                 step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
+                 len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0):
         self.model = model
 
         self.clip = clip
         self.optimizer = optimizer
-        self.fp16 = fp16
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.model.to(self.device)
         self.self_translate = self_translate
-
-        if fp16:
-            try:
-                import apex
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-            self.model, self.optimizer = apex.amp.initialize(self.model, self.optimizer, opt_level=fp16_opt_level)
 
         self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
                                                                num_training_steps=step)
@@ -69,19 +59,9 @@ class MTTrainer:
         self.reference = None
         self.best_bleu = -1.0
 
-    @staticmethod
-    def build_optimizer(model, learning_rate, weight_decay):
-        return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
-
     def train_epoch(self, data_iter: data_utils.DataLoader, dev_data_iter: data_utils.DataLoader, saving_path: str,
                     step: int, max_grad_norm: float = 1.0,
                     monolingual_data_iter: Optional[data_utils.DataLoader] = None):
-        if self.fp16:
-            try:
-                import apex
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -122,11 +102,7 @@ class MTTrainer:
                     continue
 
                 loss = self.criterion(predictions, targets).mean()
-                if self.fp16:
-                    with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                        scaled_loss.backward()
-                else:
-                    loss.backward()
+                loss.backward()
 
                 loss = float(loss.data) * ntokens
                 total_loss += loss
@@ -162,11 +138,7 @@ class MTTrainer:
                         continue
 
                     loss = self.criterion(predictions, targets).mean()
-                    if self.fp16:
-                        with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                            scaled_loss.backward()
-                    else:
-                        loss.backward()
+                    loss.backward()
 
                     loss = float(loss.data) * ntokens
                     total_loss += loss
@@ -178,11 +150,7 @@ class MTTrainer:
 
                 if self.optimizer is not None:
                     # We accumulate the gradients for both tasks!
-                    if self.fp16:
-                        torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
-                    else:
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
-
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
                     self.optimizer.step()
                     self.scheduler.step()
                     step += 1
@@ -373,11 +341,10 @@ class MTTrainer:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
                 optimizer, last_epoch = pickle.load(fp)
         else:
-            optimizer, last_epoch = MTTrainer.build_optimizer(mt_model, options.learning_rate, options.weight_decay), 0
-        trainer = MTTrainer(model=mt_model, mask_prob=options.mask_prob,
-                            optimizer=optimizer,
-                            clip=options.clip, warmup=options.warmup, step=options.step, fp16=options.fp16,
-                            fp16_opt_level=options.fp16_opt_level, beam_width=options.beam_width,
+            optimizer, last_epoch = train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
+                                                                       options.weight_decay), 0
+        trainer = MTTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
+                            warmup=options.warmup, step=options.step, beam_width=options.beam_width,
                             max_len_a=options.max_len_a, max_len_b=options.max_len_b,
                             len_penalty_ratio=options.len_penalty_ratio, self_translate=options.pretrain,
                             last_epoch=last_epoch)
@@ -406,12 +373,6 @@ class MTTrainer:
 
     @staticmethod
     def memory_test(train_data, trainer):
-        if trainer.fp16:
-            try:
-                import apex
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-
         src_inputs = train_data.longest_batch[0]["src_texts"]
         src_mask = train_data.longest_batch[0]["src_pad_mask"]
         tgt_inputs = train_data.longest_batch[0]["dst_texts"]
@@ -430,11 +391,7 @@ class MTTrainer:
         ntokens = targets.size(0)
         if ntokens > 0:  # Nothing to predict!
             loss = trainer.criterion(predictions, targets).mean()
-            if trainer.fp16:
-                with apex.amp.scale_loss(loss, trainer.optimizer) as scaled_loss:
-                    scaled_loss.backward()
-            else:
-                loss.backward()
+            loss.backward()
         trainer.optimizer.zero_grad()
         torch.cuda.empty_cache()
 
@@ -455,11 +412,7 @@ class MTTrainer:
         ntokens = targets.size(0)
         if ntokens > 0:  # Nothing to predict!
             loss = trainer.criterion(predictions, targets).mean()
-            if trainer.fp16:
-                with apex.amp.scale_loss(loss, trainer.optimizer) as scaled_loss:
-                    scaled_loss.backward()
-            else:
-                loss.backward()
+            loss.backward()
         trainer.optimizer.zero_grad()
         trainer.optimizer.step()
         trainer.scheduler.step()

@@ -6,7 +6,6 @@ import time
 from optparse import OptionParser
 
 import torch
-import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.utils.data as data_utils
 import transformers.optimization as optim
@@ -23,26 +22,13 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 class LMTrainer:
     def __init__(self, model, mask_prob: float = 0.15, clip: int = 1, optimizer=None, warmup: int = 12500,
-                 step: int = 125000, fp16: bool = False, fp16_opt_level: str = "01", distributed: bool = False,
-                 local_rank: int = 0, last_epoch: int = 0):
+                 step: int = 125000, last_epoch: int = 0):
         self.model = model
-
         self.clip = clip
         self.optimizer = optimizer
-        self.fp16 = fp16
-        self.distributed = distributed
-        self.local_rank = local_rank
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.model.to(self.device)
-
-        if fp16 or distributed:
-            cudnn.enabled = True
-            try:
-                import apex
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-            self.model, self.optimizer = apex.amp.initialize(self.model, self.optimizer, opt_level=fp16_opt_level)
 
         if self.optimizer is not None:
             self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
@@ -55,16 +41,8 @@ class LMTrainer:
         num_gpu = torch.cuda.device_count()
         if num_gpu > 1:
             print("Let's use", num_gpu, "GPUs!")
-            if distributed:
-                torch.cuda.set_device(local_rank)
-                os.environ['MASTER_ADDR'] = "127.0.0.1"
-                os.environ['MASTER_PORT'] = "29500"
-                torch.distributed.init_process_group(backend='nccl', init_method='env://', rank=local_rank,
-                                                     world_size=1)
-                self.model = apex.parallel.DistributedDataParallel(self.model)
-            else:
-                self.model = DataParallelModel(self.model)
-                self.criterion = DataParallelCriterion(self.criterion)
+            self.model = DataParallelModel(self.model)
+            self.criterion = DataParallelCriterion(self.criterion)
 
         self.best_dev_loss = float("inf")
         self.best_train_loss = float("inf")
@@ -76,12 +54,6 @@ class LMTrainer:
 
     def train_epoch(self, data_iter: data_utils.DataLoader, dev_data_iter: data_utils.DataLoader,
                     saving_path: str, step: int, max_grad_norm: float = 1.0):
-        if self.fp16 or self.distributed:
-            try:
-                import apex
-            except ImportError:
-                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -101,22 +73,13 @@ class LMTrainer:
                 if ntokens == 0:  # Nothing to predict!
                     continue
 
-                if self.distributed:
-                    target = target.to(predictions.device)
                 loss = self.criterion(predictions, target).mean()
-                if self.fp16 or self.distributed:
-                    with apex.amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                        scaled_loss.backward()
-                else:
-                    loss.backward()
+                loss.backward()
 
                 LM.unmask_text(mask, target, texts)
 
                 if self.optimizer is not None:
-                    if self.fp16:
-                        torch.nn.utils.clip_grad_norm_(apex.amp.master_params(self.optimizer), max_grad_norm)
-                    else:
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
 
                     self.optimizer.step()
                     self.scheduler.step()
@@ -172,8 +135,6 @@ class LMTrainer:
 
                 if ntokens == 0:  # Nothing to predict!
                     continue
-                if self.distributed:
-                    target = target.to(predictions.device)
                 loss = self.criterion(predictions, target).mean().data * ntokens
                 total_dev_loss += float(loss)
                 total_dev_tokens += ntokens
@@ -203,8 +164,7 @@ class LMTrainer:
         else:
             lm = LM.load(options.pretrained_path)
 
-        train_data = dataset.TextDataset(save_cache_dir=options.train_path, max_cache_size=options.cache_size,
-                                         load_all=options.distributed)
+        train_data = dataset.TextDataset(save_cache_dir=options.train_path, max_cache_size=options.cache_size)
         dev_data = dataset.TextDataset(save_cache_dir=options.dev_path, max_cache_size=options.cache_size,
                                        load_all=True)
 
@@ -214,17 +174,11 @@ class LMTrainer:
         else:
             optimizer, last_epoch = LMTrainer.build_optimizer(lm, options.learning_rate, options.weight_decay), 0
 
-        trainer = LMTrainer(model=lm, mask_prob=options.mask_prob,
-                            optimizer=optimizer,
-                            clip=options.clip, warmup=options.warmup, step=options.step,
-                            fp16=options.fp16, fp16_opt_level=options.fp16_opt_level, distributed=options.distributed,
-                            local_rank=options.local_rank, last_epoch=last_epoch)
+        trainer = LMTrainer(model=lm, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
+                            warmup=options.warmup, step=options.step, last_epoch=last_epoch)
 
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
         train_sampler, dev_sampler = None, None
-        if options.distributed:
-            train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
-            dev_sampler = torch.utils.data.distributed.DistributedSampler(dev_data)
 
         pin_memory = torch.cuda.is_available()
         loader = data_utils.DataLoader(train_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
@@ -265,19 +219,8 @@ def get_option_parser():
                       help="Continue training from pretrained model", default=False)
     parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)
     parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
-    parser.add_option("--local_rank", dest="local_rank", help="For distributed training", type="int", default=0)
-    parser.add_option("--fp16", action="store_true", dest="fp16", help="use fp16; should be compatible", default=False)
-    parser.add_option("--distributed", action="store_true", dest="distributed",
-                      help="Use distributed data parallelism using the Apex library.", default=False)
     parser.add_option("--size", dest="model_size", help="Model size: 3 (base), 2 (medium), 1 (small)", type="int",
                       default=1)
-    parser.add_option(
-        "--fp16_opt_level",
-        type=str,
-        default="O1",
-        help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
-             "See details at https://nvidia.github.io/apex/amp.html",
-    )
     return parser
 
 

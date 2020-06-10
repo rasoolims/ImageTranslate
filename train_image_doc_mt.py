@@ -1,12 +1,12 @@
 import copy
 import datetime
 import os
+import pickle
 import sys
 import time
 
 import torch
 import torch.utils.data as data_utils
-import transformers.optimization as optim
 from IPython.core import ultratb
 from torchvision import transforms
 
@@ -15,35 +15,16 @@ import train_lm
 import train_mt
 from image_doc_model import ImageSeq2Seq
 from lm import LM
-from loss import SmoothedNLLLoss
-from parallel import DataParallelModel, DataParallelCriterion
 from textprocessor import TextProcessor
+from train_mass import MassTrainer
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
 
-class Trainer:
-    def __init__(self, model: ImageSeq2Seq, clip: int = 1, optimizer=None, warmup: int = 12500, step: int = 125000):
-        self.model: ImageSeq2Seq = model
-        self.clip = clip
-        self.optimizer = optimizer
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = self.model.to(self.device)
-
-        if self.optimizer is not None:
-            self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
-                                                                   num_training_steps=step)
-
-        self.criterion = SmoothedNLLLoss(ignore_index=model.text_processor.pad_token_id())
-
-        self.num_gpu = torch.cuda.device_count()
-        if self.num_gpu > 1:
-            print("Let's use", self.num_gpu, "GPUs!")
-            self.model = DataParallelModel(self.model)
-            self.criterion = DataParallelCriterion(self.criterion)
-
+class ImageDocTrainer(MassTrainer):
     def train_epoch(self, data_iter: data_utils.DataLoader, step: int, max_grad_norm: float = 1.0,
-                    dev_data_iter: data_utils.DataLoader = None, saving_path: str = None, ):
+                    dev_data_iter: data_utils.DataLoader = None, saving_path: str = None,
+                    mt_dev_iter: data_utils.DataLoader = None, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -191,10 +172,17 @@ class Trainer:
             dev_loader = data_utils.DataLoader(dev_data, batch_size=num_batches, shuffle=False,
                                                pin_memory=pin_memory, collate_fn=collator)
 
-        trainer = Trainer(model=mt_model,
-                          optimizer=train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
-                                                                       options.weight_decay),
-                          clip=options.clip, warmup=options.warmup, step=options.step)
+        if options.continue_train:
+            with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
+                optimizer, last_epoch = pickle.load(fp)
+        else:
+            optimizer, last_epoch = train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
+                                                                       options.weight_decay), 0
+        trainer = ImageDocTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
+                                  warmup=options.warmup, step=options.step + options.finetune_step,
+                                  beam_width=options.beam_width, max_len_a=options.max_len_a,
+                                  max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
+                                  last_epoch=last_epoch)
 
         step, train_epoch = 0, 1
         while step <= options.step:
@@ -215,5 +203,5 @@ if __name__ == "__main__":
     parser = get_options_parser()
     (options, args) = parser.parse_args()
     print(options)
-    Trainer.train(options=options)
+    ImageDocTrainer.train(options=options)
     print("Finished Training!")

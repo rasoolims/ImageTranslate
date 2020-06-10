@@ -25,7 +25,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 class MTTrainer:
-    def __init__(self, model: AlbertSeq2Seq, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
+    def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
                  step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
                  len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0):
         self.model = model
@@ -44,7 +44,7 @@ class MTTrainer:
 
         self.mask_prob = mask_prob
         self.criterion = SmoothedNLLLoss(
-            ignore_index=model.text_processor.pad_token_id())  # nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
+            ignore_index=model.text_processor.pad_token_id())
 
         self.num_gpu = torch.cuda.device_count()
         if self.num_gpu > 1:

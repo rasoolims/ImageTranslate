@@ -154,9 +154,7 @@ class MassDataset(MTDataset):
         MASS refers to https://arxiv.org/pdf/1905.02450.pdf
         """
         self.batches = []
-        self.longest_batch = ([], 0)
         self.lang_ids = set()
-        self.most_token_batch = ([], 0)
         num_gpu = torch.cuda.device_count()
         for f in glob.glob(batch_pickle_dir + "*"):
             print(datetime.datetime.now(), "Loading", f)
@@ -185,12 +183,6 @@ class MassDataset(MTDataset):
 
                         entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask,
                                  "langs": torch.LongTensor(cur_langs[:-1])}
-                        b, s = int(src_batch.size(0)), int(src_batch.size(1))
-                        this_batch_size = 2 * (s ** 3) * b
-                        if this_batch_size > self.longest_batch[1]:
-                            self.longest_batch = (entry, this_batch_size)
-                        if 2 * b * s > self.most_token_batch[1]:
-                            self.most_token_batch = (entry, 2 * b * s)
                         self.batches.append(entry)
                         cur_src_batch = [cur_src_batch[-1]]
                         cur_langs = [cur_langs[-1]]
@@ -203,17 +195,9 @@ class MassDataset(MTDataset):
                 print("skipping", src_batch.size())
             else:
                 entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "langs": torch.LongTensor(cur_langs)}
-                b, s = int(src_batch.size(0)), int(src_batch.size(1))
-                this_batch_size = 2 * (s ** 3) * b
-                if this_batch_size > self.longest_batch[1]:
-                    self.longest_batch = (entry, this_batch_size)
-                if 2 * b * s > self.most_token_batch[1]:
-                    self.most_token_batch = (entry, 2 * b * s)
                 self.batches.append(entry)
 
         print("Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
-        print("Longest batch size", self.longest_batch[0]["src_texts"].size())
-        print("Most token batch size", self.most_token_batch[0]["src_texts"].size())
         print("Number of languages", len(self.lang_ids))
 
 

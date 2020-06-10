@@ -179,7 +179,6 @@ class MassDataset(MTDataset):
                     if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000 and \
                             len(cur_src_batch[:-1]) >= num_gpu:
                         src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
-                        src_pad_mask = (src_batch != pad_idx)
 
                         entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask,
                                  "langs": torch.LongTensor(cur_langs[:-1])}
@@ -190,11 +189,10 @@ class MassDataset(MTDataset):
 
         if len(cur_src_batch) > 0:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
-            src_pad_mask = (src_batch != pad_idx)
             if src_batch.size(0) < num_gpu:
                 print("skipping", src_batch.size())
             else:
-                entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "langs": torch.LongTensor(cur_langs)}
+                entry = {"src_texts": src_batch, "langs": torch.LongTensor(cur_langs)}
                 self.batches.append(entry)
 
         print("Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))

@@ -182,7 +182,8 @@ class MassDataset(MTDataset):
                         src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
                         src_pad_mask = (src_batch != pad_idx)
 
-                        entry = {"src_texts": src_batch, "langs": torch.LongTensor(cur_langs[:-1])}
+                        entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask,
+                                 "langs": torch.LongTensor(cur_langs[:-1])}
                         self.batches.append(entry)
                         cur_src_batch = [cur_src_batch[-1]]
                         cur_langs = [cur_langs[-1]]

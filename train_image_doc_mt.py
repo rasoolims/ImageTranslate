@@ -103,7 +103,7 @@ class Trainer:
                     model_to_save.save_checkpoint(saving_path)
 
                 if step % 500 == 0 and dev_data_iter is not None:
-                    self.devate(dev_data_iter)
+                    self.validate(dev_data_iter)
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
@@ -111,10 +111,10 @@ class Trainer:
         model_to_save.save(saving_path + ".latest")
 
         if dev_data_iter is not None:
-            self.devate(dev_data_iter)
+            self.validate(dev_data_iter)
         return step
 
-    def devate(self, dev_data_iter):
+    def validate(self, dev_data_iter):
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )

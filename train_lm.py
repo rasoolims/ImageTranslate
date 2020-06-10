@@ -97,7 +97,7 @@ class LMTrainer:
                           "Epoch Step: %d Loss: %f Tokens per Sec: %f" % (step, cur_loss / tokens, tokens / elapsed))
 
                     if step % 500 == 0:
-                        self.devate_and_save(saving_path, dev_data_iter)
+                        self.validate_and_save(saving_path, dev_data_iter)
 
                     start, tokens, cur_loss = time.time(), 0, 0
             except RuntimeError as err:
@@ -115,10 +115,10 @@ class LMTrainer:
                 pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
         self.last_train_loss = current_loss
 
-        self.devate_and_save(saving_path, dev_data_iter)
+        self.validate_and_save(saving_path, dev_data_iter)
         return step
 
-    def devate_and_save(self, saving_path, dev_data_iter):
+    def validate_and_save(self, saving_path, dev_data_iter):
         with torch.no_grad():
             model = (
                 self.model.module if hasattr(self.model, "module") else self.model

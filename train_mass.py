@@ -137,7 +137,7 @@ class MassTrainer(MTTrainer):
                         pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
                 if step % 500 == 0:
-                    self.devate(dev_data_iter)
+                    self.validate(dev_data_iter)
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
@@ -146,7 +146,7 @@ class MassTrainer(MTTrainer):
         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
             pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
-        self.devate(dev_data_iter)
+        self.validate(dev_data_iter)
         if mt_dev_iter is not None:
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
             print("Pretraining BLEU:", bleu)
@@ -257,7 +257,7 @@ class MassTrainer(MTTrainer):
             print("BLEU:", bleu)
         return step
 
-    def devate(self, dev_data_iter):
+    def validate(self, dev_data_iter):
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )

@@ -1,9 +1,7 @@
+import marshal
 import os
-import pickle
 from optparse import OptionParser
 from typing import Optional
-
-import torch
 
 from textprocessor import TextProcessor
 
@@ -26,11 +24,11 @@ def write(text_processor: TextProcessor, cache_dir: str,
             if len(current_cache) >= 100000:
                 for tok_line, lang in zip(current_cache, cur_cache_langs):
                     # assuming that every list has same length due to correct padding.
-                    examples[line_num] = (torch.LongTensor(tok_line), lang)
+                    examples[line_num] = (tok_line.tolist(), lang)
                     line_num += 1
                     if len(examples) >= sen_block_size:
                         with open(os.path.join(cache_dir, str(file_count) + ".pkl"), "wb") as fw:
-                            pickle.dump(examples, fw)
+                            marshal.dump(examples, fw)
                         examples, file_count = {}, file_count + 1
                 current_cache, cur_cache_langs = [], []
                 print(f"from {ln} actual documents, dumped {line_num} big vectors into {file_count} files")
@@ -38,15 +36,15 @@ def write(text_processor: TextProcessor, cache_dir: str,
     if len(current_cache) > 0:
         for tok_line, lang in zip(current_cache, cur_cache_langs):
             # assuming that every list has same length due to correct padding.
-            examples[line_num] = (torch.LongTensor(tok_line), lang)
+            examples[line_num] = (tok_line.tolist(), lang)
             line_num += 1
             if len(examples) >= sen_block_size:
                 with open(os.path.join(cache_dir, str(file_count) + ".pkl"), "wb") as fw:
-                    pickle.dump(examples, fw)
+                    marshal.dump(examples, fw)
                 examples, file_count = {}, file_count + 1
         if len(examples) >= 0:
             with open(os.path.join(cache_dir, str(file_count) + ".pkl"), "wb") as fw:
-                pickle.dump(examples, fw)
+                marshal.dump(examples, fw)
             examples, file_count = {}, file_count + 1
 
         print(f"from {ln} actual documents, dumped {line_num} big vectors into {file_count} files")
@@ -95,7 +93,7 @@ def get_options():
     parser = OptionParser()
     parser.add_option("--data", dest="data_path", help="Path to the data folder", metavar="FILE", default=None)
     parser.add_option("--cache", dest="cache_path",
-                      help="Path to the data pickle files for data with sequence length", metavar="FILE",
+                      help="Path to the data marshal files for data with sequence length", metavar="FILE",
                       default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--block", dest="sentence_block", help="Sentence block size", type="int", default=10000)

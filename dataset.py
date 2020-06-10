@@ -1,9 +1,9 @@
 import datetime
 import glob
 import logging
+import marshal
 import math
 import os
-import pickle
 from typing import Dict, List, Tuple
 
 import torch
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class TextDataset(Dataset):
     def __init__(self, save_cache_dir: str, max_cache_size: int = 100, load_all: bool = False):
         """
-        :param save_cache_dir: directory that has saved pickle files for the data.
+        :param save_cache_dir: directory that has saved marshal files for the data.
         :param max_cache_size: Max number of items in cache
         """
 
@@ -43,7 +43,7 @@ class TextDataset(Dataset):
         self.current_cache = {}
         for file_num in range(start_file_num, end_file_num):
             with open(os.path.join(self.save_cache_dir, str(file_num)) + ".pkl", "rb") as fp:
-                examples = pickle.load(fp)
+                examples = marshal.load(fp)
                 self.current_cache[file_num] = examples
 
     def __getitem__(self, item):
@@ -75,13 +75,13 @@ class MTDataset(Dataset):
         self.most_token_batch = ([], 0)
         num_gpu = torch.cuda.device_count()
         with open(batch_pickle_dir, "rb") as fr:
-            examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
+            examples: List[Tuple[torch.tensor, torch.tensor]] = marshal.load(fr)
 
             cur_src_batch, cur_dst_batch, cur_max_src_len, cur_max_dst_len = [], [], 0, 0
             cur_src_langs, cur_dst_langs = [], []
             for example in examples:
-                src = example[0][:max_seq_len]  # trim if longer than expected!
-                dst = example[1][:max_seq_len]  # trim if longer than expected!
+                src = torch.LongTensor(example[0][:max_seq_len])  # trim if longer than expected!
+                dst = torch.LongTensor(example[1][:max_seq_len])  # trim if longer than expected!
                 cur_src_langs.append(example[2])
                 cur_dst_langs.append(example[3])
                 cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
@@ -156,7 +156,7 @@ class MassDataset(Dataset):
     def read_example_file(path):
         print(datetime.datetime.now(), "Loading", path)
         with open(path, "rb") as fr:
-            examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
+            examples: List[Tuple[torch.tensor, torch.tensor]] = marshal.load(fr)
         return examples
 
     def build_batches(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
@@ -186,7 +186,7 @@ class MassDataset(Dataset):
             for example in examples:
                 if len(example[0]) > max_seq_len:
                     continue
-                src, lang = example[0], example[1]
+                src, lang = torch.LongTensor(example[0]), example[1]
                 self.lang_ids.add(int(src[0]))
                 cur_langs.append(lang)
 
@@ -236,7 +236,7 @@ class ImageDocDataset(Dataset):
         self.images_paths = []
         num_images = 0
         with open(data_bin_file, "rb") as fp:
-            image_info_dict, unique_images, unique_docs = pickle.load(fp)
+            image_info_dict, unique_images, unique_docs = marshal.load(fp)
             num_images = len(image_info_dict)
             cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices, doc_split_sizes = [], [], [], [], []
             cur_max_doc_cap = 0
@@ -325,7 +325,7 @@ class TextCollator(object):
     def __call__(self, batch):
         langs, batch_text = [], []
         for b in batch:
-            batch_text.append(b[0])
+            batch_text.append(torch.LongTensor(b[0]))
             langs.append(b[1])
         padded_text = pad_sequence(batch_text, batch_first=True, padding_value=self.pad_idx)
         pad_mask = (padded_text != self.pad_idx)

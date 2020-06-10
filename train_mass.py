@@ -26,7 +26,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
     src_text = texts.clone()
 
-    pad_indices = ((pads.cumsum(0) == pads) & pads).max(1)[1]
+    pad_indices = ((pads.cumsum(0) == text_processor.pad_token_id()) & pads).max(1)[1]
     mask_indices = [random.randint(1, int(x)) for x in pad_indices - (1 - mask_prob) * pad_indices]
     src_mask = torch.zeros(src_text.size(), dtype=torch.bool)
     to_recover = []

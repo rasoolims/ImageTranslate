@@ -38,7 +38,7 @@ python3 -u create_batches.py --data [dev-txt-file]  --cache  [dev-binary-folder]
 CUDA_VISIBLE_DEVICES=[LIST-OF-DEVICES] python3 -u train_reformer_lm.py --train_cache [train-binary-folder] --valid_cache  [dev-binary-folder] --tok [tokenizer-folder] --model [model-folder] --batch [batch-size] --lr [learning-rate] --warmpu [warmup-steps] --step [training-steps]
 ```
 
--- Note that this will take a long time. Try to use __screen__ or __nohup__.
+- Note that this will take a long time. Try to use __screen__ or __nohup__.
 
 * ````[LIST-OF-DEVICES]````: Separated by comma: e.g. 1 or 0,1 or 0,1,2,3,4
 * ````[batch-size]````: 64 for one gpu, 128 for 2, ..., 512 for 8 gpus

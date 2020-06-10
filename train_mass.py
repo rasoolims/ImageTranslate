@@ -298,7 +298,8 @@ class MassTrainer(MTTrainer):
             os.makedirs(options.model_path)
 
         if options.pretrained_path is not None:
-            mt_model, lm = MassSeq2Seq.load(out_dir=options.pretrained_path, tok_dir=options.tokenizer_path)
+            mt_model, lm = MassSeq2Seq.load(out_dir=options.pretrained_path, tok_dir=options.tokenizer_path,
+                                            sep_decoder=options.sep_encoder)
             text_processor = mt_model.text_processor
         else:
             text_processor = TextProcessor(options.tokenizer_path)

@@ -69,12 +69,13 @@ class AlbertSeq2Seq(nn.Module):
         torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str):
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
-            mt_model = AlbertSeq2Seq(config=config, encoder=lm.encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
+            decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
+            mt_model = AlbertSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                      text_processor=lm.text_processor, checkpoint=checkpoint)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm
@@ -119,8 +120,8 @@ class MassSeq2Seq(AlbertSeq2Seq):
         return outputs
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str):
-        mt_model, lm = AlbertSeq2Seq.load(out_dir, tok_dir)
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool):
+        mt_model, lm = AlbertSeq2Seq.load(out_dir, tok_dir, sep_decoder)
         mt_model.__class__ = MassSeq2Seq
         return mt_model, lm
 

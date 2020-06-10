@@ -100,39 +100,6 @@ class AlbertSeq2Seq(nn.Module):
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm
 
-    def load_avg_model(self, out_dir: str):
-        text_processor = TextProcessor(tok_model_path=out_dir)
-        with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
-            config, checkpoint = pickle.load(fp)
-            lm = LM(text_processor=text_processor, config=config)
-            mt_model = self.__class__(config=config, encoder=lm.encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
-                                      text_processor=lm.text_processor, checkpoint=checkpoint)
-
-            params_dict = collections.OrderedDict()
-            num_models = 0
-            for i in range(self.checkpoint):
-                path = os.path.join(out_dir, "mt_model.state_dict." + str(i))
-                if os.path.exists(path):
-                    num_models += 1
-                    state_dict = torch.load(path)
-
-                    for k in state_dict.keys():
-                        p = state_dict[k]
-                        if isinstance(p, torch.HalfTensor):
-                            p = p.float()
-                        if k not in params_dict:
-                            params_dict[k] = p.clone()
-                        else:
-                            params_dict[k] += p
-
-            averaged_params = collections.OrderedDict()
-            for k, v in params_dict.items():
-                averaged_params[k] = v
-                averaged_params[k].div_(num_models)
-            mt_model.load_state_dict(averaged_params)
-            return mt_model, lm
-
-
 class MassSeq2Seq(AlbertSeq2Seq):
     def forward(self, device, src_inputs, src_pads, tgt_inputs, src_langs, tgt_langs=None, pad_idx: int = 1,
                 tgt_positions=None,

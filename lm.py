@@ -25,7 +25,7 @@ class LM(nn.Module):
         if config is not None:
             self.config = config
         else:
-            if size == 1:
+            if size == 3:
                 self.config = lm_config._base_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
                                                      pad_token_id=text_processor.pad_token_id(),
                                                      bos_token_id=text_processor.bos_token_id(),
@@ -35,7 +35,7 @@ class LM(nn.Module):
                                                        pad_token_id=text_processor.pad_token_id(),
                                                        bos_token_id=text_processor.bos_token_id(),
                                                        eos_token_id=text_processor.sep_token_id())
-            elif size == 3:
+            elif size == 1:
                 self.config = lm_config._small_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
                                                       pad_token_id=text_processor.pad_token_id(),
                                                       bos_token_id=text_processor.bos_token_id(),

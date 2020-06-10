@@ -66,7 +66,7 @@ class LMTrainer:
                 self.model = DataParallelModel(self.model)
                 self.criterion = DataParallelCriterion(self.criterion)
 
-        self.best_valid_loss = float("inf")
+        self.best_dev_loss = float("inf")
         self.best_train_loss = float("inf")
         self.last_train_loss = float("inf")
 
@@ -74,7 +74,7 @@ class LMTrainer:
     def build_optimizer(model, learning_rate, weight_decay):
         return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
-    def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader,
+    def train_epoch(self, data_iter: data_utils.DataLoader, dev_data_iter: data_utils.DataLoader,
                     saving_path: str, step: int, max_grad_norm: float = 1.0):
         if self.fp16 or self.distributed:
             try:
@@ -134,7 +134,7 @@ class LMTrainer:
                           "Epoch Step: %d Loss: %f Tokens per Sec: %f" % (step, cur_loss / tokens, tokens / elapsed))
 
                     if step % 500 == 0:
-                        self.validate_and_save(saving_path, valid_data_iter)
+                        self.devate_and_save(saving_path, dev_data_iter)
 
                     start, tokens, cur_loss = time.time(), 0, 0
             except RuntimeError as err:
@@ -152,17 +152,17 @@ class LMTrainer:
                 pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
         self.last_train_loss = current_loss
 
-        self.validate_and_save(saving_path, valid_data_iter)
+        self.devate_and_save(saving_path, dev_data_iter)
         return step
 
-    def validate_and_save(self, saving_path, valid_data_iter):
+    def devate_and_save(self, saving_path, dev_data_iter):
         with torch.no_grad():
             model = (
                 self.model.module if hasattr(self.model, "module") else self.model
             )
             model.eval()
-            total_valid_loss, total_valid_tokens = 0, 0
-            for batch in valid_data_iter:
+            total_dev_loss, total_dev_tokens = 0, 0
+            for batch in dev_data_iter:
                 model_to_call = self.model.module if hasattr(self.model, "module") else self.model
                 mask, target, texts = LM.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"].clone(),
                                                    model_to_call.text_processor)
@@ -175,14 +175,14 @@ class LMTrainer:
                 if self.distributed:
                     target = target.to(predictions.device)
                 loss = self.criterion(predictions, target).mean().data * ntokens
-                total_valid_loss += float(loss)
-                total_valid_tokens += ntokens
+                total_dev_loss += float(loss)
+                total_dev_tokens += ntokens
 
-            valid_loss = total_valid_loss / total_valid_tokens
-            print("Current valid loss", valid_loss)
-            if self.best_valid_loss > float(valid_loss):
-                self.best_valid_loss = float(valid_loss)
-                print("saving best valid loss", self.best_valid_loss)
+            dev_loss = total_dev_loss / total_dev_tokens
+            print("Current dev loss", dev_loss)
+            if self.best_dev_loss > float(dev_loss):
+                self.best_dev_loss = float(dev_loss)
+                print("saving best dev loss", self.best_dev_loss)
                 model_to_save = (
                     self.model.module if hasattr(self.model, "module") else self.model
                 )
@@ -203,10 +203,10 @@ class LMTrainer:
         else:
             lm = LM.load(options.pretrained_path)
 
-        train_data = dataset.TextDataset(save_cache_dir=options.train_cache_path, max_cache_size=options.cache_size,
+        train_data = dataset.TextDataset(save_cache_dir=options.train_path, max_cache_size=options.cache_size,
                                          load_all=options.distributed)
-        valid_data = dataset.TextDataset(save_cache_dir=options.valid_cache_path, max_cache_size=options.cache_size,
-                                         load_all=True)
+        dev_data = dataset.TextDataset(save_cache_dir=options.dev_path, max_cache_size=options.cache_size,
+                                       load_all=True)
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
@@ -221,34 +221,32 @@ class LMTrainer:
                             local_rank=options.local_rank, last_epoch=last_epoch)
 
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
-        train_sampler, valid_sampler = None, None
+        train_sampler, dev_sampler = None, None
         if options.distributed:
             train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
-            valid_sampler = torch.utils.data.distributed.DistributedSampler(valid_data)
+            dev_sampler = torch.utils.data.distributed.DistributedSampler(dev_data)
 
         pin_memory = torch.cuda.is_available()
         loader = data_utils.DataLoader(train_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
                                        collate_fn=collator, sampler=train_sampler)
-        valid_loader = data_utils.DataLoader(valid_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
-                                             collate_fn=collator, sampler=valid_sampler)
+        dev_loader = data_utils.DataLoader(dev_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
+                                           collate_fn=collator, sampler=dev_sampler)
 
         step, train_epoch = 0, 1
         while step <= options.step:
             print("train epoch", train_epoch)
-            step = trainer.train_epoch(data_iter=loader, valid_data_iter=valid_loader, saving_path=options.model_path,
+            step = trainer.train_epoch(data_iter=loader, dev_data_iter=dev_loader, saving_path=options.model_path,
                                        step=step)
 
 
-def get_options():
-    global options
+def get_option_parser():
     parser = OptionParser()
-    parser.add_option("--train_cache", dest="train_cache_path",
-                      help="Path to the train data pickle files for large data", metavar="FILE", default=None)
-    parser.add_option("--valid_cache", dest="valid_cache_path",
-                      help="Path to the dev data pickle files for large data", metavar="FILE", default=None)
+    parser.add_option("--train", dest="train_path", help="Path to the train data pickle files for large data",
+                      metavar="FILE", default=None)
+    parser.add_option("--dev", dest="dev_path", help="Path to the dev data pickle files for large data", metavar="FILE",
+                      default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--cache_size", dest="cache_size", help="Number of blocks in cache", type="int", default=300)
-    parser.add_option("--vocab_size", dest="vocab_size", help="Vocabulary size", type="int", default=30000)
     parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
                       default=None)
     parser.add_option("--pretrained", dest="pretrained_path", help="Directory of pretrained model", metavar="FILE",
@@ -271,8 +269,8 @@ def get_options():
     parser.add_option("--fp16", action="store_true", dest="fp16", help="use fp16; should be compatible", default=False)
     parser.add_option("--distributed", action="store_true", dest="distributed",
                       help="Use distributed data parallelism using the Apex library.", default=False)
-    parser.add_option("--size", dest="model_size", help="Model size: 1 (base), 2 (medium), 3 (small)", type="int",
-                      default=3)
+    parser.add_option("--size", dest="model_size", help="Model size: 3 (base), 2 (medium), 1 (small)", type="int",
+                      default=1)
     parser.add_option(
         "--fp16_opt_level",
         type=str,
@@ -280,12 +278,12 @@ def get_options():
         help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
              "See details at https://nvidia.github.io/apex/amp.html",
     )
-    (options, args) = parser.parse_args()
-    return options
+    return parser
 
 
 if __name__ == "__main__":
-    options = get_options()
+    parser = get_option_parser()
+    (options, args) = parser.parse_args()
     print(options)
     LMTrainer.train(options=options)
     print("Finished Training!")

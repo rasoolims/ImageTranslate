@@ -4,7 +4,6 @@ import os
 import pickle
 import sys
 import time
-from optparse import OptionParser
 from typing import Optional
 
 import sacrebleu
@@ -14,6 +13,7 @@ import transformers.optimization as optim
 from IPython.core import ultratb
 
 import dataset
+import train_lm
 from albert_seq2seq import AlbertSeq2Seq
 from lm import LM
 from loss import SmoothedNLLLoss
@@ -73,7 +73,7 @@ class MTTrainer:
     def build_optimizer(model, learning_rate, weight_decay):
         return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
-    def train_epoch(self, data_iter: data_utils.DataLoader, valid_data_iter: data_utils.DataLoader, saving_path: str,
+    def train_epoch(self, data_iter: data_utils.DataLoader, dev_data_iter: data_utils.DataLoader, saving_path: str,
                     step: int, max_grad_norm: float = 1.0,
                     monolingual_data_iter: Optional[data_utils.DataLoader] = None):
         if self.fp16:
@@ -205,8 +205,8 @@ class MTTrainer:
                         pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
                 if step % 500 == 0:
-                    self.validate(valid_data_iter)
-                    bleu = self.eval_bleu(valid_data_iter, saving_path)
+                    self.devate(dev_data_iter)
+                    bleu = self.eval_bleu(dev_data_iter, saving_path)
                     print("BLEU:", bleu)
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
@@ -216,12 +216,12 @@ class MTTrainer:
         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
             pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
-        self.validate(valid_data_iter)
-        bleu = self.eval_bleu(valid_data_iter, saving_path)
+        self.devate(dev_data_iter)
+        bleu = self.eval_bleu(dev_data_iter, saving_path)
         print("BLEU:", bleu)
         return step
 
-    def eval_bleu(self, valid_data_iter, saving_path):
+    def eval_bleu(self, dev_data_iter, saving_path):
         mt_output = []
         src_text = []
         model = (
@@ -233,7 +233,7 @@ class MTTrainer:
         )
 
         with torch.no_grad():
-            for batch in valid_data_iter:
+            for batch in dev_data_iter:
                 src_inputs = batch["src_texts"].squeeze(0)
                 src_mask = batch["src_pad_mask"].squeeze(0)
                 tgt_inputs = batch["dst_texts"].squeeze(0)
@@ -283,14 +283,14 @@ class MTTrainer:
 
         return bleu.score
 
-    def validate(self, valid_data_iter):
+    def devate(self, dev_data_iter):
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
         model.eval()
         with torch.no_grad():
-            total_valid_loss, total_valid_tokens = 0, 0
-            for batch in valid_data_iter:
+            total_dev_loss, total_dev_tokens = 0, 0
+            for batch in dev_data_iter:
                 src_inputs = batch["src_texts"].squeeze(0)
                 src_mask = batch["src_pad_mask"].squeeze(0)
                 tgt_inputs = batch["dst_texts"].squeeze(0)
@@ -317,16 +317,16 @@ class MTTrainer:
                         continue
 
                     loss = self.criterion(predictions, targets).mean().data * ntokens
-                    total_valid_loss += float(loss)
-                    total_valid_tokens += ntokens
+                    total_dev_loss += float(loss)
+                    total_dev_tokens += ntokens
                     if self.self_translate:
                         LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
                 except RuntimeError:
                     print("Error in processing", src_inputs.size(), tgt_inputs.size())
                     torch.cuda.empty_cache()
 
-            valid_loss = total_valid_loss / total_valid_tokens
-            print("Current valid loss", valid_loss)
+            dev_loss = total_dev_loss / total_dev_tokens
+            print("Current dev loss", dev_loss)
             model.train()
 
     @staticmethod
@@ -353,10 +353,10 @@ class MTTrainer:
         train_data = dataset.MTDataset(batch_pickle_dir=options.train_path,
                                        max_batch_capacity=options.total_capacity, max_batch=options.batch,
                                        pad_idx=mt_model.text_processor.pad_token_id())
-        valid_data = dataset.MTDataset(batch_pickle_dir=options.valid_path,
-                                       max_batch_capacity=options.total_capacity,
-                                       max_batch=int(options.batch / options.beam_width),
-                                       pad_idx=mt_model.text_processor.pad_token_id())
+        dev_data = dataset.MTDataset(batch_pickle_dir=options.dev_path,
+                                     max_batch_capacity=options.total_capacity,
+                                     max_batch=int(options.batch / options.beam_width),
+                                     pad_idx=mt_model.text_processor.pad_token_id())
         monolingual_data = None
         if options.monolingual_path is not None:
             monolingual_data = dataset.MTDataset(batch_pickle_dir=options.monolingual_path,
@@ -367,7 +367,7 @@ class MTTrainer:
         train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
         monolingual_loader = data_utils.DataLoader(monolingual_data, batch_size=1, shuffle=True,
                                                    pin_memory=pin_memory) if monolingual_data is not None else None
-        valid_loader = data_utils.DataLoader(valid_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+        dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
@@ -387,7 +387,7 @@ class MTTrainer:
         generator = (
             trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
         )
-        for batch in valid_loader:
+        for batch in dev_loader:
             tgt_inputs = batch["dst_texts"].squeeze()
             refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
             ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
@@ -399,7 +399,7 @@ class MTTrainer:
         step, train_epoch = 0, 1
         while step <= options.step:
             print("train epoch", train_epoch)
-            step = trainer.train_epoch(data_iter=train_loader, valid_data_iter=valid_loader,
+            step = trainer.train_epoch(data_iter=train_loader, dev_data_iter=dev_loader,
                                        monolingual_data_iter=monolingual_loader, saving_path=options.model_path,
                                        step=step)
             train_epoch += 1
@@ -466,58 +466,28 @@ class MTTrainer:
         torch.cuda.empty_cache()
 
 
-def get_options():
-    global options
-    parser = OptionParser()
-    parser.add_option("--train", dest="train_path", help="Path to the train data pickle files", metavar="FILE",
-                      default=None)
+def get_option_parser():
+    parser = train_lm.get_option_parser()
     parser.add_option("--mono", dest="monolingual_path",
                       help="Path to the monolingual data pickle files for auxiliary BART training", metavar="FILE",
                       default=None)
-    parser.add_option("--valid", dest="valid_path",
-                      help="Path to the dev data pickle files", metavar="FILE", default=None)
-    parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
-    parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
-                      default=None)
-    parser.add_option("--lm", dest="lm_path", help="LM pretrained model", metavar="FILE", default=None)
-    parser.add_option("--pretrained", dest="pretrained_path", help="MT pretrained model", metavar="FILE", default=None)
-    parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
     parser.add_option("--capacity", dest="total_capacity", help="Batch capcity", type="int", default=150)
-    parser.add_option("--batch", dest="batch", help="Batch num_tokens", type="int", default=20000)
-    parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.3)
-    parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
-    parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.002)
-    parser.add_option("--warmup", dest="warmup", help="Number of warmup steps", type="int", default=12500)
-    parser.add_option("--step", dest="step", help="Number of training steps", type="int", default=125000)
-    parser.add_option("--decay", dest="weight_decay", help="Weight decay", type="float", default=0.01)
-    parser.add_option("--max_grad_norm", dest="max_grad_norm", help="Max grad norm", type="float", default=1.0)
-    parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)
-    parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
+    parser.add_option("--lm", dest="lm_path", help="LM pretrained model", metavar="FILE", default=None)
     parser.add_option("--beam", dest="beam_width", help="Beam width", type="int", default=5)
-    parser.add_option("--fp16", action="store_true", dest="fp16", help="use fp16; should be compatible", default=False)
     parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Disjoint encoder/decoder", default=False)
-    parser.add_option("--cont", action="store_true", dest="continue_train",
-                      help="Continue training from pretrained model", default=False)
-    parser.add_option("--size", dest="model_size", help="1 base, 2 medium, 3 small, 4 toy", type="int", default=3)
     parser.add_option("--max_len_a", dest="max_len_a", help="a for beam search (a*l+b)", type="float", default=1.8)
     parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)
     parser.add_option("--len-penalty", dest="len_penalty_ratio", help="Length penalty", type="float", default=0.8)
     parser.add_option("--checkpoint", dest="checkpoint", help="Number of checkpoints to average", type="int", default=5)
+    parser.add_option("--max_seq_len", dest="max_seq_len", help="Max sequence length", type="int", default=175)
     parser.add_option("--pretrain", action="store_true", dest="pretrain",
                       help="Use self to self translation similar to BART!", default=False)
-    parser.add_option(
-        "--fp16_opt_level",
-        type=str,
-        default="O1",
-        help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
-             "See details at https://nvidia.github.io/apex/amp.html",
-    )
-    (options, args) = parser.parse_args()
-    return options
+    return parser
 
 
 if __name__ == "__main__":
-    options = get_options()
+    parser = get_option_parser()
+    (options, args) = parser.parse_args()
     print(options)
     MTTrainer.train(options=options)
     print("Finished Training!")

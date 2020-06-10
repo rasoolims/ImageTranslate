@@ -58,7 +58,7 @@ class Trainer:
         return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
     def train_epoch(self, data_iter: data_utils.DataLoader, step: int, max_grad_norm: float = 1.0,
-                    valid_data_iter: data_utils.DataLoader = None, saving_path: str = None, ):
+                    dev_data_iter: data_utils.DataLoader = None, saving_path: str = None, ):
         if self.fp16:
             try:
                 import apex
@@ -131,26 +131,26 @@ class Trainer:
                     # Save every 1000 steps!
                     model_to_save.save_checkpoint(saving_path)
 
-                if step % 500 == 0 and valid_data_iter is not None:
-                    self.validate(valid_data_iter)
+                if step % 500 == 0 and dev_data_iter is not None:
+                    self.devate(dev_data_iter)
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model_to_save.save(saving_path + ".latest")
 
-        if valid_data_iter is not None:
-            self.validate(valid_data_iter)
+        if dev_data_iter is not None:
+            self.devate(dev_data_iter)
         return step
 
-    def validate(self, valid_data_iter):
+    def devate(self, dev_data_iter):
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
         model.eval()
         with torch.no_grad():
-            total_valid_loss, total_valid_tokens = 0, 0
-            for batch in valid_data_iter:
+            total_dev_loss, total_dev_tokens = 0, 0
+            for batch in dev_data_iter:
                 predictions = self.model(device=self.device, batch=batch, log_softmax=True)
                 targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
                 tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
@@ -161,11 +161,11 @@ class Trainer:
                     continue
 
                 loss = self.criterion(predictions, targets).mean().data * ntokens
-                total_valid_loss += float(loss)
-                total_valid_tokens += ntokens
+                total_dev_loss += float(loss)
+                total_dev_tokens += ntokens
 
-            valid_loss = total_valid_loss / total_valid_tokens
-            print("Current valid loss", valid_loss)
+            dev_loss = total_dev_loss / total_dev_tokens
+            print("Current dev loss", dev_loss)
             model.train()
 
     @staticmethod
@@ -213,14 +213,14 @@ class Trainer:
 
         train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True, pin_memory=pin_memory,
                                              collate_fn=collator)
-        valid_loader = None
-        if options.valid_path is not None:
-            valid_data = dataset.ImageDocDataset(root_img_dir=options.image_dir, data_bin_file=options.valid_path,
-                                                 transform=transform,
-                                                 max_doc_batch_capacity=options.total_capacity,
-                                                 pad_index=mt_model.text_processor.pad_token_id())
-            valid_loader = data_utils.DataLoader(valid_data, batch_size=num_batches, shuffle=False,
-                                                 pin_memory=pin_memory, collate_fn=collator)
+        dev_loader = None
+        if options.dev_path is not None:
+            dev_data = dataset.ImageDocDataset(root_img_dir=options.image_dir, data_bin_file=options.dev_path,
+                                               transform=transform,
+                                               max_doc_batch_capacity=options.total_capacity,
+                                               pad_index=mt_model.text_processor.pad_token_id())
+            dev_loader = data_utils.DataLoader(dev_data, batch_size=num_batches, shuffle=False,
+                                               pin_memory=pin_memory, collate_fn=collator)
 
         trainer = Trainer(model=mt_model,
                           optimizer=Trainer.build_optimizer(mt_model, options.learning_rate, options.weight_decay),
@@ -230,7 +230,7 @@ class Trainer:
         step, train_epoch = 0, 1
         while step <= options.step:
             print("train epoch", train_epoch)
-            step = trainer.train_epoch(data_iter=train_loader, valid_data_iter=valid_loader,
+            step = trainer.train_epoch(data_iter=train_loader, dev_data_iter=dev_loader,
                                        saving_path=options.model_path,
                                        step=step)
             train_epoch += 1
@@ -241,7 +241,7 @@ def get_options():
     parser = OptionParser()
     parser.add_option("--train", dest="train_path", help="Path to the train data pickle files", metavar="FILE",
                       default=None)
-    parser.add_option("--valid", dest="valid_path",
+    parser.add_option("--dev", dest="dev_path",
                       help="Path to the train data pickle files", metavar="FILE", default=None)
     parser.add_option("--image", dest="image_dir", help="Path to the image files", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)

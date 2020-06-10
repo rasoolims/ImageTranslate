@@ -35,7 +35,7 @@ python3 -u create_batches.py --data [dev-txt-file]  --cache  [dev-binary-folder]
 
 4. Train
 ```bash
-CUDA_VISIBLE_DEVICES=[LIST-OF-DEVICES] python3 -u train_reformer_lm.py --train_cache [train-binary-folder] --valid_cache  [dev-binary-folder] --tok [tokenizer-folder] --model [model-folder] --batch [batch-size] --lr [learning-rate] --warmpu [warmup-steps] --step [training-steps]
+CUDA_VISIBLE_DEVICES=[LIST-OF-DEVICES] python3 -u train_reformer_lm.py --train [train-binary-folder] --valid  [dev-binary-folder] --tok [tokenizer-folder] --model [model-folder] --batch [batch-size] --lr [learning-rate] --warmpu [warmup-steps] --step [training-steps]
 ```
 
 - Note that this will take a long time. Try to use __screen__ or __nohup__.

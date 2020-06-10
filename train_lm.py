@@ -101,6 +101,8 @@ class LMTrainer:
 
                     start, tokens, cur_loss = time.time(), 0, 0
             except RuntimeError as err:
+                print("Problem with batch item", texts.size())
+                torch.cuda.empty_cache()
                 pass
 
         current_loss = total_loss / total_tokens

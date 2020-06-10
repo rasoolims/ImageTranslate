@@ -145,7 +145,7 @@ class MTDataset(Dataset):
 
 class MassDataset(Dataset):
     def __init__(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
-                 pad_idx: int, max_seq_len: int = 512, keep_examples: bool=False, example_list: List=None):
+                 pad_idx: int, max_seq_len: int = 512, keep_examples: bool = False, example_list: List = None):
         if example_list is None:
             self.build_batches(batch_pickle_dir, max_batch_capacity, max_batch, pad_idx, max_seq_len, keep_examples)
         else:
@@ -160,7 +160,7 @@ class MassDataset(Dataset):
         return examples
 
     def build_batches(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
-                      pad_idx: int, max_seq_len: int = 175, keep_examples:bool=False):
+                      pad_idx: int, max_seq_len: int = 175, keep_examples: bool = False):
         """
         Since training is fully-batched and has memory/computational need for cubic power of target length, and quadratic
         power of source length, we need to make sure that each batch has similar length and it does not go over
@@ -216,7 +216,7 @@ class MassDataset(Dataset):
             else:
                 entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "langs": torch.LongTensor(cur_langs)}
                 self.batches.append(entry)
-        print("Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
+        print("Loaded %d MASS sentences to %d batches!" % (len(examples), len(self.batches)))
         print("Number of languages", len(self.lang_ids))
 
     def __len__(self):
@@ -224,6 +224,7 @@ class MassDataset(Dataset):
 
     def __getitem__(self, item):
         return self.batches[item]
+
 
 class ImageDocDataset(Dataset):
     def __init__(self, root_img_dir: str, data_bin_file: str, transform, max_doc_batch_capacity: int, pad_index: int):

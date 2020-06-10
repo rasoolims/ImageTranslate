@@ -338,6 +338,8 @@ class MassTrainer(MTTrainer):
                                                 pad_idx=mt_model.text_processor.pad_token_id(),
                                                 max_seq_len=options.max_seq_len, keep_examples=False,
                                                 example_list=None if train_data is None else train_data.examples_list)
+            if train_data is not None:
+                train_data.examples_list = []
             finetune_loader = data_utils.DataLoader(finetune_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
             for lang1 in finetune_data.lang_ids:
                 for lang2 in finetune_data.lang_ids:

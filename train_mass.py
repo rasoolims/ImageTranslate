@@ -120,6 +120,7 @@ class MassTrainer(MTTrainer):
                     step += 1
 
             except RuntimeError as err:
+                torch.cuda.empty_cache()
                 print("Error in processing", src_inputs.size(), src_inputs.size())
 
             if step % 50 == 0 and tokens > 0:
@@ -224,6 +225,7 @@ class MassTrainer(MTTrainer):
                     step += 1
 
             except RuntimeError as err:
+                torch.cuda.empty_cache()
                 print("Error in processing", src_inputs.size(), src_inputs.size())
 
             if step % 50 == 0 and tokens > 0:
@@ -283,6 +285,7 @@ class MassTrainer(MTTrainer):
                     total_dev_loss += float(loss)
                     total_dev_tokens += ntokens
                 except RuntimeError:
+                    torch.cuda.empty_cache()
                     print("Error in processing", src_inputs.size(), src_inputs.size())
 
             dev_loss = total_dev_loss / total_dev_tokens
@@ -329,8 +332,8 @@ class MassTrainer(MTTrainer):
         lang_directions = {}
         if options.finetune_step > 0:
             finetune_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
-                                                max_batch_capacity=int(options.batch / options.beam_width),
-                                                max_batch=int(options.batch / options.beam_width),
+                                                max_batch_capacity=int(options.batch / (options.beam_width * 2)),
+                                                max_batch=int(options.batch / (options.beam_width * 2)),
                                                 pad_idx=mt_model.text_processor.pad_token_id(),
                                                 max_seq_len=options.max_seq_len)
             finetune_loader = data_utils.DataLoader(finetune_data, batch_size=1, shuffle=True, pin_memory=pin_memory)

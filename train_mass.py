@@ -80,6 +80,7 @@ class MassTrainer(MTTrainer):
         )
 
         for i, batch in enumerate(data_iter):
+            print(self.scheduler.last_epoch)
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
             src_inputs = batch["src_texts"].squeeze(0)

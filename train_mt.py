@@ -38,8 +38,9 @@ class MTTrainer:
         self.self_translate = self_translate
 
         self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
-                                                               num_training_steps=step)
+                                                               num_training_steps=step + last_epoch)
         self.scheduler.last_epoch = last_epoch
+        print("Scheduler Last epoch", last_epoch)
 
         self.mask_prob = mask_prob
         self.criterion = SmoothedNLLLoss(

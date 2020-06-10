@@ -158,8 +158,6 @@ class Trainer:
             mt_model = ImageSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                     text_processor=lm.text_processor, checkpoint=options.checkpoint)
 
-        mt_model.save_config_and_tok(options.model_path)
-
         transform = transforms.Compose([  # [1]
             transforms.Resize(256),  # [2]
             transforms.CenterCrop(224),  # [3]

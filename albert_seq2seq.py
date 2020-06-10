@@ -1,4 +1,3 @@
-import collections
 import copy
 import pickle
 
@@ -61,24 +60,11 @@ class AlbertSeq2Seq(nn.Module):
             outputs = F.log_softmax(outputs, dim=-1)
         return outputs
 
-    def save_checkpoint(self, out_dir: str):
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
-        torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict." + str(self.checkpoint_num)))
-        self.checkpoint_num = (self.checkpoint_num + 1) % self.checkpoint
-
     def save_state_dict(self, out_dir: str, state_dict):
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         torch.save(state_dict, os.path.join(out_dir, "mt_model.state_dict." + str(self.checkpoint_num)))
         self.checkpoint_num = (self.checkpoint_num + 1) % self.checkpoint
-
-    def save_config_and_tok(self, out_dir: str):
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
-        with open(os.path.join(out_dir, "mt_config"), "wb") as fp:
-            pickle.dump((self.config, self.checkpoint), fp)
-        self.text_processor.tokenizer.save(directory=out_dir)
 
     def save(self, out_dir: str):
         if not os.path.exists(out_dir):
@@ -87,7 +73,6 @@ class AlbertSeq2Seq(nn.Module):
             pickle.dump((self.config, self.checkpoint), fp)
 
         torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
-        self.text_processor.tokenizer.save(directory=out_dir)
 
     @staticmethod
     def load(out_dir: str, tok_dir: str):
@@ -99,6 +84,7 @@ class AlbertSeq2Seq(nn.Module):
                                      text_processor=lm.text_processor, checkpoint=checkpoint)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm
+
 
 class MassSeq2Seq(AlbertSeq2Seq):
     def forward(self, device, src_inputs, src_pads, tgt_inputs, src_langs, tgt_langs=None, pad_idx: int = 1,

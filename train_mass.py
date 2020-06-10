@@ -80,7 +80,6 @@ class MassTrainer(MTTrainer):
         )
 
         for i, batch in enumerate(data_iter):
-            print(self.scheduler.last_epoch)
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
             src_inputs = batch["src_texts"].squeeze(0)
@@ -132,7 +131,7 @@ class MassTrainer(MTTrainer):
 
                 if step % 1000 == 0:
                     # Save every 1000 steps!
-                    model.save(saving_path+ ".latest")
+                    model.save(saving_path + ".latest")
                     with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                         pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
@@ -238,7 +237,7 @@ class MassTrainer(MTTrainer):
                 if step % 1000 == 0:
                     # Save every 1000 steps!
                     model.save(saving_path + ".latest")
-                    with open(os.path.join(saving_path+ ".latest", "optim"), "wb") as fp:
+                    with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                         pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
                 if step % 500 == 0 and dev_data_iter is not None:
@@ -312,7 +311,6 @@ class MassTrainer(MTTrainer):
             mt_model = MassSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                    text_processor=lm.text_processor, checkpoint=options.checkpoint)
 
-        mt_model.save_config_and_tok(options.model_path)
         pin_memory = torch.cuda.is_available()
 
         train_loader, dev_loader, finetune_loader, mt_dev_loader = None, None, None, None

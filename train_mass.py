@@ -314,12 +314,12 @@ class MassTrainer(MTTrainer):
 
         pin_memory = torch.cuda.is_available()
 
-        train_loader, dev_loader, finetune_loader, mt_dev_loader = None, None, None, None
+        train_data, train_loader, dev_loader, finetune_loader, mt_dev_loader = None, None, None, None, None
         if options.step > 0:
             train_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
                                              max_batch_capacity=options.total_capacity, max_batch=options.batch,
                                              pad_idx=mt_model.text_processor.pad_token_id(),
-                                             max_seq_len=options.max_seq_len)
+                                             max_seq_len=options.max_seq_len, keep_examples=True)
 
             dev_data = dataset.MassDataset(batch_pickle_dir=options.dev_path,
                                            max_batch_capacity=options.total_capacity,
@@ -335,7 +335,8 @@ class MassTrainer(MTTrainer):
                                                 max_batch_capacity=int(options.batch / (options.beam_width * 2)),
                                                 max_batch=int(options.batch / (options.beam_width * 2)),
                                                 pad_idx=mt_model.text_processor.pad_token_id(),
-                                                max_seq_len=options.max_seq_len)
+                                                max_seq_len=options.max_seq_len, keep_examples=False,
+                                                example_list=None if train_data is None else train_data.examples_list)
             finetune_loader = data_utils.DataLoader(finetune_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
             for lang1 in finetune_data.lang_ids:
                 for lang2 in finetune_data.lang_ids:

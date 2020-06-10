@@ -143,7 +143,15 @@ class MTDataset(Dataset):
         return self.batches[item]
 
 
-class MassDataset(MTDataset):
+class MassDataset(Dataset):
+    def __init__(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
+                 pad_idx: int, max_seq_len: int = 512, keep_examples: bool=False, example_list: List=None):
+        if example_list is None:
+            self.build_batches(batch_pickle_dir, max_batch_capacity, max_batch, pad_idx, max_seq_len, keep_examples)
+        else:
+            self.examples_list = example_list
+            self.batch_items(max_batch, max_batch_capacity, max_seq_len, pad_idx)
+
     @staticmethod
     def read_example_file(path):
         print(datetime.datetime.now(), "Loading", path)
@@ -152,7 +160,7 @@ class MassDataset(MTDataset):
         return examples
 
     def build_batches(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
-                      pad_idx: int, max_seq_len: int = 175):
+                      pad_idx: int, max_seq_len: int = 175, keep_examples:bool=False):
         """
         Since training is fully-batched and has memory/computational need for cubic power of target length, and quadratic
         power of source length, we need to make sure that each batch has similar length and it does not go over
@@ -160,15 +168,20 @@ class MassDataset(MTDataset):
         sentence pairs (it will crash in multi-gpu).
         MASS refers to https://arxiv.org/pdf/1905.02450.pdf
         """
+
+        paths = glob.glob(batch_pickle_dir + "*")
+        self.examples_list = [MassDataset.read_example_file(path) for path in paths]
+        print(datetime.datetime.now(), "Done!")
+
+        self.batch_items(max_batch, max_batch_capacity, max_seq_len, pad_idx)
+        if not keep_examples:
+            self.examples_list = []
+
+    def batch_items(self, max_batch, max_batch_capacity, max_seq_len, pad_idx):
         self.batches = []
         self.lang_ids = set()
         num_gpu = torch.cuda.device_count()
-        print(datetime.datetime.now(), "Loading paths")
-        paths = glob.glob(batch_pickle_dir + "*")
-        examples_list = [MassDataset.read_example_file(path) for path in paths]
-        print(datetime.datetime.now(), "Done!")
-
-        for examples in examples_list:
+        for examples in self.examples_list:
             cur_src_batch, cur_langs, cur_max_src_len = [], [], 0
             for example in examples:
                 if len(example[0]) > max_seq_len:
@@ -195,7 +208,6 @@ class MassDataset(MTDataset):
                     cur_src_batch = [cur_src_batch[-1]]
                     cur_langs = [cur_langs[-1]]
                     cur_max_src_len = int(cur_src_batch[0].size(0))
-
         if len(cur_src_batch) > 0:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
             src_pad_mask = (src_batch != pad_idx)
@@ -204,10 +216,14 @@ class MassDataset(MTDataset):
             else:
                 entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "langs": torch.LongTensor(cur_langs)}
                 self.batches.append(entry)
-
         print("Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
         print("Number of languages", len(self.lang_ids))
 
+    def __len__(self):
+        return len(self.batches)
+
+    def __getitem__(self, item):
+        return self.batches[item]
 
 class ImageDocDataset(Dataset):
     def __init__(self, root_img_dir: str, data_bin_file: str, transform, max_doc_batch_capacity: int, pad_index: int):

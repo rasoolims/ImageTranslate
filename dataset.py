@@ -5,6 +5,7 @@ import math
 import os
 import pickle
 from typing import Dict, List, Tuple
+from multiprocessing import Pool
 
 import torch
 from PIL import Image
@@ -144,6 +145,12 @@ class MTDataset(Dataset):
 
 
 class MassDataset(MTDataset):
+    @staticmethod
+    def read_example_file(path):
+        with open(path, "rb") as fr:
+            examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
+        return examples
+
     def build_batches(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
                       pad_idx: int, max_seq_len: int = 175):
         """
@@ -156,38 +163,39 @@ class MassDataset(MTDataset):
         self.batches = []
         self.lang_ids = set()
         num_gpu = torch.cuda.device_count()
-        for f in glob.glob(batch_pickle_dir + "*"):
-            print(datetime.datetime.now(), "Loading", f)
-            with open(f, "rb") as fr:
-                examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
-                print(datetime.datetime.now(), "Batching items in", f)
+        print(datetime.datetime.now(), "Loading paths")
+        paths = glob.glob(batch_pickle_dir + "*")
+        with Pool(processes=8) as pool:
+            examples_list = pool.map(MassDataset.read_example_file, paths, 1)
+        print(datetime.datetime.now(), "Done!")
 
-                cur_src_batch, cur_langs, cur_max_src_len = [], [], 0
-                for example in examples:
-                    if len(example[0]) > max_seq_len:
-                        continue
-                    src, lang = example[0], example[1]
-                    self.lang_ids.add(int(src[0]))
-                    cur_langs.append(lang)
+        for examples in examples_list:
+            cur_src_batch, cur_langs, cur_max_src_len = [], [], 0
+            for example in examples:
+                if len(example[0]) > max_seq_len:
+                    continue
+                src, lang = example[0], example[1]
+                self.lang_ids.add(int(src[0]))
+                cur_langs.append(lang)
 
-                    cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
+                cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
 
-                    cur_src_batch.append(src)
+                cur_src_batch.append(src)
 
-                    batch_capacity_size = 2 * (cur_max_src_len ** 3) * len(cur_src_batch)
-                    batch_size = 2 * cur_max_src_len * len(cur_src_batch)
+                batch_capacity_size = 2 * (cur_max_src_len ** 3) * len(cur_src_batch)
+                batch_size = 2 * cur_max_src_len * len(cur_src_batch)
 
-                    if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000 and \
-                            len(cur_src_batch[:-1]) >= num_gpu:
-                        src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
-                        src_pad_mask = (src_batch != pad_idx)
+                if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000 and \
+                        len(cur_src_batch[:-1]) >= num_gpu:
+                    src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
+                    src_pad_mask = (src_batch != pad_idx)
 
-                        entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask,
-                                 "langs": torch.LongTensor(cur_langs[:-1])}
-                        self.batches.append(entry)
-                        cur_src_batch = [cur_src_batch[-1]]
-                        cur_langs = [cur_langs[-1]]
-                        cur_max_src_len = int(cur_src_batch[0].size(0))
+                    entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask,
+                             "langs": torch.LongTensor(cur_langs[:-1])}
+                    self.batches.append(entry)
+                    cur_src_batch = [cur_src_batch[-1]]
+                    cur_langs = [cur_langs[-1]]
+                    cur_max_src_len = int(cur_src_batch[0].size(0))
 
         if len(cur_src_batch) > 0:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)

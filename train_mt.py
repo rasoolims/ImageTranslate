@@ -435,6 +435,7 @@ def get_option_parser():
     parser.add_option("--max_seq_len", dest="max_seq_len", help="Max sequence length", type="int", default=175)
     parser.add_option("--pretrain", action="store_true", dest="pretrain",
                       help="Use self to self translation similar to BART!", default=False)
+    parser.set_default("batch", 20000)
     return parser
 
 

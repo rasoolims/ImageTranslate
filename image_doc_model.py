@@ -1,3 +1,4 @@
+import copy
 import pickle
 
 import torch.nn.functional as F
@@ -58,12 +59,13 @@ class ImageSeq2Seq(AlbertSeq2Seq):
         return outputs
 
     @staticmethod
-    def load(out_dir: str):
-        text_processor = TextProcessor(tok_model_path=out_dir)
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool):
+        text_processor = TextProcessor(tok_model_path=tok_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
-            mt_model = ImageSeq2Seq(config=config, encoder=lm.encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
+            decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
+            mt_model = ImageSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                     text_processor=lm.text_processor, checkpoint=checkpoint)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm

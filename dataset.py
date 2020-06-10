@@ -5,7 +5,6 @@ import math
 import os
 import pickle
 from typing import Dict, List, Tuple
-from multiprocessing import Pool
 
 import torch
 from PIL import Image
@@ -147,6 +146,7 @@ class MTDataset(Dataset):
 class MassDataset(MTDataset):
     @staticmethod
     def read_example_file(path):
+        print(datetime.datetime.now(), "Loading", path)
         with open(path, "rb") as fr:
             examples: List[Tuple[torch.tensor, torch.tensor]] = pickle.load(fr)
         return examples
@@ -165,8 +165,7 @@ class MassDataset(MTDataset):
         num_gpu = torch.cuda.device_count()
         print(datetime.datetime.now(), "Loading paths")
         paths = glob.glob(batch_pickle_dir + "*")
-        with Pool(processes=8) as pool:
-            examples_list = pool.map(MassDataset.read_example_file, paths, 1)
+        examples_list = [MassDataset.read_example_file(path) for path in paths]
         print(datetime.datetime.now(), "Done!")
 
         for examples in examples_list:

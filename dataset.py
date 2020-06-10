@@ -178,6 +178,7 @@ class MassDataset(Dataset):
             self.examples_list = []
 
     def batch_items(self, max_batch, max_batch_capacity, max_seq_len, pad_idx):
+        print(datetime.datetime.now(), "Building batches")
         self.batches = []
         self.lang_ids = set()
         num_gpu = torch.cuda.device_count()
@@ -218,6 +219,7 @@ class MassDataset(Dataset):
                 self.batches.append(entry)
         print("Loaded %d MASS sentences to %d batches!" % (len(examples), len(self.batches)))
         print("Number of languages", len(self.lang_ids))
+        print(datetime.datetime.now(), "Done!")
 
     def __len__(self):
         return len(self.batches)

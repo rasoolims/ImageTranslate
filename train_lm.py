@@ -153,6 +153,11 @@ class LMTrainer:
             model.train()
 
     @staticmethod
+    def config_dropout(model, dropout):
+        model.encoder.config.hidden_dropout_prob = dropout
+        model.encoder.config.attention_probs_dropout_prob = dropout
+
+    @staticmethod
     def train(options):
         if not os.path.exists(options.model_path):
             os.makedirs(options.model_path)
@@ -163,6 +168,7 @@ class LMTrainer:
             lm = LM(text_processor=text_processor, size=options.model_size)
         else:
             lm = LM.load(options.pretrained_path)
+        LMTrainer.config_dropout(lm, options.dropout)
 
         train_data = dataset.TextDataset(save_cache_dir=options.train_path, max_cache_size=options.cache_size)
         dev_data = dataset.TextDataset(save_cache_dir=options.dev_path, max_cache_size=options.cache_size,

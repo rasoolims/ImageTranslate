@@ -374,6 +374,13 @@ class MTTrainer:
             train_epoch += 1
 
     @staticmethod
+    def config_dropout(mt_model, dropout):
+        mt_model.encoder.config.hidden_dropout_prob = dropout
+        mt_model.encoder.config.attention_probs_dropout_prob = dropout
+        mt_model.decoder.config.hidden_dropout_prob = dropout
+        mt_model.decoder.config.attention_probs_dropout_prob = dropout
+
+    @staticmethod
     def memory_test(train_data, trainer):
         src_inputs = train_data.longest_batch[0]["src_texts"]
         src_mask = train_data.longest_batch[0]["src_pad_mask"]

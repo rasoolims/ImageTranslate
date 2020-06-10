@@ -37,10 +37,10 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
     to_recover = []
     to_recover_pos = []
     for i, mask_start in enumerate(mask_indices):
-        start, end = mask_start, mask_start + int(pad_indices[i] / 2)
-        src_mask[i, start: end] = True
-        to_recover.append(torch.cat([src_text[i, 0:1], src_text[i, start:end]]))
-        to_recover_pos.append(torch.cat([torch.arange(0, 1), torch.arange(start, end)]))
+        src_mask[i, mask_start: mask_start + int(pad_indices[i] / 2)] = True
+        to_recover.append(torch.cat([src_text[i, 0:1], src_text[i, mask_start: mask_start + int(pad_indices[i] / 2)]]))
+        to_recover_pos.append(
+            torch.cat([torch.arange(0, 1), torch.arange(mask_start, mask_start + int(pad_indices[i] / 2))]))
     to_recover = pad_sequence(to_recover, batch_first=True, padding_value=text_processor.pad_token_id())
     to_recover_pos = pad_sequence(to_recover_pos, batch_first=True, padding_value=int(src_text.size(-1)) - 1)
 
@@ -84,7 +84,7 @@ class MassTrainer(MTTrainer):
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
             src_inputs = batch["src_texts"].squeeze(0)
-            src_pad_mask = src_inputs != model.text_processor.pad_token_id()
+            src_pad_mask = batch["src_pad_mask"].squeeze(0)
 
             src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, src_pad_mask, src_inputs,
                                                                            model.text_processor)
@@ -137,7 +137,7 @@ class MassTrainer(MTTrainer):
                         pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
                 if step % 500 == 0:
-                    self.validate(dev_data_iter)
+                    self.devate(dev_data_iter)
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
@@ -146,7 +146,7 @@ class MassTrainer(MTTrainer):
         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
             pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
-        self.validate(dev_data_iter)
+        self.devate(dev_data_iter)
         if mt_dev_iter is not None:
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
             print("Pretraining BLEU:", bleu)
@@ -167,7 +167,7 @@ class MassTrainer(MTTrainer):
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
             src_inputs = batch["src_texts"].squeeze(0)
-            src_pad_mask = src_inputs != model.text_processor.pad_token_id()
+            src_pad_mask = batch["src_pad_mask"].squeeze(0)
 
             target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
             dst_langs = torch.LongTensor(
@@ -257,7 +257,7 @@ class MassTrainer(MTTrainer):
             print("BLEU:", bleu)
         return step
 
-    def validate(self, dev_data_iter):
+    def devate(self, dev_data_iter):
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
@@ -266,7 +266,7 @@ class MassTrainer(MTTrainer):
             total_dev_loss, total_dev_tokens = 0, 0
             for batch in dev_data_iter:
                 src_inputs = batch["src_texts"].squeeze(0)
-                src_pad_mask = src_inputs != model.text_processor.pad_token_id()
+                src_pad_mask = batch["src_pad_mask"].squeeze(0)
 
                 src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, src_pad_mask, src_inputs,
                                                                                model.text_processor)

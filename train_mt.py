@@ -174,7 +174,7 @@ class MTTrainer:
                         pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
                 if step % 500 == 0:
-                    self.validate(dev_data_iter)
+                    self.devate(dev_data_iter)
                     bleu = self.eval_bleu(dev_data_iter, saving_path)
                     print("BLEU:", bleu)
 
@@ -185,7 +185,7 @@ class MTTrainer:
         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
             pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
-        self.validate(dev_data_iter)
+        self.devate(dev_data_iter)
         bleu = self.eval_bleu(dev_data_iter, saving_path)
         print("BLEU:", bleu)
         return step
@@ -252,7 +252,7 @@ class MTTrainer:
 
         return bleu.score
 
-    def validate(self, dev_data_iter):
+    def devate(self, dev_data_iter):
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )

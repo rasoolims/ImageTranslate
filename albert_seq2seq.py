@@ -60,12 +60,6 @@ class AlbertSeq2Seq(nn.Module):
             outputs = F.log_softmax(outputs, dim=-1)
         return outputs
 
-    def save_state_dict(self, out_dir: str, state_dict):
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
-        torch.save(state_dict, os.path.join(out_dir, "mt_model.state_dict." + str(self.checkpoint_num)))
-        self.checkpoint_num = (self.checkpoint_num + 1) % self.checkpoint
-
     def save(self, out_dir: str):
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)

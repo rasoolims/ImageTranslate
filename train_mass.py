@@ -392,12 +392,6 @@ class MassTrainer(MTTrainer):
 
         finetune_epoch = 0
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
-            if last_epoch > 0:
-                # Resetting optimizer for fine tuning.
-                trainer.optimizer = train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
-                                                                       options.weight_decay)
-                trainer.scheduler = optim.get_linear_schedule_with_warmup(trainer.optimizer, num_warmup_steps=0,
-                                                                          num_training_steps=options.finetune_step + options.step)
             print("finetune epoch", finetune_epoch)
             _ = trainer.fine_tune(data_iter=finetune_loader, lang_directions=lang_directions,
                                   saving_path=options.model_path, step=step, dev_data_iter=mt_dev_loader)

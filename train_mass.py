@@ -11,6 +11,7 @@ import torch
 import torch.utils.data as data_utils
 from IPython.core import ultratb
 from torch.nn.utils.rnn import pad_sequence
+import transformers.optimization as optim
 
 import dataset
 import train_lm
@@ -236,8 +237,8 @@ class MassTrainer(MTTrainer):
 
                 if step % 1000 == 0:
                     # Save every 1000 steps!
-                    model.save(saving_path + ".latest")
-                    with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                    model.save(saving_path + ".beam.latest")
+                    with open(os.path.join(saving_path + ".beam.latest", "optim"), "wb") as fp:
                         pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
                 if step % 500 == 0 and dev_data_iter is not None:
@@ -247,12 +248,12 @@ class MassTrainer(MTTrainer):
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-        model.save(saving_path + ".latest")
+        model.save(saving_path + ".beam.latest")
         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
             pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
         if dev_data_iter is not None:
-            bleu = self.eval_bleu(dev_data_iter, saving_path)
+            bleu = self.eval_bleu(dev_data_iter, saving_path+".beam")
             print("BLEU:", bleu)
         return step
 
@@ -395,7 +396,8 @@ class MassTrainer(MTTrainer):
                 # Resetting optimizer for fine tuning.
                 trainer.optimizer = train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
                                                                        options.weight_decay)
-                trainer.scheduler.last_epoch = 0
+                trainer.scheduler = optim.get_linear_schedule_with_warmup(trainer.optimizer, num_warmup_steps=0,
+                                                               num_training_steps=options.finetune_step + options.step)
             print("finetune epoch", finetune_epoch)
             _ = trainer.fine_tune(data_iter=finetune_loader, lang_directions=lang_directions,
                                   saving_path=options.model_path, step=step, dev_data_iter=mt_dev_loader)

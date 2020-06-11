@@ -50,7 +50,7 @@ class ReformerTrainer(LMTrainer):
         dev_loader = data_utils.DataLoader(dev_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
                                            collate_fn=collator, sampler=dev_sampler)
 
-        step, train_epoch = 0, 1
+        step, train_epoch = last_epoch, 1
         while step <= options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=loader, dev_data_iter=dev_loader, saving_path=options.model_path,

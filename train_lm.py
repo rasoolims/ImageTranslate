@@ -32,7 +32,7 @@ class LMTrainer:
 
         if self.optimizer is not None:
             self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
-                                                                   num_training_steps=step + last_epoch)
+                                                                   num_training_steps=step)
             self.scheduler.last_epoch = last_epoch
 
         self.mask_prob = mask_prob
@@ -194,7 +194,7 @@ class LMTrainer:
         dev_loader = data_utils.DataLoader(dev_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
                                            collate_fn=collator, sampler=dev_sampler)
 
-        step, train_epoch = 0, 1
+        step, train_epoch = last_epoch, 1
         while step <= options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=loader, dev_data_iter=dev_loader, saving_path=options.model_path,

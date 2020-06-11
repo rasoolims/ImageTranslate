@@ -83,7 +83,7 @@ class MassTrainer(MTTrainer):
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
             src_inputs = batch["src_texts"].squeeze(0)
-            src_pad_mask = batch["src_pad_mask"].squeeze(0)
+            src_pad_mask = src_inputs != model.text_processor.pad_token_id()
 
             src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, src_pad_mask, src_inputs,
                                                                            model.text_processor)
@@ -166,7 +166,7 @@ class MassTrainer(MTTrainer):
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
             src_inputs = batch["src_texts"].squeeze(0)
-            src_pad_mask = batch["src_pad_mask"].squeeze(0)
+            src_pad_mask = src_inputs != model.text_processor.pad_token_id()
 
             target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
             dst_langs = torch.LongTensor(
@@ -266,7 +266,7 @@ class MassTrainer(MTTrainer):
             total_dev_loss, total_dev_tokens = 0, 0
             for batch in dev_data_iter:
                 src_inputs = batch["src_texts"].squeeze(0)
-                src_pad_mask = batch["src_pad_mask"].squeeze(0)
+                src_pad_mask = src_inputs != model.text_processor.pad_token_id()
 
                 src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, src_pad_mask, src_inputs,
                                                                                model.text_processor)
@@ -391,6 +391,7 @@ class MassTrainer(MTTrainer):
             train_epoch += 1
 
         finetune_epoch = 0
+        mt_model.save(options.model_path + ".beam")
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
             print("finetune epoch", finetune_epoch)
             _ = trainer.fine_tune(data_iter=finetune_loader, lang_directions=lang_directions,

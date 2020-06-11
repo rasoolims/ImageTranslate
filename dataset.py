@@ -180,6 +180,7 @@ class MassDataset(Dataset):
     def batch_items(self, max_batch, max_batch_capacity, max_seq_len, pad_idx):
         print(datetime.datetime.now(), "Building batches")
         self.batches = []
+        batches, langs = [], []
         self.lang_ids = set()
         num_gpu = torch.cuda.device_count()
         cur_src_batch, cur_langs, cur_max_src_len = [], [], 0
@@ -187,11 +188,11 @@ class MassDataset(Dataset):
             for example in examples:
                 if len(example[0]) > max_seq_len:
                     continue
-                src, lang = torch.LongTensor(example[0]), example[1]
+                src, lang = example[0], example[1]
                 self.lang_ids.add(int(src[0]))
                 cur_langs.append(lang)
 
-                cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
+                cur_max_src_len = max(cur_max_src_len, len(src))
 
                 cur_src_batch.append(src)
 
@@ -200,24 +201,22 @@ class MassDataset(Dataset):
 
                 if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000 and \
                         len(cur_src_batch[:-1]) >= num_gpu:
-                    src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
-                    src_pad_mask = (src_batch != pad_idx)
-
-                    entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask,
-                             "langs": torch.LongTensor(cur_langs[:-1])}
-                    self.batches.append(entry)
+                    batches.append(cur_src_batch[:-1])
+                    langs.append(cur_langs[:-1])
                     cur_src_batch = [cur_src_batch[-1]]
                     cur_langs = [cur_langs[-1]]
-                    cur_max_src_len = int(cur_src_batch[0].size(0))
+                    cur_max_src_len = len(cur_src_batch[0])
 
         if len(cur_src_batch) > 0:
-            src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
-            src_pad_mask = (src_batch != pad_idx)
-            if src_batch.size(0) < num_gpu:
-                print("skipping", src_batch.size())
+            if len(cur_src_batch) < num_gpu:
+                print("skipping", len(cur_src_batch))
             else:
-                entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "langs": torch.LongTensor(cur_langs)}
-                self.batches.append(entry)
+                batches.append(cur_src_batch)
+                langs.append(cur_langs)
+        padder = lambda b: pad_sequence(b, batch_first=True, padding_value=pad_idx)
+        tensorfier = lambda b: list(map(torch.LongTensor, b))
+        entry = lambda b, l: {"src_texts": padder(tensorfier(b)), "langs": torch.LongTensor(l)}
+        self.batches = list(map(lambda b, l: entry(b, l), batches, langs))
         print("Loaded %d MASS sentences to %d batches!" % (len(examples), len(self.batches)))
         print("Number of languages", len(self.lang_ids))
         print(datetime.datetime.now(), "Done!")

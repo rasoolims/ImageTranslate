@@ -9,7 +9,6 @@ from typing import Dict
 
 import torch
 import torch.utils.data as data_utils
-import transformers.optimization as optim
 from IPython.core import ultratb
 from torch.nn.utils.rnn import pad_sequence
 
@@ -182,7 +181,8 @@ class MassTrainer(MTTrainer):
                     # We do not backpropagate the data generator following the MASS paper.
                     outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=target_langs,
                                              src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
-                                             src_mask=src_pad_mask)
+                                             pad_idx=model.text_processor.pad_token_id(),
+                                             src_mask=src_pad_mask, unpad_output=False)
                     if self.num_gpu > 1:
                         new_outputs = []
                         for output in outputs:
@@ -383,7 +383,7 @@ class MassTrainer(MTTrainer):
 
         step, train_epoch = last_epoch, 1
 
-        while options.step > 0 and step <= options.step:
+        while options.step > 0 and step < options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=train_loader, dev_data_iter=dev_loader,
                                        saving_path=options.model_path, mt_dev_iter=mt_dev_loader,

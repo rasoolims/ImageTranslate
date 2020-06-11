@@ -65,7 +65,7 @@ class ImageDocTrainer(MassTrainer):
                     self.optimizer.step()
                     self.scheduler.step()
                     step += 1
-            except:
+            except RuntimeError as err:
                 print("Error processing")
                 for b in batch:
                     if isinstance(b, list):
@@ -153,7 +153,7 @@ class ImageDocTrainer(MassTrainer):
         train_data = dataset.ImageDocDataset(root_img_dir=options.image_dir,
                                              data_bin_file=options.train_path, transform=transform,
                                              max_doc_batch_capacity=options.total_capacity,
-                                             pad_index=mt_model.text_processor.pad_token_id())
+                                             text_processor=mt_model.text_processor)
 
         pin_memory = torch.cuda.is_available()
 
@@ -168,7 +168,7 @@ class ImageDocTrainer(MassTrainer):
             dev_data = dataset.ImageDocDataset(root_img_dir=options.image_dir, data_bin_file=options.dev_path,
                                                transform=transform,
                                                max_doc_batch_capacity=options.total_capacity,
-                                               pad_index=mt_model.text_processor.pad_token_id())
+                                               text_processor=mt_model.text_processor)
             dev_loader = data_utils.DataLoader(dev_data, batch_size=num_batches, shuffle=False,
                                                pin_memory=pin_memory, collate_fn=collator)
 
@@ -179,7 +179,7 @@ class ImageDocTrainer(MassTrainer):
             optimizer, last_epoch = train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
                                                                        options.weight_decay), 0
         trainer = ImageDocTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
-                                  warmup=options.warmup, step=options.step + options.finetune_step,
+                                  warmup=options.warmup, step=options.step,
                                   beam_width=options.beam_width, max_len_a=options.max_len_a,
                                   max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
                                   last_epoch=last_epoch)

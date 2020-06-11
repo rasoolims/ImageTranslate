@@ -11,6 +11,8 @@ from PIL import Image
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 
+from textprocessor import TextProcessor
+
 logger = logging.getLogger(__name__)
 
 
@@ -229,46 +231,50 @@ class MassDataset(Dataset):
 
 
 class ImageDocDataset(Dataset):
-    def __init__(self, root_img_dir: str, data_bin_file: str, transform, max_doc_batch_capacity: int, pad_index: int):
+    def __init__(self, root_img_dir: str, data_bin_file: str, transform, max_doc_batch_capacity: int,
+                 text_processor: TextProcessor):
         self.transform = transform
-        self.pad_idx = pad_index
+        self.pad_idx = text_processor.pad_token_id()
         self.batches = []
         self.root_img_dir = root_img_dir
         max_doc_batch_capacity *= 1000000
         self.images_paths = []
-        num_images = 0
+        tensorfier = lambda b: list(map(torch.LongTensor, b))
+
         with open(data_bin_file, "rb") as fp:
             image_info_dict, unique_images, unique_docs = marshal.load(fp)
-            num_images = len(image_info_dict)
-            cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices, doc_split_sizes = [], [], [], [], []
+            cur_image_batch, cur_doc_batch, cur_caption_batch, cur_lang_batch, doc_indices, doc_split_sizes = [], [], [], [], [], []
             cur_max_doc_cap = 0
 
             for image, caption_infos in image_info_dict.items():
                 captions = [c[0] for c in caption_infos]
-                langs = [c[1] for c in caption_infos]
-                docs = [c[2] for c in caption_infos]
+                langs = [text_processor.languages["<" + c[1] + ">"] for c in caption_infos]
+                documents = [c[2] for c in caption_infos]
 
-                for d_i, doc in enumerate(docs):
+                for d_i, doc in enumerate(documents):
                     for c_i, caption in enumerate(captions):
                         if c_i != d_i and langs[c_i] == langs[d_i]:
                             # Skip different docs with same language.
                             continue
 
                         docs = unique_docs[doc]
-                        doc_len = len(docs) * (docs[0].size(0) ** 2)  # based on transformer's memory consumption!
+                        doc_len = len(docs) * (len(docs[0]) ** 2)  # based on transformer's memory consumption!
 
                         if cur_max_doc_cap > 0 and max(cur_max_doc_cap, doc_len) * (
                                 len(cur_caption_batch) + 1) > max_doc_batch_capacity:
-                            all_docs = pad_sequence(cur_doc_batch, batch_first=True, padding_value=pad_index)
-                            all_captions = pad_sequence(cur_caption_batch, batch_first=True, padding_value=pad_index)
+                            all_docs = pad_sequence(tensorfier(cur_doc_batch), batch_first=True,
+                                                    padding_value=self.pad_idx)
+                            all_captions = pad_sequence(tensorfier(cur_caption_batch), batch_first=True,
+                                                        padding_value=self.pad_idx)
                             assert len(doc_indices) == all_docs.size(0)
                             assert len(cur_image_batch) == all_captions.size(0)
 
                             self.images_paths.append(cur_image_batch)
                             entry = {"docs": all_docs, "captions": all_captions,
-                                     "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}
+                                     "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes,
+                                     "langs": torch.LongTensor(cur_lang_batch)}
                             self.batches.append(entry)
-                            cur_image_batch, cur_doc_batch, cur_caption_batch, doc_indices, doc_split_sizes = [], [], [], [], []
+                            cur_image_batch, cur_doc_batch, cur_caption_batch, cur_lang_batch, doc_indices, doc_split_sizes = [], [], [], [], [], []
                             cur_max_doc_cap = 0
                             print("Loaded", len(self.batches), "batches", "\r", end="")
                         else:
@@ -279,12 +285,14 @@ class ImageDocDataset(Dataset):
                             doc_split_sizes.append(len(docs))
                             cur_caption_batch.append(torch.LongTensor(caption))
                             cur_doc_batch += docs
+                            cur_lang_batch += [langs[d_i]] * len(docs)
 
             if len(cur_image_batch) > 0:
-                all_docs = pad_sequence(cur_doc_batch, batch_first=True, padding_value=pad_index)
-                all_captions = pad_sequence(cur_caption_batch, batch_first=True, padding_value=pad_index)
+                all_docs = pad_sequence(tensorfier(cur_doc_batch), batch_first=True, padding_value=self.pad_idx)
+                all_captions = pad_sequence(tensorfier(cur_caption_batch), batch_first=True, padding_value=self.pad_idx)
                 entry = {"docs": all_docs, "captions": all_captions, "images": cur_image_batch,
-                         "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes}
+                         "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes,
+                         "langs": torch.LongTensor(cur_lang_batch)}
                 self.batches.append(entry)
 
             del image_info_dict
@@ -316,7 +324,7 @@ class ImageDocDataset(Dataset):
         caption_mask = (batch["captions"] != self.pad_idx)
 
         return {"images": self.image_batches[item], "captions": batch["captions"], "docs": batch["docs"],
-                "doc_mask": doc_mask,
+                "doc_mask": doc_mask, "langs": batch["langs"],
                 "caption_mask": caption_mask, "doc_idx": batch["doc_idx"], "doc_split": batch["doc_split"]}
 
 

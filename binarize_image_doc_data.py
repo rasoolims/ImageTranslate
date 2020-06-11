@@ -1,10 +1,11 @@
 import json
+import marshal
+import math
 import os
-import pickle
 from collections import defaultdict
 from optparse import OptionParser
 
-import torch
+import numpy as np
 
 from textprocessor import TextProcessor
 
@@ -39,13 +40,12 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
                 content = doc["content"]
                 lang = doc["lang"]
                 tok_lines = text_processor.tokenize_lines(content.strip(), blind_split=True, split_len=128)
-                doc_lines = torch.LongTensor(tok_lines)
-                doc_segments = torch.split(doc_lines, max_sen_per_doc)
+                num_split = int(math.ceil(len(tok_lines) / max_sen_per_doc))
+                doc_segments = [x.tolist() for x in np.array_split(tok_lines, num_split) if len(x) > 0]
 
-                for doc_segment in doc_segments:
+                for dd, doc_segment in enumerate(doc_segments):
                     doc_id = len(unique_docs)
                     unique_docs[doc_id] = doc_segment
-
                     max_doc_size = max(max_doc_size, len(unique_docs[doc_id]))
                     num_captions += len(doc["images"])
                     for image in doc["images"]:
@@ -84,7 +84,7 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
         len(image_info_dict), len(unique_docs), num_captions, max_doc_size, num_instances))
 
     with open(output_file, "wb") as fp:
-        pickle.dump((image_info_dict, unique_images, unique_docs), fp)
+        marshal.dump((dict(image_info_dict), unique_images, unique_docs), fp)
 
 
 def get_options():

@@ -30,9 +30,10 @@ class ImageSeq2Seq(AlbertSeq2Seq):
         caption_mask = batch["caption_mask"].to(device)
         doc_idx = batch["doc_idx"].to(device)
         doc_split = batch["doc_split"]
+        src_langs = batch["langs"].unsqueeze(-1).expand(-1, docs.size(-1))
 
         "Take in and process masked src and target sequences."
-        doc_states = self.encode(device, docs, doc_mask)[0]
+        doc_states = self.encode(device, docs, doc_mask, src_langs)[0]
 
         image_embeddings = self.image_model(images)
 

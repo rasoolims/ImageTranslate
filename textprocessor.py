@@ -126,7 +126,10 @@ class TextProcessor:
         return self.tokenizer.token_to_id(self.sep_token)
 
     def token_id(self, token: str) -> int:
-        return self.tokenizer.token_to_id(token)
+        tok_id = self.tokenizer.token_to_id(token)
+        if tok_id is None:
+            return 0
+        return tok_id
 
     def id2token(self, id: int) -> str:
         return self.tokenizer.id_to_token(id)

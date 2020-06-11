@@ -59,7 +59,8 @@ class TestModel(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages={"<en>": 0})
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname,
+                                      languages={"<en>": 0, "<fa>": 1})
             lm = LM(text_processor=processor, size=4)
 
             seq2seq = AlbertSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
@@ -70,11 +71,13 @@ class TestModel(unittest.TestCase):
                 [[6, 8, 7, processor.pad_token_id(), processor.pad_token_id()], [6, 8, 7, 8, processor.pad_token_id()]])
             src_mask = (src_inputs != processor.pad_token_id())
             tgt_mask = (tgt_inputs != processor.pad_token_id())
-
-            seq_output = seq2seq(device, src_inputs, tgt_inputs, src_mask, tgt_mask, log_softmax=True)
+            src_langs = torch.tensor([[0], [0]]).squeeze()
+            tgt_langs = torch.tensor([[1], [1]]).squeeze()
+            seq_output = seq2seq(device, src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs,
+                                 log_softmax=True)
             assert list(seq_output.size()) == [5, processor.vocab_size()]
 
-            seq_output = seq2seq(device, src_inputs, tgt_inputs, src_mask, tgt_mask)
+            seq_output = seq2seq(device, src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs)
             assert list(seq_output.size()) == [5, processor.vocab_size()]
 
     def test_data(self):
@@ -83,11 +86,12 @@ class TestModel(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
-            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname, languages={"<en>": 0})
+            processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname,
+                                      languages={"<en>": 0, "<fa>": 1})
             create_batches.write(text_processor=processor, cache_dir=tmpdirname, seq_len=512, txt_file=data_path,
                                  sen_block_size=10)
             dataset = TextDataset(save_cache_dir=tmpdirname, max_cache_size=3)
-            assert dataset.line_num == 68
+            assert dataset.line_num == 70
 
             dataset.__getitem__(3)
             assert len(dataset.current_cache) == 3
@@ -95,8 +99,8 @@ class TestModel(unittest.TestCase):
             dataset.__getitem__(9)
             assert len(dataset.current_cache) == 3
 
-            dataset.__getitem__(65)
-            assert len(dataset.current_cache) == 1
+            dataset.__getitem__(69)
+            assert len(dataset.current_cache) == 2
 
     def test_image_data_model(self):
         transform = transforms.Compose([  # [1]
@@ -119,15 +123,14 @@ class TestModel(unittest.TestCase):
             binarize_image_doc_data.write(text_processor=processor, output_file=os.path.join(tmpdirname, "image.bin"),
                                           json_dir=data_path, files_to_use="mzn,glk")
             image_data = ImageDocDataset(os.getcwd(), os.path.join(tmpdirname, "image.bin"), transform,
-                                         max_doc_batch_capacity=1,
-                                         pad_index=processor.pad_token_id())
-            assert len(image_data[4]) == 7
-            assert len(image_data) == 191
+                                         max_doc_batch_capacity=1, text_processor=processor)
+            assert len(image_data[4]) == 8
+            assert len(image_data) == 491
 
             lm = LM(text_processor=processor, size=4)
             image_seq2seq = ImageSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
             output = image_seq2seq('cpu', image_data[4])
-            assert list(output.size()) == [21, processor.vocab_size()]
+            assert list(output.size()) == [32, processor.vocab_size()]
 
 
 if __name__ == '__main__':

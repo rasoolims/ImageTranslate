@@ -380,7 +380,7 @@ class MassTrainer(MTTrainer):
                 ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
                 trainer.reference += ref
 
-        step, train_epoch = 0, 1
+        step, train_epoch = last_epoch, 1
 
         while options.step > 0 and step <= options.step:
             print("train epoch", train_epoch)

@@ -61,7 +61,7 @@ class BeamDecoder(nn.Module):
         length_penalty = torch.pow(torch.tensor(lengths).to(cur_beam_elements.device) / 6.0, self.len_penalty_ratio)
         return length_penalty.unsqueeze(-1)
 
-    def forward(self, device, src_inputs, first_tokens, src_mask, src_langs, tgt_langs, max_len: int = None):
+    def forward(self, device, src_inputs, first_tokens, src_mask, src_langs, tgt_langs, pad_idx, max_len: int = None):
         """
 
         :param device:
@@ -102,8 +102,8 @@ class BeamDecoder(nn.Module):
             if i > 1:
                 dst_langs = torch.repeat_interleave(dst_langs, self.beam_width, 0)
             cur_src_mask = src_mask if i == 1 else torch.repeat_interleave(src_mask, self.beam_width, 0)
-            decoder_states = self.seq2seq_model.decoder(enc_states, cur_outputs, cur_src_mask, output_mask,
-                                                        token_type_ids=dst_langs)
+            decoder_states = self.seq2seq_model.decoder(enc_states, cur_outputs, cur_outputs != pad_idx, cur_src_mask,
+                                                        output_mask, token_type_ids=dst_langs)
             output = F.log_softmax(self.seq2seq_model.output_layer(decoder_states[:, -1, :]), dim=-1)
             output[eos_mask] = 0  # Disregard those items with EOS in them!
             beam_scores = ((cur_scores + output) / self.len_penalty(cur_outputs, eos)).view(batch_size, -1)

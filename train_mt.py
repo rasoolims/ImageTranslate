@@ -217,7 +217,8 @@ class MTTrainer:
                 src_text += [generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in src_ids]
 
                 outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=tgt_inputs[:, 0],
-                                         src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs)
+                                         src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs,
+                                         pad_idx=model.text_processor.pad_token_id())
                 if self.num_gpu > 1:
                     new_outputs = []
                     for output in outputs:

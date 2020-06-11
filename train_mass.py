@@ -9,9 +9,9 @@ from typing import Dict
 
 import torch
 import torch.utils.data as data_utils
+import transformers.optimization as optim
 from IPython.core import ultratb
 from torch.nn.utils.rnn import pad_sequence
-import transformers.optimization as optim
 
 import dataset
 import train_lm
@@ -253,7 +253,7 @@ class MassTrainer(MTTrainer):
             pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
         if dev_data_iter is not None:
-            bleu = self.eval_bleu(dev_data_iter, saving_path+".beam")
+            bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
             print("BLEU:", bleu)
         return step
 
@@ -316,8 +316,15 @@ class MassTrainer(MTTrainer):
 
         pin_memory = torch.cuda.is_available()
 
+        if options.continue_train:
+            with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
+                optimizer, last_epoch = pickle.load(fp)
+        else:
+            optimizer, last_epoch = train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
+                                                                       options.weight_decay), 0
+
         train_data, train_loader, dev_loader, finetune_loader, mt_dev_loader = None, None, None, None, None
-        if options.step > 0:
+        if options.step > 0 and last_epoch > 0:
             train_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
                                              max_batch_capacity=options.total_capacity, max_batch=options.batch,
                                              pad_idx=mt_model.text_processor.pad_token_id(),
@@ -347,13 +354,6 @@ class MassTrainer(MTTrainer):
                     if lang1 != lang2:
                         # Assuming that we only have two languages!
                         lang_directions[lang1] = lang2
-
-        if options.continue_train:
-            with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
-                optimizer, last_epoch = pickle.load(fp)
-        else:
-            optimizer, last_epoch = train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
-                                                                       options.weight_decay), 0
 
         trainer = MassTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                               warmup=options.warmup, step=options.step + options.finetune_step,
@@ -392,12 +392,12 @@ class MassTrainer(MTTrainer):
 
         finetune_epoch = 0
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
-            if train_epoch > 0:
+            if last_epoch > 0:
                 # Resetting optimizer for fine tuning.
                 trainer.optimizer = train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
                                                                        options.weight_decay)
                 trainer.scheduler = optim.get_linear_schedule_with_warmup(trainer.optimizer, num_warmup_steps=0,
-                                                               num_training_steps=options.finetune_step + options.step)
+                                                                          num_training_steps=options.finetune_step + options.step)
             print("finetune epoch", finetune_epoch)
             _ = trainer.fine_tune(data_iter=finetune_loader, lang_directions=lang_directions,
                                   saving_path=options.model_path, step=step, dev_data_iter=mt_dev_loader)

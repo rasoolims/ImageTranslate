@@ -182,8 +182,8 @@ class MassDataset(Dataset):
         self.batches = []
         self.lang_ids = set()
         num_gpu = torch.cuda.device_count()
+        cur_src_batch, cur_langs, cur_max_src_len = [], [], 0
         for examples in self.examples_list:
-            cur_src_batch, cur_langs, cur_max_src_len = [], [], 0
             for example in examples:
                 if len(example[0]) > max_seq_len:
                     continue
@@ -209,6 +209,7 @@ class MassDataset(Dataset):
                     cur_src_batch = [cur_src_batch[-1]]
                     cur_langs = [cur_langs[-1]]
                     cur_max_src_len = int(cur_src_batch[0].size(0))
+
         if len(cur_src_batch) > 0:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
             src_pad_mask = (src_batch != pad_idx)

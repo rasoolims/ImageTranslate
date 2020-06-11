@@ -324,7 +324,7 @@ class MassTrainer(MTTrainer):
                                                                        options.weight_decay), 0
 
         train_data, train_loader, dev_loader, finetune_loader, mt_dev_loader = None, None, None, None, None
-        if options.step > 0 and last_epoch == 0:
+        if options.step > 0 and last_epoch < options.step:
             train_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
                                              max_batch_capacity=options.total_capacity, max_batch=options.batch,
                                              pad_idx=mt_model.text_processor.pad_token_id(),

@@ -49,7 +49,7 @@ class AlbertSeq2Seq(nn.Module):
         tgt_inputs = tgt_inputs.to(device)
 
         subseq_mask = future_mask(tgt_mask[:, :-1]).to(device)
-        decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], src_mask, subseq_mask,
+        decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], tgt_mask[:, :-1], src_mask, subseq_mask,
                                       token_type_ids=tgt_langs[:, :-1])
         diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
         diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
@@ -89,12 +89,11 @@ class MassSeq2Seq(AlbertSeq2Seq):
         :param mask_pad_mask: # Since MASS also generates MASK tokens, we do not backpropagate them during training.
         :return:
         """
-        target_non_pads = tgt_inputs != pad_idx
+        tgt_mask = tgt_inputs != pad_idx
         if tgt_langs is not None:
             # Use back-translation loss
             return super().forward(device=device, src_inputs=src_inputs, src_mask=src_pads, tgt_inputs=tgt_inputs,
-                                   tgt_mask=target_non_pads, src_langs=src_langs, tgt_langs=tgt_langs,
-                                   log_softmax=log_softmax)
+                                   tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=tgt_langs, log_softmax=log_softmax)
 
         "Take in and process masked src and target sequences."
         src_langs_t = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
@@ -103,15 +102,16 @@ class MassSeq2Seq(AlbertSeq2Seq):
         tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
         tgt_inputs = tgt_inputs.to(device)
 
-        subseq_mask = future_mask(target_non_pads[:, :-1]).to(device)
+        subseq_mask = future_mask(tgt_mask[:, :-1]).to(device)
         decoder_output = self.decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
-                                      src_attention_mask=src_pads, tgt_attention_mask=subseq_mask,
+                                      input_ids_mask=tgt_mask[:, :-1], src_attention_mask=src_pads,
+                                      tgt_attention_mask=subseq_mask,
                                       position_ids=tgt_positions[:, :-1] if tgt_positions is not None else None,
                                       token_type_ids=tgt_langs[:, :-1])
         diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
         diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
 
-        tgt_non_mask_flat = target_non_pads[:, 1:].contiguous().view(-1)
+        tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
         non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]
 
         outputs = self.output_layer(non_padded_outputs)
@@ -311,6 +311,7 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
             self,
             encoder_states,
             input_ids=None,
+            input_ids_mask=None,
             src_attention_mask=None,
             tgt_attention_mask=None,
             token_type_ids=None,
@@ -327,6 +328,9 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
             raise ValueError("You have to specify either input_ids or inputs_embeds")
 
         device = input_ids.device if input_ids is not None else inputs_embeds.device
+
+        if input_ids_mask != device:
+            input_ids_mask = input_ids_mask.to(device)
 
         if src_attention_mask is None:
             extended_src_attention_mask = None
@@ -347,6 +351,7 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
         embedding_output = self.embeddings(
             input_ids, position_ids=position_ids, token_type_ids=token_type_ids, inputs_embeds=inputs_embeds
         )
+        embedding_output *= input_ids_mask.unsqueeze(-1)
         outputs = self.decoder(encoder_states, embedding_output, extended_src_attention_mask,
                                extended_tgt_attention_mask)
 

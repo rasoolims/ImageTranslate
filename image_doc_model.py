@@ -48,7 +48,7 @@ class ImageSeq2Seq(AlbertSeq2Seq):
         max_images_attended = torch.stack([torch.max(spl, dim=0).values for spl in image_attended_split], 0)
         subseq_mask = future_mask(caption_mask[:, :-1]).to(device)
         decoder_output = self.decoder(encoder_states=max_images_attended, input_ids=captions[:, :-1],
-                                      tgt_attention_mask=subseq_mask)
+                                      input_ids_mask=caption_mask[:, :-1], tgt_attention_mask=subseq_mask)
         diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
         diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
         tgt_mask_flat = caption_mask[:, 1:].contiguous().view(-1)

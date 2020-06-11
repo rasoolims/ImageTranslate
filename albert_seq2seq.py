@@ -20,7 +20,8 @@ class AlbertSeq2Seq(nn.Module):
         super(AlbertSeq2Seq, self).__init__()
         self.text_processor: TextProcessor = text_processor
         self.config: AlbertConfig = config
-        self.encoder: AlbertModel = encoder
+        self.encoder = encoder
+        self.encoder.__class__ = AlbertEncoderModel
         self.decoder: AlbertDecoderModel = AlbertDecoderModel(decoder) if isinstance(decoder, AlbertModel) else decoder
         self.output_layer: AlbertMLMHead = output_layer
         self.encoder._tie_or_clone_weights(self.decoder.embeddings.word_embeddings,
@@ -355,4 +356,51 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
         outputs = self.decoder(encoder_states, embedding_output, extended_src_attention_mask,
                                extended_tgt_attention_mask)
 
+        return outputs
+
+
+class AlbertEncoderModel(AlbertModel):
+    def forward(
+            self,
+            input_ids=None,
+            attention_mask=None,
+            token_type_ids=None,
+            position_ids=None,
+            head_mask=None,
+            inputs_embeds=None,
+    ):
+        if input_ids is not None and inputs_embeds is not None:
+            raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
+        elif input_ids is not None:
+            input_shape = input_ids.size()
+        elif inputs_embeds is not None:
+            input_shape = inputs_embeds.size()[:-1]
+        else:
+            raise ValueError("You have to specify either input_ids or inputs_embeds")
+
+        device = input_ids.device if input_ids is not None else inputs_embeds.device
+
+        if attention_mask is None:
+            attention_mask = torch.ones(input_shape, device=device)
+        if token_type_ids is None:
+            token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=device)
+
+        extended_attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+        extended_attention_mask = extended_attention_mask.to(dtype=next(self.parameters()).dtype)  # fp16 compatibility
+        extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
+        head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
+
+        embedding_output = self.embeddings(
+            input_ids, position_ids=position_ids, token_type_ids=token_type_ids, inputs_embeds=inputs_embeds
+        )
+        embedding_output *= attention_mask.unsqueeze(-1)
+        encoder_outputs = self.encoder(embedding_output, extended_attention_mask, head_mask=head_mask)
+
+        sequence_output = encoder_outputs[0]
+
+        pooled_output = self.pooler_activation(self.pooler(sequence_output[:, 0]))
+
+        outputs = (sequence_output, pooled_output) + encoder_outputs[
+                                                     1:
+                                                     ]  # add hidden_states and attentions if they are here
         return outputs

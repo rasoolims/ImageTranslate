@@ -62,12 +62,12 @@ def _small_config(vocab_size: int, pad_token_id: int, bos_token_id: int, eos_tok
         "attention_probs_dropout_prob": 0.1,
         "hidden_act": "gelu_new",
         "hidden_dropout_prob": 0.1,
-        "embedding_size": 64,
-        "hidden_size": 256,
+        "embedding_size": 128,
+        "hidden_size": 512,
         "initializer_range": 0.02,
         "intermediate_size": 1024,
         "max_position_embeddings": 512,
-        "num_attention_heads": 2,  # smaller than usual
+        "num_attention_heads": 8,  # smaller than usual
         "num_hidden_layers": 2,  # smaller than usual
         "num_hidden_groups": 1,
         "net_structure_type": 0,

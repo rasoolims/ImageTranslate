@@ -242,7 +242,7 @@ class MassTrainer(MTTrainer):
                         pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
                 if step % 500 == 0 and dev_data_iter is not None:
-                    bleu = self.eval_bleu(dev_data_iter, saving_path)
+                    bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
                     print("BLEU:", bleu)
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0

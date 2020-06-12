@@ -32,15 +32,20 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
         pad_indices[r] = min(pad_indices[r], int(c))
     pad_indices = torch.Tensor(pad_indices)
 
-    mask_indices = [random.randint(1, int(x)) for x in pad_indices - (1 - mask_prob) * pad_indices]
+    mask_indices = [random.randint(0, int(x)) for x in pad_indices - (1 - mask_prob) * pad_indices]
     src_mask = torch.zeros(src_text.size(), dtype=torch.bool)
     to_recover = []
     to_recover_pos = []
     for i, mask_start in enumerate(mask_indices):
         src_mask[i, mask_start: mask_start + int(pad_indices[i] / 2)] = True
-        to_recover.append(torch.cat([src_text[i, 0:1], src_text[i, mask_start: mask_start + int(pad_indices[i] / 2)]]))
-        to_recover_pos.append(
-            torch.cat([torch.arange(0, 1), torch.arange(mask_start, mask_start + int(pad_indices[i] / 2))]))
+        mask_tok = torch.LongTensor([text_processor.mask_token_id()])
+        if mask_start == 0:
+            to_recover.append(src_text[i, mask_start: mask_start + int(pad_indices[i] / 2)])
+            to_recover_pos.append(torch.arange(mask_start, mask_start + int(pad_indices[i] / 2)))
+        else:
+            to_recover.append(torch.cat([mask_tok, src_text[i, mask_start: mask_start + int(pad_indices[i] / 2)]]))
+            to_recover_pos.append(
+                torch.cat([torch.arange(0, 1), torch.arange(mask_start, mask_start + int(pad_indices[i] / 2))]))
     to_recover = pad_sequence(to_recover, batch_first=True, padding_value=text_processor.pad_token_id())
     to_recover_pos = pad_sequence(to_recover_pos, batch_first=True, padding_value=int(src_text.size(-1)) - 1)
 

@@ -341,8 +341,8 @@ class MassTrainer(MTTrainer):
         lang_directions = {}
         if options.finetune_step > 0:
             finetune_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
-                                                max_batch_capacity=int(options.batch / (options.beam_width * 2)),
-                                                max_batch=int(options.batch / (options.beam_width * 2)),
+                                                max_batch_capacity=int(options.batch / (options.beam_width)),
+                                                max_batch=int(options.batch / (options.beam_width)),
                                                 pad_idx=mt_model.text_processor.pad_token_id(),
                                                 max_seq_len=options.max_seq_len, keep_examples=False,
                                                 example_list=None if train_data is None else train_data.examples_list)

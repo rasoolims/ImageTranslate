@@ -358,7 +358,8 @@ class MassTrainer(MTTrainer):
         trainer = MassTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                               warmup=options.warmup, step=options.step + options.finetune_step,
                               beam_width=options.beam_width, max_len_a=options.max_len_a, max_len_b=options.max_len_b,
-                              len_penalty_ratio=options.len_penalty_ratio, last_epoch=last_epoch)
+                              len_penalty_ratio=options.len_penalty_ratio, last_epoch=last_epoch,
+                              nll_loss=options.nll_loss)
 
         mt_dev_loader = None
         if options.mt_dev_path is not None:

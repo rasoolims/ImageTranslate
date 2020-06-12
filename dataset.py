@@ -242,6 +242,7 @@ class ImageDocDataset(Dataset):
         self.images_paths = []
         tensorfier = lambda b: list(map(torch.LongTensor, b))
 
+        print("Start", datetime.datetime.now())
         with open(data_bin_file, "rb") as fp:
             image_info_dict, unique_images, unique_docs = marshal.load(fp)
             cur_image_batch, cur_doc_batch, cur_caption_batch, cur_lang_batch, doc_indices, doc_split_sizes = [], [], [], [], [], []
@@ -249,7 +250,9 @@ class ImageDocDataset(Dataset):
 
             for image, caption_infos in image_info_dict.items():
                 captions = [c[0] for c in caption_infos]
-                langs = [text_processor.languages["<" + c[1] + ">"] for c in caption_infos]
+                langs = [
+                    text_processor.languages["<" + c[1] + ">"] if "<" + c[1] + ">" in text_processor.languages else 0
+                    for c in caption_infos]
                 documents = [c[2] for c in caption_infos]
 
                 for d_i, doc in enumerate(documents):
@@ -301,6 +304,7 @@ class ImageDocDataset(Dataset):
             del unique_docs
 
         print("Loaded %d batches!" % (len(self.batches)))
+        print("End", datetime.datetime.now())
         self.image_batches = {}
 
     def read_transform_images(self, cur_image_batch):

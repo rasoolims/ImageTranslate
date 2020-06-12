@@ -5,6 +5,7 @@ import pickle
 import sys
 import time
 from typing import Optional
+import torch.nn as nn
 
 import sacrebleu
 import torch
@@ -27,7 +28,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class MTTrainer:
     def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
                  step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
-                 len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0):
+                 len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0, nll_loss:bool=False):
         self.model = model
 
         self.clip = clip
@@ -43,8 +44,10 @@ class MTTrainer:
         print("Scheduler Last epoch", last_epoch)
 
         self.mask_prob = mask_prob
-        self.criterion = SmoothedNLLLoss(
-            ignore_index=model.text_processor.pad_token_id())
+        if nll_loss:
+            self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
+        else:
+            self.criterion = SmoothedNLLLoss(ignore_index=model.text_processor.pad_token_id())
 
         self.num_gpu = torch.cuda.device_count()
         if self.num_gpu > 1:
@@ -350,7 +353,7 @@ class MTTrainer:
                             warmup=options.warmup, step=options.step, beam_width=options.beam_width,
                             max_len_a=options.max_len_a, max_len_b=options.max_len_b,
                             len_penalty_ratio=options.len_penalty_ratio, self_translate=options.pretrain,
-                            last_epoch=last_epoch)
+                            last_epoch=last_epoch, nll_loss=options.nll_loss)
 
         print("creating reference")
         trainer.reference = []
@@ -445,6 +448,8 @@ def get_option_parser():
     parser.add_option("--max_seq_len", dest="max_seq_len", help="Max sequence length", type="int", default=175)
     parser.add_option("--pretrain", action="store_true", dest="pretrain",
                       help="Use self to self translation similar to BART!", default=False)
+    parser.add_option("--nll", action="store_true", dest="nll_loss", help="Use NLL loss instead of smoothed NLL loss",
+                      default=False)
     parser.set_default("batch", 20000)
     return parser
 

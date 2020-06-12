@@ -9,6 +9,7 @@ from typing import Dict
 
 import torch
 import torch.utils.data as data_utils
+import transformers.optimization as optim
 from IPython.core import ultratb
 from torch.nn.utils.rnn import pad_sequence
 
@@ -361,7 +362,7 @@ class MassTrainer(MTTrainer):
                         lang_directions[lang1] = lang2
 
         trainer = MassTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
-                              warmup=options.warmup, step=options.step + options.finetune_step,
+                              warmup=options.warmup, step=options.step if options.step > 0 else options.finetune_step,
                               beam_width=options.beam_width, max_len_a=options.max_len_a, max_len_b=options.max_len_b,
                               len_penalty_ratio=options.len_penalty_ratio, last_epoch=last_epoch,
                               nll_loss=options.nll_loss)
@@ -398,6 +399,14 @@ class MassTrainer(MTTrainer):
 
         finetune_epoch = 0
         mt_model.save(options.model_path + ".beam")
+        if train_epoch > 0:
+            # Resetting the optimizer for the purpose of finetuning.
+            trainer.optimizer = train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
+                                                                   options.weight_decay)
+            trainer.scheduler = optim.get_linear_schedule_with_warmup(trainer.optimizer,
+                                                                      num_warmup_steps=options.warmup,
+                                                                      num_training_steps=options.finetune_step)
+
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
             print("finetune epoch", finetune_epoch)
             _ = trainer.fine_tune(data_iter=finetune_loader, lang_directions=lang_directions,

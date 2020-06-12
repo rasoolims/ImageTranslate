@@ -5,10 +5,10 @@ import pickle
 import sys
 import time
 from typing import Optional
-import torch.nn as nn
 
 import sacrebleu
 import torch
+import torch.nn as nn
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
@@ -28,7 +28,8 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class MTTrainer:
     def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
                  step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
-                 len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0, nll_loss:bool=False):
+                 len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0,
+                 nll_loss: bool = False):
         self.model = model
 
         self.clip = clip

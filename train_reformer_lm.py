@@ -38,6 +38,10 @@ class ReformerTrainer(LMTrainer):
         else:
             optimizer, last_epoch = train_lm.LMTrainer.build_optimizer(lm, options.learning_rate,
                                                                        options.weight_decay), 0
+        lm.config.hidden_dropout_prob = options.dropout
+        lm.config.local_attention_probs_dropout_prob = options.dropout
+        lm.config.lsh_attention_probs_dropout_prob = options.dropout
+        
         trainer = ReformerTrainer(model=lm, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                                   warmup=options.warmup, step=options.step, last_epoch=last_epoch)
 
@@ -49,7 +53,6 @@ class ReformerTrainer(LMTrainer):
                                        collate_fn=collator, sampler=train_sampler)
         dev_loader = data_utils.DataLoader(dev_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
                                            collate_fn=collator, sampler=dev_sampler)
-
         step, train_epoch = last_epoch, 1
         while step <= options.step:
             print("train epoch", train_epoch)

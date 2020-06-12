@@ -128,8 +128,7 @@ class BeamDecoder(nn.Module):
         else:
             if outputs.dim() == 1:
                 outputs = outputs.unsqueeze(0)
-            outputs = outputs.cpu()
-            actual_outputs = [outputs[i] for i in range(outputs.size(0))]
+            actual_outputs = [outputs[i].cpu() for i in range(outputs.size(0))]
 
         # Force free memory.
         del outputs

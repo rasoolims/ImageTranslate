@@ -1,5 +1,6 @@
 import copy
 import datetime
+import math
 import os
 import pickle
 import random
@@ -158,9 +159,8 @@ class MassTrainer(MTTrainer):
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
         cur_loss = 0
         sentences = 0
-        model = (
-            self.model.module if hasattr(self.model, "module") else self.model
-        )
+        model = self.model.module if hasattr(self.model, "module") else self.model
+        generator = self.generator.module if hasattr(self.generator, "module") else self.generator
 
         for i, batch in enumerate(data_iter):
             if self.optimizer is not None:
@@ -176,21 +176,30 @@ class MassTrainer(MTTrainer):
                 continue
 
             try:
+                split_size = int(math.ceil(src_inputs.size(0) / generator.beam_width))
+                src_inputs_split = torch.split(src_inputs, split_size)
+                src_pad_mask_spl = torch.split(src_pad_mask, split_size)
+                tgt_langs_spl = torch.split(target_langs, split_size)
+                dst_langs_spl = torch.split(dst_langs, split_size)
+                src_langs_spl = torch.split(batch["langs"].squeeze(0), split_size)
+                all_outputs = []
                 model.eval()
-                with torch.no_grad():
-                    # We do not backpropagate the data generator following the MASS paper.
-                    outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=target_langs,
-                                             src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
-                                             pad_idx=model.text_processor.pad_token_id(),
-                                             src_mask=src_pad_mask, unpad_output=False)
-                    if self.num_gpu > 1:
-                        new_outputs = []
-                        for output in outputs:
-                            new_outputs += output
-                        outputs = new_outputs
+                for s_i, src_inp in enumerate(src_inputs_split):
+                    with torch.no_grad():
+                        # We do not backpropagate the data generator following the MASS paper.
+                        outputs = self.generator(device=self.device, src_inputs=src_inp,
+                                                 first_tokens=tgt_langs_spl[s_i],
+                                                 src_langs=src_langs_spl[s_i], tgt_langs=dst_langs_spl[s_i],
+                                                 pad_idx=model.text_processor.pad_token_id(),
+                                                 src_mask=src_pad_mask_spl[s_i], unpad_output=False)
+                        if self.num_gpu > 1:
+                            for output in outputs:
+                                all_outputs += output
+                        else:
+                            all_outputs += outputs
 
-                    translations = pad_sequence(outputs, batch_first=True)
-                    translation_pad_mask = (translations != model.text_processor.pad_token_id())
+                translations = pad_sequence(all_outputs, batch_first=True)
+                translation_pad_mask = (translations != model.text_processor.pad_token_id())
                 model.train()
 
                 # Now use it for back-translation loss.
@@ -341,8 +350,8 @@ class MassTrainer(MTTrainer):
         lang_directions = {}
         if options.finetune_step > 0:
             finetune_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
-                                                max_batch_capacity=int(options.batch / (options.beam_width)),
-                                                max_batch=int(options.batch / (options.beam_width)),
+                                                max_batch_capacity=int(options.batch),
+                                                max_batch=int(options.batch),
                                                 pad_idx=mt_model.text_processor.pad_token_id(),
                                                 max_seq_len=options.max_seq_len, keep_examples=False,
                                                 example_list=None if train_data is None else train_data.examples_list)

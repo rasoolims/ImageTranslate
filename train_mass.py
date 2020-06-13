@@ -5,6 +5,7 @@ import pickle
 import random
 import sys
 import time
+import math
 from typing import Dict, List
 
 import torch
@@ -33,7 +34,7 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
         pad_indices[r] = min(pad_indices[r], int(c))
     pad_indices = torch.Tensor(pad_indices)
 
-    mask_indices = [random.randint(0, int(x)) for x in pad_indices - (1 - mask_prob) * pad_indices]
+    mask_indices = [random.randint(0, int(math.ceil(x))) for x in pad_indices - (1 - mask_prob) * pad_indices]
     src_mask = torch.zeros(src_text.size(), dtype=torch.bool)
     to_recover = []
     to_recover_pos = []

@@ -41,11 +41,11 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
     for i, mask_start in enumerate(mask_indices):
         start, end = mask_start, mask_start + int(pad_indices[i] / 2)
         src_mask[i, start:end] = True
-        mask_tok = torch.LongTensor([text_processor.mask_token_id()])
         if mask_start == 0:
             to_recover.append(src_text[i, start:end])
             to_recover_pos.append(torch.arange(start, end))
         else:
+            mask_tok = torch.LongTensor([text_processor.mask_token_id()])
             to_recover.append(torch.cat([mask_tok, src_text[i, start:end]]))
             to_recover_pos.append(
                 torch.cat([torch.arange(0, 1), torch.arange(start, end)]))

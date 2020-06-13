@@ -47,8 +47,7 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
         else:
             mask_tok = torch.LongTensor([text_processor.mask_token_id()])
             to_recover.append(torch.cat([mask_tok, src_text[i, start:end]]))
-            to_recover_pos.append(
-                torch.cat([torch.arange(0, 1), torch.arange(start, end)]))
+            to_recover_pos.append(torch.cat([torch.arange(0, 1), torch.arange(start, end)]))
     to_recover = pad_sequence(to_recover, batch_first=True, padding_value=text_processor.pad_token_id())
     to_recover_pos = pad_sequence(to_recover_pos, batch_first=True, padding_value=int(src_text.size(-1)) - 1)
 

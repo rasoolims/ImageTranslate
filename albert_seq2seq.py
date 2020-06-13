@@ -24,12 +24,6 @@ class AlbertSeq2Seq(nn.Module):
         self.encoder.__class__ = AlbertEncoderModel
         self.decoder: AlbertDecoderModel = AlbertDecoderModel(decoder) if isinstance(decoder, AlbertModel) else decoder
         self.output_layer: AlbertMLMHead = output_layer
-        self.encoder._tie_or_clone_weights(self.decoder.embeddings.word_embeddings,
-                                           self.encoder.embeddings.word_embeddings)
-        self.encoder._tie_or_clone_weights(self.decoder.embeddings.position_embeddings,
-                                           self.encoder.embeddings.position_embeddings)
-        self.encoder._tie_or_clone_weights(self.decoder.embeddings.token_type_embeddings,
-                                           self.encoder.embeddings.token_type_embeddings)
         self.checkpoint = checkpoint
         self.checkpoint_num = 0
 

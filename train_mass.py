@@ -5,7 +5,7 @@ import pickle
 import random
 import sys
 import time
-from typing import Dict
+from typing import Dict, List
 
 import torch
 import torch.utils.data as data_utils
@@ -74,7 +74,8 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
 
 
 class MassTrainer(MTTrainer):
-    def train_epoch(self, data_iter: data_utils.DataLoader, dev_data_iter: data_utils.DataLoader, saving_path: str,
+    def train_epoch(self, data_iter: List[data_utils.DataLoader], dev_data_iter: data_utils.DataLoader,
+                    saving_path: str,
                     step: int, mt_dev_iter: data_utils.DataLoader = None, max_grad_norm: float = 1.0, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
@@ -85,66 +86,71 @@ class MassTrainer(MTTrainer):
             self.model.module if hasattr(self.model, "module") else self.model
         )
 
-        for i, batch in enumerate(data_iter):
-            if self.optimizer is not None:
-                self.optimizer.zero_grad()
-            src_inputs = batch["src_texts"].squeeze(0)
-            src_pad_mask = src_inputs != model.text_processor.pad_token_id()
+        shortest = min([len(l) for l in data_iter])
+        # Here we assume that the data_iter has only two elements.
+        for i, batches in enumerate(zip(data_iter[0], data_iter[1])):
+            for batch in batches:
+                if self.optimizer is not None:
+                    self.optimizer.zero_grad()
+                src_inputs = batch["src_texts"].squeeze(0)
+                src_pad_mask = src_inputs != model.text_processor.pad_token_id()
 
-            src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, src_pad_mask, src_inputs,
-                                                                           model.text_processor)
+                src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, src_pad_mask, src_inputs,
+                                                                               model.text_processor)
 
-            if src_inputs.size(0) < self.num_gpu:
-                continue
-
-            try:
-                predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=to_recover,
-                                         tgt_positions=positions, src_pads=src_pad_mask,
-                                         pad_idx=model.text_processor.pad_token_id(),
-                                         src_langs=batch["langs"].squeeze(0),
-                                         log_softmax=True)
-                ntokens = targets.size(0)
-
-                if ntokens == 0:  # Nothing to predict!
+                if src_inputs.size(0) < self.num_gpu:
                     continue
 
-                loss = self.criterion(predictions, targets).mean() * ntokens
-                loss.backward()
+                try:
+                    predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=to_recover,
+                                             tgt_positions=positions, src_pads=src_pad_mask,
+                                             pad_idx=model.text_processor.pad_token_id(),
+                                             src_langs=batch["langs"].squeeze(0),
+                                             log_softmax=True)
+                    ntokens = targets.size(0)
 
-                loss = float(loss.data)
-                total_loss += loss
-                cur_loss += loss
-                total_tokens += ntokens
-                tokens += ntokens
-                sentences += int(src_inputs.size(0))
+                    if ntokens == 0:  # Nothing to predict!
+                        continue
 
-                if self.optimizer is not None:
-                    # We accumulate the gradients for both tasks!
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
-                    self.optimizer.step()
-                    self.scheduler.step()
-                    step += 1
+                    loss = self.criterion(predictions, targets).mean() * ntokens
+                    loss.backward()
 
-            except RuntimeError as err:
-                torch.cuda.empty_cache()
-                print("Error in processing", src_inputs.size(), src_inputs.size())
+                    loss = float(loss.data)
+                    total_loss += loss
+                    cur_loss += loss
+                    total_tokens += ntokens
+                    tokens += ntokens
+                    sentences += int(src_inputs.size(0))
 
-            if step % 50 == 0 and tokens > 0:
-                elapsed = time.time() - start
-                print(datetime.datetime.now(),
-                      "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
-                          step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
+                    if self.optimizer is not None:
+                        # We accumulate the gradients for both tasks!
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+                        self.optimizer.step()
+                        self.scheduler.step()
+                        step += 1
 
-                if step % 1000 == 0:
-                    # Save every 1000 steps!
-                    model.save(saving_path + ".latest")
-                    with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                        pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
+                except RuntimeError as err:
+                    torch.cuda.empty_cache()
+                    print("Error in processing", src_inputs.size(), src_inputs.size())
 
-                if step % 500 == 0:
-                    self.validate(dev_data_iter)
+                if step % 50 == 0 and tokens > 0:
+                    elapsed = time.time() - start
+                    print(datetime.datetime.now(),
+                          "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
+                              step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
-                start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
+                    if step % 1000 == 0:
+                        # Save every 1000 steps!
+                        model.save(saving_path + ".latest")
+                        with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                            pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
+
+                    if step % 500 == 0:
+                        self.validate(dev_data_iter)
+
+                    start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
+            if i == shortest - 1:
+                break  # Visited all elements in one data!
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model.save(saving_path + ".latest")
@@ -157,7 +163,7 @@ class MassTrainer(MTTrainer):
             print("Pretraining BLEU:", bleu)
         return step
 
-    def fine_tune(self, data_iter: data_utils.DataLoader, lang_directions: Dict[int, int], saving_path: str,
+    def fine_tune(self, data_iter: List[data_utils.DataLoader], lang_directions: Dict[int, int], saving_path: str,
                   step: int, max_grad_norm: float = 1.0, dev_data_iter: data_utils.DataLoader = None):
         "Standard Training and Logging Function"
         start = time.time()
@@ -168,90 +174,94 @@ class MassTrainer(MTTrainer):
             self.model.module if hasattr(self.model, "module") else self.model
         )
 
-        for i, batch in enumerate(data_iter):
-            if self.optimizer is not None:
+        shortest = min([len(l) for l in data_iter])
+        # Here we assume that the data_iter has only two elements.
+        for i, batches in enumerate(zip(data_iter[0], data_iter[1])):
+            for batch in batches:
                 self.optimizer.zero_grad()
-            src_inputs = batch["src_texts"].squeeze(0)
-            src_pad_mask = src_inputs != model.text_processor.pad_token_id()
+                src_inputs = batch["src_texts"].squeeze(0)
+                src_pad_mask = src_inputs != model.text_processor.pad_token_id()
 
-            target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
-            dst_langs = torch.LongTensor(
-                [model.text_processor.languages[model.text_processor.id2token(lang_directions[int(l)])] for l in
-                 src_inputs[:, 0]])
-            if src_inputs.size(0) < self.num_gpu:
-                continue
-
-            try:
-                model.eval()
-                with torch.no_grad():
-                    # We do not backpropagate the data generator following the MASS paper.
-                    outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=target_langs,
-                                             src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
-                                             pad_idx=model.text_processor.pad_token_id(),
-                                             src_mask=src_pad_mask, unpad_output=False)
-                    if self.num_gpu > 1:
-                        new_outputs = []
-                        for output in outputs:
-                            new_outputs += output
-                        outputs = new_outputs
-
-                    translations = pad_sequence(outputs, batch_first=True)
-                    translation_pad_mask = (translations != model.text_processor.pad_token_id())
-                model.train()
-
-                # Now use it for back-translation loss.
-                predictions = self.model(device=self.device, src_inputs=translations, tgt_inputs=src_inputs,
-                                         src_pads=translation_pad_mask,
-                                         pad_idx=model.text_processor.pad_token_id(),
-                                         src_langs=dst_langs,
-                                         tgt_langs=batch["langs"].squeeze(0),
-                                         log_softmax=True)
-                src_targets = src_inputs[:, 1:].contiguous().view(-1)
-                src_mask_flat = src_pad_mask[:, 1:].contiguous().view(-1)
-                targets = src_targets[src_mask_flat]
-                ntokens = targets.size(0)
-
-                if ntokens == 0:  # Nothing to predict!
+                target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
+                dst_langs = torch.LongTensor(
+                    [model.text_processor.languages[model.text_processor.id2token(lang_directions[int(l)])] for l in
+                     src_inputs[:, 0]])
+                if src_inputs.size(0) < self.num_gpu:
                     continue
 
-                bt_loss = self.criterion(predictions, targets).mean()
-                bt_loss.backward()
+                try:
+                    model.eval()
+                    with torch.no_grad():
+                        # We do not backpropagate the data generator following the MASS paper.
+                        outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=target_langs,
+                                                 src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
+                                                 pad_idx=model.text_processor.pad_token_id(),
+                                                 src_mask=src_pad_mask, unpad_output=False)
+                        if self.num_gpu > 1:
+                            new_outputs = []
+                            for output in outputs:
+                                new_outputs += output
+                            outputs = new_outputs
 
-                bt_loss = float(bt_loss.data) * ntokens
-                total_loss += bt_loss
-                cur_loss += bt_loss
-                total_tokens += ntokens
-                tokens += ntokens
-                sentences += int(src_inputs.size(0))
+                        translations = pad_sequence(outputs, batch_first=True)
+                        translation_pad_mask = (translations != model.text_processor.pad_token_id())
+                    model.train()
 
-                if self.optimizer is not None:
-                    # We accumulate the gradients for both tasks!
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
-                    self.optimizer.step()
-                    self.scheduler.step()
-                    step += 1
+                    # Now use it for back-translation loss.
+                    predictions = self.model(device=self.device, src_inputs=translations, tgt_inputs=src_inputs,
+                                             src_pads=translation_pad_mask,
+                                             pad_idx=model.text_processor.pad_token_id(),
+                                             src_langs=dst_langs,
+                                             tgt_langs=batch["langs"].squeeze(0),
+                                             log_softmax=True)
+                    src_targets = src_inputs[:, 1:].contiguous().view(-1)
+                    src_mask_flat = src_pad_mask[:, 1:].contiguous().view(-1)
+                    targets = src_targets[src_mask_flat]
+                    ntokens = targets.size(0)
 
-            except RuntimeError as err:
-                torch.cuda.empty_cache()
-                print("Error in processing", src_inputs.size(), src_inputs.size())
+                    if ntokens == 0:  # Nothing to predict!
+                        continue
 
-            if step % 50 == 0 and tokens > 0:
-                elapsed = time.time() - start
-                print(datetime.datetime.now(),
-                      "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
-                          step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
+                    bt_loss = self.criterion(predictions, targets).mean()
+                    bt_loss.backward()
 
-                if step % 1000 == 0:
-                    # Save every 1000 steps!
-                    model.save(saving_path + ".beam.latest")
-                    with open(os.path.join(saving_path + ".beam.latest", "optim"), "wb") as fp:
-                        pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
+                    bt_loss = float(bt_loss.data) * ntokens
+                    total_loss += bt_loss
+                    cur_loss += bt_loss
+                    total_tokens += ntokens
+                    tokens += ntokens
+                    sentences += int(src_inputs.size(0))
 
-                if step % 500 == 0 and dev_data_iter is not None:
-                    bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
-                    print("BLEU:", bleu)
+                    if self.optimizer is not None:
+                        # We accumulate the gradients for both tasks!
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+                        self.optimizer.step()
+                        self.scheduler.step()
+                        step += 1
 
-                start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
+                except RuntimeError as err:
+                    torch.cuda.empty_cache()
+                    print("Error in processing", src_inputs.size(), src_inputs.size())
+
+                if step % 50 == 0 and tokens > 0:
+                    elapsed = time.time() - start
+                    print(datetime.datetime.now(),
+                          "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
+                              step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
+
+                    if step % 1000 == 0:
+                        # Save every 1000 steps!
+                        model.save(saving_path + ".beam.latest")
+                        with open(os.path.join(saving_path + ".beam.latest", "optim"), "wb") as fp:
+                            pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
+
+                    if step % 500 == 0 and dev_data_iter is not None:
+                        bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
+                        print("BLEU:", bleu)
+
+                    start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
+            if i == shortest - 1:
+                break
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model.save(saving_path + ".beam.latest")
@@ -330,33 +340,49 @@ class MassTrainer(MTTrainer):
                                                                        options.weight_decay), 0
 
         train_data, train_loader, dev_loader, finetune_loader, mt_dev_loader = None, None, None, None, None
+        train_paths = options.train_path.strip().split(",")
         if options.step > 0 and last_epoch < options.step:
-            train_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
-                                             max_batch_capacity=options.total_capacity, max_batch=options.batch,
-                                             pad_idx=mt_model.text_processor.pad_token_id(),
-                                             max_seq_len=options.max_seq_len, keep_examples=True)
+            train_data, train_loader = [], []
+            for i, train_path in enumerate(train_paths):
+                td = dataset.MassDataset(batch_pickle_dir=train_path,
+                                         max_batch_capacity=options.total_capacity, max_batch=options.batch,
+                                         pad_idx=mt_model.text_processor.pad_token_id(),
+                                         max_seq_len=options.max_seq_len, keep_examples=True)
+                train_data.append(td)
+                dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)
+                train_loader.append(dl)
 
             dev_data = dataset.MassDataset(batch_pickle_dir=options.dev_path,
                                            max_batch_capacity=options.total_capacity,
                                            max_batch=options.batch,
                                            pad_idx=mt_model.text_processor.pad_token_id(),
                                            max_seq_len=options.max_seq_len)
-            train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
             dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
         lang_directions = {}
         if options.finetune_step > 0:
-            finetune_data = dataset.MassDataset(batch_pickle_dir=options.train_path,
-                                                max_batch_capacity=int(options.batch / (options.beam_width)),
-                                                max_batch=int(options.batch / (options.beam_width)),
-                                                pad_idx=mt_model.text_processor.pad_token_id(),
-                                                max_seq_len=options.max_seq_len, keep_examples=False,
-                                                example_list=None if train_data is None else train_data.examples_list)
-            if train_data is not None:
-                train_data.examples_list = []
-            finetune_loader = data_utils.DataLoader(finetune_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
-            for lang1 in finetune_data.lang_ids:
-                for lang2 in finetune_data.lang_ids:
+            finetune_data, finetune_loader = [], []
+            for i, train_path in enumerate(train_paths):
+                fd = dataset.MassDataset(batch_pickle_dir=train_path,
+                                         max_batch_capacity=int(options.batch / (options.beam_width)),
+                                         max_batch=int(options.batch / (options.beam_width)),
+                                         pad_idx=mt_model.text_processor.pad_token_id(),
+                                         max_seq_len=options.max_seq_len, keep_examples=False,
+                                         example_list=None if train_data is None else train_data[i].examples_list)
+                finetune_data.append(fd)
+                fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory)
+                finetune_loader.append(fl)
+
+                if train_data is not None:
+                    train_data[i].examples_list = []
+
+            langs = set()
+            for fd in finetune_data:
+                for lang1 in fd.lang_ids:
+                    langs.add(lang1)
+
+            for lang1 in langs:
+                for lang2 in langs:
                     if lang1 != lang2:
                         # Assuming that we only have two languages!
                         lang_directions[lang1] = lang2
@@ -409,8 +435,8 @@ class MassTrainer(MTTrainer):
 
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
             print("finetune epoch", finetune_epoch)
-            _ = trainer.fine_tune(data_iter=finetune_loader, lang_directions=lang_directions,
-                                  saving_path=options.model_path, step=step, dev_data_iter=mt_dev_loader)
+            step = trainer.fine_tune(data_iter=finetune_loader, lang_directions=lang_directions,
+                                     saving_path=options.model_path, step=step, dev_data_iter=mt_dev_loader)
             finetune_epoch += 1
 
 

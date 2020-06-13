@@ -52,9 +52,6 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
     to_recover_pos = pad_sequence(to_recover_pos, batch_first=True, padding_value=int(src_text.size(-1)) - 1)
 
     assert 0 < mask_prob < 1
-    tgt_mask = ~src_mask
-    tgt_mask[~pads] = False  # We should not mask pads.
-    tgt_mask[:, 0] = False  # Always unmask the first token (start symbol or language identifier).
 
     replacements = src_text[src_mask]
     for i in range(len(replacements)):

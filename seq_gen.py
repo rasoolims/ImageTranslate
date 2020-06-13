@@ -82,7 +82,7 @@ class BeamDecoder(nn.Module):
         top_beam_scores = torch.zeros(first_position_output.size()).to(first_position_output.device)
 
         if max_len is None:
-            max_len = min(int(self.max_len_a * src_inputs.size(1) + self.max_len_b) + 1,
+            max_len = min(int(self.max_len_a * src_inputs.size(1) + self.max_len_b),
                           self.seq2seq_model.encoder.embeddings.position_embeddings.num_embeddings)
 
         for i in range(1, max_len):

@@ -1,11 +1,11 @@
 import copy
 import datetime
+import math
 import os
 import pickle
 import random
 import sys
 import time
-import math
 from typing import Dict, List
 
 import torch
@@ -39,15 +39,16 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
     to_recover = []
     to_recover_pos = []
     for i, mask_start in enumerate(mask_indices):
-        src_mask[i, mask_start: mask_start + int(pad_indices[i] / 2)] = True
+        start, end = mask_start, mask_start + int(pad_indices[i] / 2)
+        src_mask[i, start:end] = True
         mask_tok = torch.LongTensor([text_processor.mask_token_id()])
         if mask_start == 0:
-            to_recover.append(src_text[i, mask_start: mask_start + int(pad_indices[i] / 2)])
-            to_recover_pos.append(torch.arange(mask_start, mask_start + int(pad_indices[i] / 2)))
+            to_recover.append(src_text[i, start:end])
+            to_recover_pos.append(torch.arange(start, end))
         else:
-            to_recover.append(torch.cat([mask_tok, src_text[i, mask_start: mask_start + int(pad_indices[i] / 2)]]))
+            to_recover.append(torch.cat([mask_tok, src_text[i, start:end]]))
             to_recover_pos.append(
-                torch.cat([torch.arange(0, 1), torch.arange(mask_start, mask_start + int(pad_indices[i] / 2))]))
+                torch.cat([torch.arange(0, 1), torch.arange(start, end)]))
     to_recover = pad_sequence(to_recover, batch_first=True, padding_value=text_processor.pad_token_id())
     to_recover_pos = pad_sequence(to_recover_pos, batch_first=True, padding_value=int(src_text.size(-1)) - 1)
 

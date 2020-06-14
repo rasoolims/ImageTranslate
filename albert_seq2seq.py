@@ -41,9 +41,12 @@ class AlbertSeq2Seq(nn.Module):
         encoder_states = self.encode(device, src_inputs, src_mask, src_langs)[0]
 
         tgt_langs = tgt_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
-        tgt_inputs = tgt_inputs.to(device)
+        if tgt_inputs.device != encoder_states.device:
+            tgt_inputs = tgt_inputs.to(device)
 
-        subseq_mask = future_mask(tgt_mask[:, :-1]).to(device)
+        subseq_mask = future_mask(tgt_mask[:, :-1])
+        if subseq_mask.device != tgt_inputs.device:
+            subseq_mask = subseq_mask.to(device)
         decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], tgt_mask[:, :-1], src_mask, subseq_mask,
                                       token_type_ids=tgt_langs[:, :-1])
         diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
@@ -84,7 +87,9 @@ class MassSeq2Seq(AlbertSeq2Seq):
         :param mask_pad_mask: # Since MASS also generates MASK tokens, we do not backpropagate them during training.
         :return:
         """
+        tgt_inputs = tgt_inputs.to(device)
         tgt_mask = tgt_inputs != pad_idx
+
         if tgt_langs is not None:
             # Use back-translation loss
             return super().forward(device=device, src_inputs=src_inputs, src_mask=src_pads, tgt_inputs=tgt_inputs,
@@ -95,9 +100,8 @@ class MassSeq2Seq(AlbertSeq2Seq):
         encoder_states = self.encode(device, src_inputs, src_pads, src_langs_t)[0]
 
         tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
-        tgt_inputs = tgt_inputs.to(device)
 
-        subseq_mask = future_mask(tgt_mask[:, :-1]).to(device)
+        subseq_mask = future_mask(tgt_mask[:, :-1])
         decoder_output = self.decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
                                       input_ids_mask=tgt_mask[:, :-1], src_attention_mask=src_pads,
                                       tgt_attention_mask=subseq_mask,
@@ -324,7 +328,7 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
 
         device = input_ids.device if input_ids is not None else inputs_embeds.device
 
-        if input_ids_mask != device:
+        if input_ids_mask.device != device:
             input_ids_mask = input_ids_mask.to(device)
 
         if src_attention_mask is None:

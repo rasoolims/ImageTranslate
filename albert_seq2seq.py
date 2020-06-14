@@ -49,7 +49,8 @@ class AlbertSeq2Seq(nn.Module):
             subseq_mask = subseq_mask.to(device)
         decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], tgt_mask[:, :-1], src_mask, subseq_mask,
                                       token_type_ids=tgt_langs[:, :-1])
-        diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
+        diag_outputs_list = list(map(lambda d: decoder_output[:, d, d, :], range(decoder_output.size(2))))
+        diag_outputs = torch.stack(diag_outputs_list, 1)
         diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
         tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
         non_padded_outputs = diag_outputs_flat[tgt_mask_flat]
@@ -107,7 +108,8 @@ class MassSeq2Seq(AlbertSeq2Seq):
                                       tgt_attention_mask=subseq_mask,
                                       position_ids=tgt_positions[:, :-1] if tgt_positions is not None else None,
                                       token_type_ids=tgt_langs[:, :-1])
-        diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
+        diag_outputs_list = list(map(lambda d: decoder_output[:, d, d, :], range(decoder_output.size(2))))
+        diag_outputs = torch.stack(diag_outputs_list, 1)
         diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
 
         tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)

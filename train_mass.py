@@ -180,7 +180,6 @@ class MassTrainer(MTTrainer):
                 self.optimizer.zero_grad()
                 src_inputs = batch["src_texts"].squeeze(0)
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
-                pad_indices = batch["pad_idx"]
 
                 target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
                 dst_langs = torch.LongTensor(

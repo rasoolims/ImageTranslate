@@ -124,6 +124,11 @@ class BeamDecoder(nn.Module):
                 indices[reached_eos_limit] = pad_idx
 
             flat_indices = indices.view(-1)
+
+            if i > 1:
+                # Regardless of output, if already reached EOS, make it PAD!
+                flat_indices[eos_mask] = pad_idx
+
             word_indices = torch.stack([torch.LongTensor([range(output.size(1))])] * self.beam_width, dim=1).view(-1)
             if i > 1:
                 beam_indices = indices / output.size(-1)

@@ -61,9 +61,10 @@ def mask_text(mask_prob, pad_indices, src_text, text_processor: TextProcessor):
     assert 0 < mask_prob < 1
     masked_ids = src_text[:, 1:][src_mask[:, 1:]]
     mask_idx = src_text[src_mask]
-    random_index = lambda  : random.randint(len(text_processor.special_tokens), text_processor.vocab_size() - 1)
-    rand_select = lambda r, c: text_processor.mask_token_id() if r<0.8 else (random_index() if r<0.9 else int(mask_idx[c]))
-    replacements = list(map(lambda i:rand_select(random.random(), i), range(mask_idx.size(0))))
+    random_index = lambda: random.randint(len(text_processor.special_tokens), text_processor.vocab_size() - 1)
+    rand_select = lambda r, c: text_processor.mask_token_id() if r < 0.8 else (
+        random_index() if r < 0.9 else int(mask_idx[c]))
+    replacements = list(map(lambda i: rand_select(random.random(), i), range(mask_idx.size(0))))
     src_text[src_mask] = torch.LongTensor(replacements)
     return src_mask, masked_ids, src_text, to_recover, to_recover_pos, mask_idx
 

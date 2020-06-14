@@ -27,6 +27,11 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
+    """
+        20% of times, mask from start
+        20% of times, mask from middle to end
+        60% of times, mask a random index
+    """
     src_text = texts.clone()
     pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
     pindices = torch.nonzero(~pads)
@@ -34,14 +39,23 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
         pad_indices[r] = min(pad_indices[r], int(c))
     pad_indices = torch.Tensor(pad_indices)
 
-    mask_indices = [random.randint(0, int(math.ceil(x))) for x in pad_indices - (1 - mask_prob) * pad_indices]
+    index_range = pad_indices - (1 - mask_prob) * pad_indices
     src_mask = torch.zeros(src_text.size(), dtype=torch.bool)
     to_recover = []
     to_recover_pos = []
-    for i, mask_start in enumerate(mask_indices):
-        start, end = mask_start, mask_start + int(pad_indices[i] / 2)
+    for i, irange in enumerate(index_range):
+        range_size = int(pad_indices[i] / 2)
+        r = random.random()
+        if r > 0.8:
+            start = 0
+        elif r > 0.6:
+            start = int(math.ceil(irange))
+        else:
+            start = random.randint(1, int(math.ceil(irange)) - 1)
+
+        end = start + range_size
         src_mask[i, start:end] = True
-        if mask_start == 0:
+        if start == 0:
             to_recover.append(src_text[i, start:end])
             to_recover_pos.append(torch.arange(start, end))
         else:

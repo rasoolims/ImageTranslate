@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def get_outputs_until_eos(eos, outputs, pad_idx, remove_first_token: bool = False):
+def get_outputs_until_eos(eos, outputs, size_limit=None, remove_first_token: bool = False):
     if outputs.dim() == 1:
         outputs = outputs.unsqueeze(0)
     found_eos = torch.nonzero(outputs == eos).cpu()
@@ -15,17 +15,10 @@ def get_outputs_until_eos(eos, outputs, pad_idx, remove_first_token: bool = Fals
             # disregard end of sentence in output!
             actual_outputs[r] = outputs[r, 1 if remove_first_token else 0:c]
     final_outputs = []
-    if len(actual_outputs) < int(outputs.size(0)):
-        found_pad = torch.nonzero(outputs == pad_idx).cpu()
-        for idx in range(found_pad.size(0)):
-            r, c = int(found_pad[idx, 0]), int(found_pad[idx, 1])
-            if r not in actual_outputs:
-                # disregard end of sentence in output!
-                actual_outputs[r] = outputs[r, 1 if remove_first_token else 0:c]
-
     for r in range(outputs.size(0)):
         if r not in actual_outputs:
-            actual_outputs[r] = outputs[r, 1 if remove_first_token else 0:]
+            last_index = len(outputs[r]) if size_limit is None else int(size_limit[r])
+            actual_outputs[r] = outputs[r, 1 if remove_first_token else 0:last_index]
         final_outputs.append(actual_outputs[r])
 
     return final_outputs
@@ -145,7 +138,7 @@ class BeamDecoder(nn.Module):
 
         outputs = top_beam_outputs[:, 0, :]
         if unpad_output:
-            actual_outputs = get_outputs_until_eos(eos, outputs, pad_idx=pad_idx)
+            actual_outputs = get_outputs_until_eos(eos, outputs, size_limit=max_lens)
         else:
             if outputs.dim() == 1:
                 outputs = outputs.unsqueeze(0)

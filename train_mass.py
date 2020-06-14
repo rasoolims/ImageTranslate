@@ -414,7 +414,7 @@ class MassTrainer(MTTrainer):
 
             for batch in mt_dev_loader:
                 tgt_inputs = batch["dst_texts"].squeeze()
-                refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs, pad_idx=text_processor.pad_token_id())
+                refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
                 ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
                 trainer.reference += ref
 

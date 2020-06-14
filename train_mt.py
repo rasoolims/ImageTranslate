@@ -218,7 +218,7 @@ class MTTrainer:
                     mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
                                                                 text_processor=model.text_processor, mask_eos=False)
 
-                src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs, pad_idx=model.text_processor.pad_token_id())
+                src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs)
                 src_text += [generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in src_ids]
 
                 outputs = self.generator(device=self.device, src_inputs=src_inputs, src_sizes=src_pad_idx,
@@ -365,7 +365,7 @@ class MTTrainer:
         )
         for batch in dev_loader:
             tgt_inputs = batch["dst_texts"].squeeze()
-            refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs, pad_idx=text_processor.pad_token_id())
+            refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
             ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
             trainer.reference += ref
 

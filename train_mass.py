@@ -338,8 +338,7 @@ class MassTrainer(MTTrainer):
                 lm = LM.load(options.lm_path)
 
             decoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
-            masked_lm = copy.deepcopy(lm.masked_lm) if options.sep_encoder else lm.masked_lm
-            mt_model = MassSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=masked_lm,
+            mt_model = MassSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                    text_processor=lm.text_processor, checkpoint=options.checkpoint)
         MTTrainer.config_dropout(mt_model, options.dropout)
 

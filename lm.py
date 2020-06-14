@@ -53,9 +53,9 @@ class LM(nn.Module):
         if encoder is None:
             self.encoder: AlbertModel = AlbertModel(self.config)
             self.encoder.init_weights()
-            self.encoder._tie_or_clone_weights(self.masked_lm.decoder, self.encoder.embeddings.word_embeddings)
         else:
             self.encoder = encoder
+        self.encoder._tie_or_clone_weights(self.masked_lm.decoder, self.encoder.embeddings.word_embeddings)
 
     def forward(self, device, mask: torch.Tensor, texts: torch.Tensor, pads: torch.Tensor, langs: List = None):
         """

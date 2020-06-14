@@ -230,7 +230,7 @@ class MassDataset(Dataset):
             pindices = torch.nonzero(~pads)
             for (r, c) in pindices:
                 pad_indices[r] = min(pad_indices[r], int(c))
-            b["pad_idx"] = torch.Tensor(pad_indices)
+            b["pad_idx"] = torch.LongTensor(pad_indices)
 
         print("Loaded %d MASS batches!" % (len(self.batches)))
         print("Number of languages", len(self.lang_ids))

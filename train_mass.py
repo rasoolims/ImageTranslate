@@ -26,14 +26,12 @@ from train_mt import MTTrainer
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
 
-def mask_text(mask_prob, pad_indices, texts, text_processor: TextProcessor):
+def mask_text(mask_prob, pad_indices, src_text, text_processor: TextProcessor):
     """
         20% of times, mask from start to middle
         20% of times, mask from middle to end
         60% of times, mask a random index
     """
-    src_text = texts.clone()
-
     index_range = pad_indices - (1 - mask_prob) * pad_indices
     src_mask = torch.zeros(src_text.size(), dtype=torch.bool)
     to_recover = []
@@ -61,8 +59,10 @@ def mask_text(mask_prob, pad_indices, texts, text_processor: TextProcessor):
     to_recover_pos = pad_sequence(to_recover_pos, batch_first=True, padding_value=int(src_text.size(-1)) - 1)
 
     assert 0 < mask_prob < 1
+    masked_ids = src_text[:, 1:][src_mask[:, 1:]]
 
-    replacements = src_text[src_mask]
+    mask_idx = src_text[src_mask]
+    replacements = torch.zeros(mask_idx.size(), dtype=torch.long)
     for i in range(len(replacements)):
         r = random.random()
         if r < 0.8:
@@ -73,11 +73,14 @@ def mask_text(mask_prob, pad_indices, texts, text_processor: TextProcessor):
             replacements[i] = random_index
         else:
             # keep the word
-            pass
+            replacements[i] = mask_idx[i]
     src_text[src_mask] = replacements
-    masked_ids = texts[:, 1:][src_mask[:, 1:]]
 
-    return src_mask, masked_ids, src_text, to_recover, to_recover_pos
+    return src_mask, masked_ids, src_text, to_recover, to_recover_pos, mask_idx
+
+
+def unmask(src_text, src_mask, masked_ids):
+    src_text[src_mask] = masked_ids
 
 
 class MassTrainer(MTTrainer):
@@ -103,8 +106,9 @@ class MassTrainer(MTTrainer):
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
                 pad_indices = batch["pad_idx"].squeeze(0)
 
-                src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, pad_indices, src_inputs,
-                                                                               model.text_processor)
+                src_mask, targets, src_text, to_recover, positions, mask_idx = mask_text(self.mask_prob, pad_indices,
+                                                                                         src_inputs,
+                                                                                         model.text_processor)
 
                 if src_inputs.size(0) < self.num_gpu:
                     continue
@@ -140,6 +144,7 @@ class MassTrainer(MTTrainer):
                 except RuntimeError as err:
                     torch.cuda.empty_cache()
                     print("Error in processing", src_inputs.size(), src_inputs.size())
+                unmask(src_text, src_mask, mask_idx)
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start
@@ -294,8 +299,9 @@ class MassTrainer(MTTrainer):
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
                 pad_indices = batch["pad_idx"].squeeze(0)
 
-                src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, pad_indices, src_inputs,
-                                                                               model.text_processor)
+                src_mask, targets, src_text, to_recover, positions, mask_idx = mask_text(self.mask_prob, pad_indices,
+                                                                                         src_inputs,
+                                                                                         model.text_processor)
 
                 try:
                     predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=to_recover,
@@ -314,6 +320,7 @@ class MassTrainer(MTTrainer):
                 except RuntimeError:
                     torch.cuda.empty_cache()
                     print("Error in processing", src_inputs.size(), src_inputs.size())
+                unmask(src_text, src_mask, mask_idx)
 
             dev_loss = total_dev_loss / total_dev_tokens
             print("Current dev loss", dev_loss)

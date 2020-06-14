@@ -132,6 +132,14 @@ class MTDataset(Dataset):
                 self.most_token_batch = (entry, b * (s + d))
             self.batches.append(entry)
 
+        for b in self.batches:
+            pads = b["src_pad_mask"]
+            pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
+            pindices = torch.nonzero(~pads)
+            for (r, c) in pindices:
+                pad_indices[r] = min(pad_indices[r], int(c))
+            b["pad_idx"] = torch.LongTensor(pad_indices)
+
         print("Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
         print("Longest batch size", self.longest_batch[0]["src_texts"].size(),
               self.longest_batch[0]["dst_texts"].size())

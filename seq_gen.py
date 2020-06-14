@@ -3,10 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def get_outputs_until_eos(eos, outputs, remove_first_token: bool = False):
+def get_outputs_until_eos(eos, outputs, pad_idx, remove_first_token: bool = False):
     if outputs.dim() == 1:
         outputs = outputs.unsqueeze(0)
     found_eos = torch.nonzero(outputs == eos).cpu()
+    found_pad = torch.nonzero(outputs == pad_idx).cpu()
     outputs = outputs.cpu()
     actual_outputs = {}
     for idx in range(found_eos.size(0)):
@@ -15,10 +16,18 @@ def get_outputs_until_eos(eos, outputs, remove_first_token: bool = False):
             # disregard end of sentence in output!
             actual_outputs[r] = outputs[r, 1 if remove_first_token else 0:c]
     final_outputs = []
+    if len(actual_outputs) < int(outputs.size(0)):
+        for idx in range(found_pad.size(0)):
+            r, c = int(found_pad[idx, 0]), int(found_pad[idx, 1])
+            if r not in actual_outputs:
+                # disregard end of sentence in output!
+                actual_outputs[r] = outputs[r, 1 if remove_first_token else 0:c]
+
     for r in range(outputs.size(0)):
         if r not in actual_outputs:
             actual_outputs[r] = outputs[r, 1 if remove_first_token else 0:]
         final_outputs.append(actual_outputs[r])
+
     return final_outputs
 
 
@@ -61,7 +70,8 @@ class BeamDecoder(nn.Module):
         length_penalty = torch.pow(torch.tensor(lengths).to(cur_beam_elements.device) / 6.0, self.len_penalty_ratio)
         return length_penalty.unsqueeze(-1)
 
-    def forward(self, device, src_inputs, first_tokens, src_mask, src_langs, tgt_langs, pad_idx, max_len: int = None,
+    def forward(self, device, src_inputs, src_sizes, first_tokens, src_mask, src_langs, tgt_langs, pad_idx,
+                max_len: int = None,
                 unpad_output: bool = True):
         """
 
@@ -81,16 +91,20 @@ class BeamDecoder(nn.Module):
         top_beam_outputs = first_position_output
         top_beam_scores = torch.zeros(first_position_output.size()).to(first_position_output.device)
 
+        max_len_func = lambda s: min(int(self.max_len_a * s + self.max_len_b),
+                                     self.seq2seq_model.encoder.embeddings.position_embeddings.num_embeddings)
         if max_len is None:
-            max_len = min(int(self.max_len_a * src_inputs.size(1) + self.max_len_b),
-                          self.seq2seq_model.encoder.embeddings.position_embeddings.num_embeddings)
-
+            max_len = max_len_func(src_inputs.size(1))
+        max_lens = torch.LongTensor(list(map(lambda x: max_len_func(x), src_sizes))).to(device)
         for i in range(1, max_len):
             cur_outputs = top_beam_outputs.view(-1, top_beam_outputs.size(-1))
 
             if int(torch.sum(torch.any(cur_outputs == eos, 1))) == self.beam_width * batch_size:
                 # All beam items have end-of-sentence token.
                 break
+
+            reached_eos_limit = max_lens < (i + 1)
+            reached_eos_limit = reached_eos_limit.unsqueeze(-1).expand(-1, self.beam_width)
 
             # Keeps track of those items for which we know should be masked for their score, because they already reached
             # end of sentence.
@@ -107,8 +121,15 @@ class BeamDecoder(nn.Module):
                                                         output_mask, token_type_ids=dst_langs)
             output = F.log_softmax(self.seq2seq_model.output_layer(decoder_states[:, -1, :]), dim=-1)
             output[eos_mask] = 0  # Disregard those items with EOS in them!
+            if i > 1:
+                output[reached_eos_limit.contiguous().view(-1)] = 0  # Disregard those items over size limt!
             beam_scores = ((cur_scores + output) / self.len_penalty(cur_outputs, eos)).view(batch_size, -1)
             top_scores, indices = torch.topk(beam_scores, k=self.beam_width, dim=1)
+
+            if i > 1:
+                # Regardless of output, if reached to the maximum length, make it PAD!
+                indices[reached_eos_limit] = pad_idx
+
             flat_indices = indices.view(-1)
             word_indices = torch.stack([torch.LongTensor([range(output.size(1))])] * self.beam_width, dim=1).view(-1)
             if i > 1:
@@ -124,7 +145,7 @@ class BeamDecoder(nn.Module):
 
         outputs = top_beam_outputs[:, 0, :]
         if unpad_output:
-            actual_outputs = get_outputs_until_eos(eos, outputs)
+            actual_outputs = get_outputs_until_eos(eos, outputs, pad_idx=pad_idx)
         else:
             if outputs.dim() == 1:
                 outputs = outputs.unsqueeze(0)

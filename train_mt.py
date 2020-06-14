@@ -212,15 +212,17 @@ class MTTrainer:
                 tgt_inputs = batch["dst_texts"].squeeze(0)
                 src_langs = batch["src_langs"].squeeze(0)
                 dst_langs = batch["dst_langs"].squeeze(0)
+                src_pad_idx = batch["pad_idx"].squeeze(0)
 
                 if self.self_translate:
                     mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
                                                                 text_processor=model.text_processor, mask_eos=False)
 
-                src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs)
+                src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs, pad_idx=model.text_processor.pad_token_id())
                 src_text += [generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in src_ids]
 
-                outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=tgt_inputs[:, 0],
+                outputs = self.generator(device=self.device, src_inputs=src_inputs, src_sizes=src_pad_idx,
+                                         first_tokens=tgt_inputs[:, 0],
                                          src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs,
                                          pad_idx=model.text_processor.pad_token_id())
                 if self.num_gpu > 1:
@@ -363,7 +365,7 @@ class MTTrainer:
         )
         for batch in dev_loader:
             tgt_inputs = batch["dst_texts"].squeeze()
-            refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
+            refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs, pad_idx=text_processor.pad_token_id())
             ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
             trainer.reference += ref
 

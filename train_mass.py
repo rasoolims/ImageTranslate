@@ -180,6 +180,7 @@ class MassTrainer(MTTrainer):
                 self.optimizer.zero_grad()
                 src_inputs = batch["src_texts"].squeeze(0)
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
+                src_pad_idx = batch["pad_idx"].squeeze(0)
 
                 target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
                 dst_langs = torch.LongTensor(
@@ -192,7 +193,8 @@ class MassTrainer(MTTrainer):
                     model.eval()
                     with torch.no_grad():
                         # We do not backpropagate the data generator following the MASS paper.
-                        outputs = self.generator(device=self.device, src_inputs=src_inputs, first_tokens=target_langs,
+                        outputs = self.generator(device=self.device, src_inputs=src_inputs, src_sizes=src_pad_idx,
+                                                 first_tokens=target_langs,
                                                  src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
                                                  pad_idx=model.text_processor.pad_token_id(),
                                                  src_mask=src_pad_mask, unpad_output=False)
@@ -412,7 +414,7 @@ class MassTrainer(MTTrainer):
 
             for batch in mt_dev_loader:
                 tgt_inputs = batch["dst_texts"].squeeze()
-                refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
+                refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs, pad_idx=text_processor.pad_token_id())
                 ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
                 trainer.reference += ref
 

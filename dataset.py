@@ -219,7 +219,19 @@ class MassDataset(Dataset):
         padder = lambda b: pad_sequence(b, batch_first=True, padding_value=pad_idx)
         tensorfier = lambda b: list(map(torch.LongTensor, b))
         entry = lambda b, l: {"src_texts": padder(tensorfier(b)), "langs": torch.LongTensor(l)}
-        self.batches = list(map(lambda b, l: entry(b, l), batches, langs))
+        pad_entry = lambda e: {"src_pad_mask": e["src_texts"] != pad_idx, "src_texts": e["src_texts"],
+                               "langs": e["langs"]}
+
+        self.batches = list(map(lambda b, l: pad_entry(entry(b, l)), batches, langs))
+
+        for b in self.batches:
+            pads = b["src_pad_mask"]
+            pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
+            pindices = torch.nonzero(~pads)
+            for (r, c) in pindices:
+                pad_indices[r] = min(pad_indices[r], int(c))
+            b["pad_idx"] = torch.Tensor(pad_indices)
+
         print("Loaded %d MASS batches!" % (len(self.batches)))
         print("Number of languages", len(self.lang_ids))
         print(datetime.datetime.now(), "Done!")

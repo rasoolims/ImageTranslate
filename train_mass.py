@@ -26,18 +26,13 @@ from train_mt import MTTrainer
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
 
-def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
+def mask_text(mask_prob, pad_indices, texts, text_processor: TextProcessor):
     """
         20% of times, mask from start to middle
         20% of times, mask from middle to end
         60% of times, mask a random index
     """
     src_text = texts.clone()
-    pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
-    pindices = torch.nonzero(~pads)
-    for (r, c) in pindices:
-        pad_indices[r] = min(pad_indices[r], int(c))
-    pad_indices = torch.Tensor(pad_indices)
 
     index_range = pad_indices - (1 - mask_prob) * pad_indices
     src_mask = torch.zeros(src_text.size(), dtype=torch.bool)
@@ -105,9 +100,10 @@ class MassTrainer(MTTrainer):
                 if self.optimizer is not None:
                     self.optimizer.zero_grad()
                 src_inputs = batch["src_texts"].squeeze(0)
-                src_pad_mask = src_inputs != model.text_processor.pad_token_id()
+                src_pad_mask = batch["src_pad_mask"].squeeze(0)
+                pad_indices = batch["pad_idx"].squeeze(0)
 
-                src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, src_pad_mask, src_inputs,
+                src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, pad_indices, src_inputs,
                                                                                model.text_processor)
 
                 if src_inputs.size(0) < self.num_gpu:
@@ -192,7 +188,8 @@ class MassTrainer(MTTrainer):
             for batch in batches:
                 self.optimizer.zero_grad()
                 src_inputs = batch["src_texts"].squeeze(0)
-                src_pad_mask = src_inputs != model.text_processor.pad_token_id()
+                src_pad_mask = batch["src_pad_mask"].squeeze(0)
+                pad_indices = batch["pad_idx"]
 
                 target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
                 dst_langs = torch.LongTensor(
@@ -294,9 +291,10 @@ class MassTrainer(MTTrainer):
             total_dev_loss, total_dev_tokens = 0, 0
             for batch in dev_data_iter:
                 src_inputs = batch["src_texts"].squeeze(0)
-                src_pad_mask = src_inputs != model.text_processor.pad_token_id()
+                src_pad_mask = batch["src_pad_mask"].squeeze(0)
+                pad_indices = batch["pad_idx"].squeeze(0)
 
-                src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, src_pad_mask, src_inputs,
+                src_mask, targets, src_text, to_recover, positions = mask_text(self.mask_prob, pad_indices, src_inputs,
                                                                                model.text_processor)
 
                 try:

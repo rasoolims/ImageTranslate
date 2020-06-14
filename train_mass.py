@@ -28,7 +28,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
     """
-        20% of times, mask from start
+        20% of times, mask from start to middle
         20% of times, mask from middle to end
         60% of times, mask a random index
     """
@@ -51,7 +51,7 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor):
         elif r > 0.6:
             start = int(math.ceil(irange))
         else:
-            start = random.randint(1, int(math.ceil(irange)) - 1)
+            start = random.randint(1, int(math.ceil(irange)))
 
         end = start + range_size
         src_mask[i, start:end] = True

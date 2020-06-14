@@ -39,22 +39,18 @@ def mask_text(mask_prob, pad_indices, src_text, text_processor: TextProcessor):
     for i, irange in enumerate(index_range):
         range_size = int(pad_indices[i] / 2)
         r = random.random()
+        last_idx = int(math.ceil(irange))
         if r > 0.8:
-            start = 0
+            start = 1
         elif r > 0.6:
-            start = int(math.ceil(irange))
+            start = last_idx
         else:
-            start = random.randint(1, int(math.ceil(irange)))
+            start = random.randint(2, last_idx) if last_idx >= 2 else 2
 
         end = start + range_size
         src_mask[i, start:end] = True
-        if start == 0:
-            to_recover.append(src_text[i, start:end])
-            to_recover_pos.append(torch.arange(start, end))
-        else:
-            mask_tok = torch.LongTensor([text_processor.mask_token_id()])
-            to_recover.append(torch.cat([mask_tok, src_text[i, start:end]]))
-            to_recover_pos.append(torch.cat([torch.arange(0, 1), torch.arange(start, end)]))
+        to_recover.append(src_text[i, start - 1:end])
+        to_recover_pos.append(torch.arange(start - 1, end))
     to_recover = pad_sequence(to_recover, batch_first=True, padding_value=text_processor.pad_token_id())
     to_recover_pos = pad_sequence(to_recover_pos, batch_first=True, padding_value=int(src_text.size(-1)) - 1)
 

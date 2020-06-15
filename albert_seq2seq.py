@@ -26,6 +26,7 @@ class AlbertSeq2Seq(nn.Module):
         self.output_layer: AlbertMLMHead = output_layer
         self.checkpoint = checkpoint
         self.checkpoint_num = 0
+        self.decoder._tie_or_clone_weights(self.output_layer.decoder, self.decoder.embeddings.word_embeddings)
 
     def encode(self, device, src_inputs, src_mask, src_langs):
         src_inputs = src_inputs.to(device)

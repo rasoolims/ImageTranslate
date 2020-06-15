@@ -138,13 +138,13 @@ class MassTrainer(MTTrainer):
                           "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
                               step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
-                    if step % 1000 == 0:
+                    if step % 500 == 0:
                         # Save every 1000 steps!
                         model.save(saving_path + ".latest")
                         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                             pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
-                    if step % 500 == 0:
+                    if step % 5000 == 0:
                         self.validate(dev_data_iter)
 
                     start, tokens, cur_loss, sentences = time.time(), 0, 0, 0

@@ -12,7 +12,7 @@ def _mass_config(vocab_size: int, pad_token_id: int, bos_token_id: int, eos_toke
         "intermediate_size": 4096,
         "max_position_embeddings": 512,
         "num_attention_heads": 8,  # smaller than usual
-        "num_hidden_layers": 6,  # smaller than usual
+        "num_hidden_layers": 4,  # smaller than usual
         "num_hidden_groups": 1,
         "net_structure_type": 0,
         "gap_size": 0,

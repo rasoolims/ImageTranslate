@@ -322,7 +322,7 @@ class MTTrainer:
                 lm = LM.load(options.lm_path)
 
             encoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
-            mt_model = AlbertSeq2Seq(config=lm.config, encoder=encoder, decoder=lm.decoder, output_layer=lm.masked_lm,
+            mt_model = AlbertSeq2Seq(config=lm.config, encoder=encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
                                      text_processor=lm.text_processor, checkpoint=options.checkpoint)
 
         mt_model.save_config_and_tok(options.model_path)

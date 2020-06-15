@@ -451,6 +451,7 @@ def get_option_parser():
                       metavar="FILE", default=None)
     parser.add_option("--fstep", dest="finetune_step", help="Number of finetuneing steps", type="int", default=125000)
     parser.set_default("mask_prob", 0.5)
+    parser.set_default("size", 4)
     return parser
 
 

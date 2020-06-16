@@ -50,11 +50,9 @@ class AlbertSeq2Seq(nn.Module):
             subseq_mask = subseq_mask.to(device)
         decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], tgt_mask[:, :-1], src_mask, subseq_mask,
                                       token_type_ids=tgt_langs[:, :-1])
-        diag_outputs_list = list(map(lambda d: decoder_output[:, d, d, :], range(decoder_output.size(2))))
-        diag_outputs = torch.stack(diag_outputs_list, 1)
-        diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
-        tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
-        non_padded_outputs = diag_outputs_flat[tgt_mask_flat]
+        diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
+        tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
+        non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]
         outputs = self.output_layer(non_padded_outputs)
         if log_softmax:
             outputs = F.log_softmax(outputs, dim=-1)
@@ -105,17 +103,14 @@ class MassSeq2Seq(AlbertSeq2Seq):
 
         subseq_mask = future_mask(tgt_mask[:, :-1])
         decoder_output = self.decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
-                                      input_ids_mask=tgt_mask[:, :-1], src_attention_mask=src_pads,
-                                      tgt_attention_mask=subseq_mask,
+                                      input_ids_mask=tgt_mask[:, :-1], src_attn_mask=src_pads,
+                                      tgt_attn_mask=subseq_mask,
                                       position_ids=tgt_positions[:, :-1] if tgt_positions is not None else None,
                                       token_type_ids=tgt_langs[:, :-1])
-        diag_outputs_list = list(map(lambda d: decoder_output[:, d, d, :], range(decoder_output.size(2))))
-        diag_outputs = torch.stack(diag_outputs_list, 1)
-        diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
+        diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
 
         tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
         non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]
-
         outputs = self.output_layer(non_padded_outputs)
         if log_softmax:
             outputs = F.log_softmax(outputs, dim=-1)
@@ -171,39 +166,22 @@ class AlbertDecoderAttention(nn.Module):
         k_layer = self.transpose_for_scores(k)
         v_layer = self.transpose_for_scores(v)
 
-        # Take the dot product between "query" and "key" to get the raw attention scores.
-        if q_layer.dim() == 5 and k_layer.dim() == 4:
-            attention_scores = torch.matmul(q_layer, k_layer.unsqueeze(2).transpose(-1, -2))
-        else:
-            attention_scores = torch.matmul(q_layer, k_layer.transpose(-1, -2))
-        attention_scores = attention_scores / math.sqrt(self.attention_head_size)
-
-        if attn_mask is not None:
-            # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
-            if attn_mask.dim() > 4 and attention_scores.dim() == 4:
-                # attention_scores = attention_scores.unsqueeze(2).expand(-1, -1, attention_scores.size(2), -1, -1)
-                attention_scores = attention_scores.unsqueeze(2) + attn_mask
-            elif attn_mask.dim() == 4 and attention_scores.dim() == 5:
-                attention_scores = attention_scores + attn_mask.unsqueeze(2)
-            else:
-                attention_scores = attention_scores + attn_mask
+        bs, qlen, dim = q.size()
+        klen = k.size(1)
+        attn_scores = torch.matmul(q_layer, k_layer.transpose(-1, -2))
+        mask_reshape = (bs, 1, qlen, klen) if attn_mask.dim() == 3 else (bs, 1, 1, klen)
+        attn_mask = (attn_mask == 0).view(mask_reshape).expand_as(attn_scores)  # (bs, n_heads, qlen, klen)
+        attn_scores.masked_fill_(attn_mask, -1000000)
 
         # Normalize the attention scores to probabilities.
-        attention_probs = nn.Softmax(dim=-1)(attention_scores)
+        attention_probs = nn.Softmax(dim=-1)(attn_scores)
 
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
         attention_probs = self.dropout(attention_probs)
 
-        if attention_probs.dim() > 4 and v_layer.dim() == 4:
-            context_layer = torch.matmul(attention_probs, v_layer.unsqueeze(2))
-        else:
-            context_layer = torch.matmul(attention_probs, v_layer)
-
-        if context_layer.dim() == 4:
-            context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
-        else:
-            context_layer = context_layer.permute(0, 2, 3, 1, 4).contiguous()
+        context_layer = torch.matmul(attention_probs, v_layer)
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
 
         # Should find a better way to do this
         w = (
@@ -213,17 +191,10 @@ class AlbertDecoderAttention(nn.Module):
         )
         b = self.dense.bias.to(context_layer.dtype)
 
-        if context_layer.dim() == 4:
-            projected_context_layer = torch.einsum("bfnd,ndh->bfh", context_layer, w) + b
-        else:
-            projected_context_layer = torch.einsum("bfxnd,ndh->bfxh", context_layer, w) + b
-
+        projected_context_layer = torch.einsum("bfnd,ndh->bfh", context_layer, w) + b
         projected_context_layer_dropout = self.dropout(projected_context_layer)
 
-        query = q
-        if projected_context_layer_dropout.dim() == 4 and query.dim() < 4:
-            query = query.unsqueeze(1).expand(-1, query.size(1), -1, -1)
-        layernormed_context_layer = self.LayerNorm(query + projected_context_layer_dropout)
+        layernormed_context_layer = self.LayerNorm(q + projected_context_layer_dropout)
         return (layernormed_context_layer, attention_probs) if self.output_attentions else (layernormed_context_layer,)
 
 
@@ -314,8 +285,8 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
             encoder_states,
             input_ids=None,
             input_ids_mask=None,
-            src_attention_mask=None,
-            tgt_attention_mask=None,
+            src_attn_mask=None,
+            tgt_attn_mask=None,
             token_type_ids=None,
             position_ids=None,
             inputs_embeds=None,
@@ -334,29 +305,14 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
         if input_ids_mask.device != device:
             input_ids_mask = input_ids_mask.to(device)
 
-        if src_attention_mask is None:
-            extended_src_attention_mask = None
-        else:
-            extended_src_attention_mask = src_attention_mask.unsqueeze(1).unsqueeze(2)
-            extended_src_attention_mask = extended_src_attention_mask.to(
-                dtype=next(self.parameters()).dtype)  # fp16 compatibility
-            extended_src_attention_mask = (1.0 - extended_src_attention_mask) * -10000.0
-
         if token_type_ids is None:
             token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=device)
-
-        extended_tgt_attention_mask = tgt_attention_mask.unsqueeze(1).unsqueeze(2)
-        extended_tgt_attention_mask = extended_tgt_attention_mask.to(
-            dtype=next(self.parameters()).dtype)  # fp16 compatibility
-        extended_tgt_attention_mask = (1.0 - extended_tgt_attention_mask) * -10000.0
 
         embedding_output = self.embeddings(
             input_ids, position_ids=position_ids, token_type_ids=token_type_ids, inputs_embeds=inputs_embeds
         )
         embedding_output *= input_ids_mask.unsqueeze(-1)
-        outputs = self.decoder(encoder_states, embedding_output, extended_src_attention_mask,
-                               extended_tgt_attention_mask)
-
+        outputs = self.decoder(encoder_states, embedding_output, src_attn_mask, tgt_attn_mask)
         return outputs
 
 

@@ -159,14 +159,14 @@ class AlbertDecoderAttention(nn.Module):
         else:
             return x.permute(0, 3, 1, 2, 4)
 
-    def forward(self, encoder_states, decoder_inputs, src_attention_mask=None, tgt_attention_mask=None):
+    def forward(self, encoder_states, decoder_inputs, src_attn_mask=None, tgt_attn_mask=None):
         output_attention = self.attention(self.query(decoder_inputs), self.key(decoder_inputs),
-                                          self.value(decoder_inputs), attention_mask=tgt_attention_mask)
+                                          self.value(decoder_inputs), attn_mask=tgt_attn_mask)
         cross_attention = self.attention(self.src_attn_query(output_attention[0]), self.src_attn_key(encoder_states),
-                                         self.src_attn_value(encoder_states), attention_mask=src_attention_mask)
+                                         self.src_attn_value(encoder_states), attn_mask=src_attn_mask)
         return cross_attention
 
-    def attention(self, q, k, v, attention_mask=None):
+    def attention(self, q, k, v, attn_mask=None):
         query_layer = self.transpose_for_scores(q)
         key_layer = self.transpose_for_scores(k)
         value_layer = self.transpose_for_scores(v)
@@ -178,15 +178,15 @@ class AlbertDecoderAttention(nn.Module):
             attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
 
-        if attention_mask is not None:
+        if attn_mask is not None:
             # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
-            if attention_mask.dim() > 4 and attention_scores.dim() == 4:
+            if attn_mask.dim() > 4 and attention_scores.dim() == 4:
                 # attention_scores = attention_scores.unsqueeze(2).expand(-1, -1, attention_scores.size(2), -1, -1)
-                attention_scores = attention_scores.unsqueeze(2) + attention_mask
-            elif attention_mask.dim() == 4 and attention_scores.dim() == 5:
-                attention_scores = attention_scores + attention_mask.unsqueeze(2)
+                attention_scores = attention_scores.unsqueeze(2) + attn_mask
+            elif attn_mask.dim() == 4 and attention_scores.dim() == 5:
+                attention_scores = attention_scores + attn_mask.unsqueeze(2)
             else:
-                attention_scores = attention_scores + attention_mask
+                attention_scores = attention_scores + attn_mask
 
         # Normalize the attention scores to probabilities.
         attention_probs = nn.Softmax(dim=-1)(attention_scores)

@@ -357,7 +357,5 @@ class AlbertEncoderModel(AlbertModel):
 
         pooled_output = self.pooler_activation(self.pooler(sequence_output[:, 0]))
 
-        outputs = (sequence_output, pooled_output) + encoder_outputs[
-                                                     1:
-                                                     ]  # add hidden_states and attentions if they are here
+        outputs = (sequence_output, pooled_output) + encoder_outputs[1:]
         return outputs

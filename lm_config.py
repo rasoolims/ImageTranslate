@@ -6,13 +6,13 @@ def _mass_config(vocab_size: int, pad_token_id: int, bos_token_id: int, eos_toke
         "attention_probs_dropout_prob": 0.1,
         "hidden_act": "gelu_new",
         "hidden_dropout_prob": 0.1,
-        "embedding_size": 1024,
-        "hidden_size": 4096,
+        "embedding_size": 512,
+        "hidden_size": 2048,
         "initializer_range": 0.02,
-        "intermediate_size": 16384,
+        "intermediate_size": 4096,
         "max_position_embeddings": 512,
         "num_attention_heads": 8,  # smaller than usual
-        "num_hidden_layers": 6,  # smaller than usual
+        "num_hidden_layers": 4,  # smaller than usual
         "num_hidden_groups": 1,
         "net_structure_type": 0,
         "gap_size": 0,

@@ -167,15 +167,15 @@ class AlbertDecoderAttention(nn.Module):
         return cross_attention
 
     def attention(self, q, k, v, attn_mask=None):
-        query_layer = self.transpose_for_scores(q)
-        key_layer = self.transpose_for_scores(k)
-        value_layer = self.transpose_for_scores(v)
+        q_layer = self.transpose_for_scores(q)
+        k_layer = self.transpose_for_scores(k)
+        v_layer = self.transpose_for_scores(v)
 
         # Take the dot product between "query" and "key" to get the raw attention scores.
-        if query_layer.dim() == 5 and key_layer.dim() == 4:
-            attention_scores = torch.matmul(query_layer, key_layer.unsqueeze(2).transpose(-1, -2))
+        if q_layer.dim() == 5 and k_layer.dim() == 4:
+            attention_scores = torch.matmul(q_layer, k_layer.unsqueeze(2).transpose(-1, -2))
         else:
-            attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+            attention_scores = torch.matmul(q_layer, k_layer.transpose(-1, -2))
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
 
         if attn_mask is not None:
@@ -195,10 +195,10 @@ class AlbertDecoderAttention(nn.Module):
         # seem a bit unusual, but is taken from the original Transformer paper.
         attention_probs = self.dropout(attention_probs)
 
-        if attention_probs.dim() > 4 and value_layer.dim() == 4:
-            context_layer = torch.matmul(attention_probs, value_layer.unsqueeze(2))
+        if attention_probs.dim() > 4 and v_layer.dim() == 4:
+            context_layer = torch.matmul(attention_probs, v_layer.unsqueeze(2))
         else:
-            context_layer = torch.matmul(attention_probs, value_layer)
+            context_layer = torch.matmul(attention_probs, v_layer)
 
         if context_layer.dim() == 4:
             context_layer = context_layer.permute(0, 2, 1, 3).contiguous()

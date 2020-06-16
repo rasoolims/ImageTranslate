@@ -165,13 +165,14 @@ class AlbertDecoderAttention(nn.Module):
         q_layer = self.transpose_for_scores(q)
         k_layer = self.transpose_for_scores(k)
         v_layer = self.transpose_for_scores(v)
-
-        bs, qlen, dim = q.size()
-        klen = k.size(1)
         attn_scores = torch.matmul(q_layer, k_layer.transpose(-1, -2))
-        mask_reshape = (bs, 1, qlen, klen) if attn_mask.dim() == 3 else (bs, 1, 1, klen)
-        attn_mask = (attn_mask == 0).view(mask_reshape).expand_as(attn_scores)  # (bs, n_heads, qlen, klen)
-        attn_scores.masked_fill_(attn_mask, -1000000)
+
+        if attn_mask is not None:
+            bs, qlen, dim = q.size()
+            klen = k.size(1)
+            mask_reshape = (bs, 1, qlen, klen) if attn_mask.dim() == 3 else (bs, 1, 1, klen)
+            attn_mask = (attn_mask == 0).view(mask_reshape).expand_as(attn_scores)
+            attn_scores.masked_fill_(attn_mask, -1000000)
 
         # Normalize the attention scores to probabilities.
         attention_probs = nn.Softmax(dim=-1)(attn_scores)
@@ -208,8 +209,8 @@ class AlbertDecoderLayer(nn.Module):
         self.ffn_output = albert_layer.ffn_output  # nn.Linear(self.config.intermediate_size, self.config.hidden_size) #todo clone
         self.activation = albert_layer.activation  # ACT2FN[self.config.hidden_act]
 
-    def forward(self, encoder_states, hidden_states, src_attention_mask=None, tgt_attention_mask=None):
-        attention_output = self.attention(encoder_states, hidden_states, src_attention_mask, tgt_attention_mask)
+    def forward(self, encoder_states, hidden_states, src_attn_mask=None, tgt_attn_mask=None):
+        attention_output = self.attention(encoder_states, hidden_states, src_attn_mask, tgt_attn_mask)
         ffn_output = self.ffn(attention_output[0])
         ffn_output = self.activation(ffn_output)
         ffn_output = self.ffn_output(ffn_output)
@@ -223,9 +224,9 @@ class AlbertDecoderLayerGroup(nn.Module):
         super().__init__()
         self.albert_layers = nn.ModuleList([AlbertDecoderLayer(layer) for layer in layer_groups.albert_layers])
 
-    def forward(self, encoder_states, hidden_states, src_attention_mask=None, tgt_attention_mask=None):
+    def forward(self, encoder_states, hidden_states, src_attn_mask=None, tgt_attn_mask=None):
         for layer_index, albert_layer in enumerate(self.albert_layers):
-            layer_output = albert_layer(encoder_states, hidden_states, src_attention_mask, tgt_attention_mask)
+            layer_output = albert_layer(encoder_states, hidden_states, src_attn_mask, tgt_attn_mask)
             hidden_states = layer_output[0]
 
         outputs = (hidden_states,)
@@ -242,7 +243,7 @@ class AlbertDecoderTransformer(nn.Module):
             [AlbertDecoderLayerGroup(albert_transformer.albert_layer_groups[i]) for i in
              range(self.config.num_hidden_groups)])
 
-    def forward(self, encoder_states, hidden_states, src_attention_mask=None, tgt_attention_mask=None):
+    def forward(self, encoder_states, hidden_states, src_attn_mask=None, tgt_attn_mask=None):
         hidden_states = self.embedding_hidden_mapping_in(hidden_states)
 
         for i in range(self.config.num_hidden_layers):
@@ -252,8 +253,8 @@ class AlbertDecoderTransformer(nn.Module):
             layer_group_output = self.albert_layer_groups[group_idx](
                 encoder_states,
                 hidden_states,
-                src_attention_mask,
-                tgt_attention_mask,
+                src_attn_mask,
+                tgt_attn_mask,
             )
             hidden_states = layer_group_output[0]
 

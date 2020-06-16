@@ -41,7 +41,7 @@ class ReformerTrainer(LMTrainer):
         lm.config.hidden_dropout_prob = options.dropout
         lm.config.local_attention_probs_dropout_prob = options.dropout
         lm.config.lsh_attention_probs_dropout_prob = options.dropout
-        
+
         trainer = ReformerTrainer(model=lm, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                                   warmup=options.warmup, step=options.step, last_epoch=last_epoch)
 

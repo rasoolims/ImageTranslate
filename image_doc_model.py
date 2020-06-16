@@ -49,11 +49,10 @@ class ImageSeq2Seq(AlbertSeq2Seq):
         max_images_attended = torch.stack([torch.max(spl, dim=0).values for spl in image_attended_split], 0)
         subseq_mask = future_mask(caption_mask[:, :-1]).to(device)
         decoder_output = self.decoder(encoder_states=max_images_attended, input_ids=captions[:, :-1],
-                                      input_ids_mask=caption_mask[:, :-1], tgt_attention_mask=subseq_mask)
-        diag_outputs = torch.stack([decoder_output[:, d, d, :] for d in range(decoder_output.size(2))], 1)
-        diag_outputs_flat = diag_outputs.view(-1, diag_outputs.size(-1))
-        tgt_mask_flat = caption_mask[:, 1:].contiguous().view(-1)
-        non_padded_outputs = diag_outputs_flat[tgt_mask_flat]
+                                      input_ids_mask=caption_mask[:, :-1], tgt_attn_mask=subseq_mask)
+        diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
+        tgt_non_mask_flat = caption_mask[:, 1:].contiguous().view(-1)
+        non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]
         outputs = self.output_layer(non_padded_outputs)
         if log_softmax:
             outputs = F.log_softmax(outputs, dim=-1)
@@ -76,11 +75,7 @@ class AlbertImageTransformer(AlbertDecoderTransformer):
     def __init__(self, albert_transformer: AlbertTransformer):
         super(AlbertImageTransformer, self).__init__(albert_transformer)
 
-    def forward(self, encoder_states, image_embeddings, src_attention_mask, **kwargs):
-        extended_mask = src_attention_mask.unsqueeze(1).unsqueeze(2)
-        extended_mask = extended_mask.to(dtype=next(self.parameters()).dtype)  # fp16 compatibility
-        extended_mask = (1.0 - extended_mask) * -10000.0
-
+    def forward(self, encoder_states, image_embeddings, src_attn_mask, **kwargs):
         hidden_states = image_embeddings
         for i in range(self.config.num_hidden_layers):
             # Index of the hidden group
@@ -89,8 +84,8 @@ class AlbertImageTransformer(AlbertDecoderTransformer):
             layer_group_output = self.albert_layer_groups[group_idx](
                 encoder_states,
                 hidden_states,
-                src_attention_mask=extended_mask,
-                tgt_attention_mask=None,
+                src_attn_mask=src_attn_mask,
+                tgt_attn_mask=None,
             )
             hidden_states = layer_group_output[0]
 

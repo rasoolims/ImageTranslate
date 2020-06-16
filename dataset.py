@@ -318,6 +318,7 @@ class ImageDocDataset(Dataset):
                          "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes,
                          "langs": torch.LongTensor(cur_lang_batch)}
                 self.batches.append(entry)
+                self.images_paths.append(cur_image_batch)
 
             del image_info_dict
             del unique_images

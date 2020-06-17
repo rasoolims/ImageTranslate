@@ -10,5 +10,6 @@ with open(path, "r") as reader:
         docs += 1
         sens += len(line.strip().split("</s>"))
         types |= set(line.strip().split(" "))
+        print(docs, end="\r")
 
 print(docs, "docs,", sens, "sens,", len(types), "types")

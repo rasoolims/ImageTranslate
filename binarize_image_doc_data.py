@@ -22,6 +22,7 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
     image_path_dict = {}
     image_info_dict = defaultdict(list)
     num_docs = 0
+    languages = set()
 
     for file in os.listdir(json_dir):
         if not file.endswith(".json"):
@@ -39,6 +40,7 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
             for d_num, doc in enumerate(doc_dicts):
                 content = doc["content"]
                 lang = doc["lang"]
+                languages.add(lang)
                 tok_lines = text_processor.tokenize_lines(content.strip(), blind_split=True, split_len=128)
                 num_split = int(math.ceil(len(tok_lines) / max_sen_per_doc))
                 doc_segments = [x.tolist() for x in np.array_split(tok_lines, num_split) if len(x) > 0]
@@ -83,8 +85,25 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
     print("%d images, %d docs, %d captions, max doc vec %d, training instances %d" % (
         len(image_info_dict), len(unique_docs), num_captions, max_doc_size, num_instances))
 
+    print("Separating shared images from individual images!")
+    cross_image_docs = {l: v for l, v in image_info_dict.items() if len(v) > 1}
+    lang_specific_images = {lang: {} for lang in languages}
+
+    for l, v in image_info_dict.items():
+        if len(v) == 1:
+            lang_specific_images[v[0][1]][l] = v
+
+    image_keys = list(cross_image_docs.keys())
+    for image in image_keys:
+        langs = list(set(map(lambda tpl: tpl[1], cross_image_docs[image])))
+        if len(langs) == 1:
+            lang_specific_images[langs[0]][image] = cross_image_docs[image]
+            del cross_image_docs[image]
+
+    lang_specific_images["shared"] = cross_image_docs
+
     with open(output_file, "wb") as fp:
-        marshal.dump((dict(image_info_dict), unique_images, unique_docs), fp)
+        marshal.dump((lang_specific_images, unique_images, unique_docs), fp)
 
 
 def get_options():

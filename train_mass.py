@@ -46,13 +46,11 @@ class MassTrainer(MTTrainer):
                 src_inputs = batch["src_texts"].squeeze(0)
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
                 pad_indices = batch["pad_idx"].squeeze(0)
-
-                masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
-
                 if src_inputs.size(0) < self.num_gpu:
                     continue
 
                 try:
+                    masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
                     predictions = self.model(device=self.device, src_inputs=masked_info["src_text"],
                                              tgt_inputs=masked_info["to_recover"],
                                              tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
@@ -240,9 +238,8 @@ class MassTrainer(MTTrainer):
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
                 pad_indices = batch["pad_idx"].squeeze(0)
 
-                masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
-
                 try:
+                    masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
                     predictions = self.model(device=self.device, src_inputs=masked_info["src_text"],
                                              tgt_inputs=masked_info["to_recover"],
                                              tgt_positions=masked_info["positions"], src_pads=src_pad_mask,

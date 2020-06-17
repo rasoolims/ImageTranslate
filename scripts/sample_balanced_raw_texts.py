@@ -26,7 +26,6 @@ def get_option_parser():
     parser.add_option("--o1", dest="o1", help="Output txt for the first language", metavar="FILE", default=None)
     parser.add_option("--o2", dest="o2", help="Output txt for the second language", metavar="FILE", default=None)
     parser.add_option("--min_sen", dest="min_sen", help="Min number of sentences", type=int, default=1000000)
-    parser.add_option("--min_len", dest="min_len", help="Min length of raw sentences", type=int, default=5)
     return parser
 
 
@@ -41,7 +40,7 @@ with open(options.l1_json, "rb") as fp:
         sens1 |= set(map(lambda img: img["caption"], content["images"]))
         print(i, end="\r")
 
-print(len(sens1), "sens in", options.l1_json)
+print(len(sens1), "docs in", options.l1_json)
 
 sens2 = set()
 with open(options.l2_json, "rb") as fp:
@@ -58,7 +57,7 @@ with open(options.l1_raw, "r") as reader:
         raw_sen1.add(line.strip())
         print(i, end="\r")
 
-print(len(raw_sen1), "raw sentences in", options.l1_raw)
+print(len(raw_sen1), "docs sentences in", options.l1_raw)
 
 raw_sen2 = set()
 with open(options.l1_raw, "r") as reader:
@@ -66,7 +65,7 @@ with open(options.l1_raw, "r") as reader:
         raw_sen2.add(line.strip())
         print(i, end="\r")
 
-print(len(raw_sen2), "raw sentences in", options.l2_raw)
+print(len(raw_sen2), "docs sentences in", options.l2_raw)
 
 sens1 = list(sens1)
 sens2 = list(sens2)

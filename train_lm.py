@@ -14,8 +14,8 @@ from IPython.core import ultratb
 import dataset
 from lm import LM
 from parallel import DataParallelModel, DataParallelCriterion
-from pytorch_lamb.pytorch_lamb import Lamb
 from textprocessor import TextProcessor
+from utils import *
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -47,10 +47,6 @@ class LMTrainer:
         self.best_dev_loss = float("inf")
         self.best_train_loss = float("inf")
         self.last_train_loss = float("inf")
-
-    @staticmethod
-    def build_optimizer(model, learning_rate, weight_decay):
-        return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
 
     def train_epoch(self, data_iter: data_utils.DataLoader, dev_data_iter: data_utils.DataLoader,
                     saving_path: str, step: int, max_grad_norm: float = 1.0):
@@ -180,7 +176,7 @@ class LMTrainer:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
                 optimizer, last_epoch = pickle.load(fp)
         else:
-            optimizer, last_epoch = LMTrainer.build_optimizer(lm, options.learning_rate, options.weight_decay), 0
+            optimizer, last_epoch = build_optimizer(lm, options.learning_rate, options.weight_decay), 0
 
         trainer = LMTrainer(model=lm, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                             warmup=options.warmup, step=options.step, last_epoch=last_epoch)

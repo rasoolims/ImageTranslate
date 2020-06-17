@@ -11,12 +11,12 @@ from IPython.core import ultratb
 from torchvision import transforms
 
 import dataset
-import train_lm
 import train_mt
 from image_doc_model import ImageSeq2Seq
 from lm import LM
 from textprocessor import TextProcessor
 from train_mass import MassTrainer
+from utils import *
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -176,8 +176,7 @@ class ImageDocTrainer(MassTrainer):
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
                 optimizer, last_epoch = pickle.load(fp)
         else:
-            optimizer, last_epoch = train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
-                                                                       options.weight_decay), 0
+            optimizer, last_epoch = build_optimizer(mt_model, options.learning_rate, options.weight_decay), 0
         trainer = ImageDocTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                                   warmup=options.warmup, step=options.step,
                                   beam_width=options.beam_width, max_len_a=options.max_len_a,

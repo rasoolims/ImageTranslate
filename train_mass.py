@@ -15,13 +15,13 @@ from IPython.core import ultratb
 from torch.nn.utils.rnn import pad_sequence
 
 import dataset
-import train_lm
 import train_mt
 from albert_seq2seq import MassSeq2Seq
 from lm import LM
 from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mt import MTTrainer
+from utils import build_optimizer
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -340,8 +340,7 @@ class MassTrainer(MTTrainer):
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
                 optimizer, last_epoch = pickle.load(fp)
         else:
-            optimizer, last_epoch = train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
-                                                                       options.weight_decay), 0
+            optimizer, last_epoch = build_optimizer(mt_model, options.learning_rate, options.weight_decay), 0
 
         train_data, train_loader, dev_loader, finetune_loader, mt_dev_loader = None, None, None, None, None
         train_paths = options.train_path.strip().split(",")
@@ -431,8 +430,7 @@ class MassTrainer(MTTrainer):
         mt_model.save(options.model_path + ".beam")
         if train_epoch > 0:
             # Resetting the optimizer for the purpose of finetuning.
-            trainer.optimizer = train_lm.LMTrainer.build_optimizer(mt_model, options.learning_rate,
-                                                                   options.weight_decay)
+            trainer.optimizer = build_optimizer(mt_model, options.learning_rate, options.weight_decay), 0
             trainer.scheduler = optim.get_linear_schedule_with_warmup(trainer.optimizer,
                                                                       num_warmup_steps=options.warmup,
                                                                       num_training_steps=options.finetune_step)

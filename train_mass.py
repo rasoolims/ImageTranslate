@@ -47,25 +47,24 @@ class MassTrainer(MTTrainer):
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
                 pad_indices = batch["pad_idx"].squeeze(0)
 
-                src_mask, targets, src_text, to_recover, positions, mask_idx = mass_mask(self.mask_prob, pad_indices,
-                                                                                         src_inputs,
-                                                                                         model.text_processor)
+                masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
 
                 if src_inputs.size(0) < self.num_gpu:
                     continue
 
                 try:
-                    predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=to_recover,
-                                             tgt_positions=positions, src_pads=src_pad_mask,
+                    predictions = self.model(device=self.device, src_inputs=masked_info["src_text"],
+                                             tgt_inputs=masked_info["to_recover"],
+                                             tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
                                              pad_idx=model.text_processor.pad_token_id(),
                                              src_langs=batch["langs"].squeeze(0),
                                              log_softmax=True)
-                    ntokens = targets.size(0)
+                    ntokens = masked_info["targets"].size(0)
 
                     if ntokens == 0:  # Nothing to predict!
                         continue
 
-                    loss = self.criterion(predictions, targets).mean() * ntokens
+                    loss = self.criterion(predictions, masked_info["targets"]).mean() * ntokens
                     loss.backward()
 
                     loss = float(loss.data)
@@ -85,7 +84,7 @@ class MassTrainer(MTTrainer):
                 except RuntimeError as err:
                     torch.cuda.empty_cache()
                     print("Error in processing", src_inputs.size(), src_inputs.size())
-                mass_unmask(src_text, src_mask, mask_idx)
+                mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start
@@ -241,28 +240,27 @@ class MassTrainer(MTTrainer):
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
                 pad_indices = batch["pad_idx"].squeeze(0)
 
-                src_mask, targets, src_text, to_recover, positions, mask_idx = mass_mask(self.mask_prob, pad_indices,
-                                                                                         src_inputs,
-                                                                                         model.text_processor)
+                masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
 
                 try:
-                    predictions = self.model(device=self.device, src_inputs=src_text, tgt_inputs=to_recover,
-                                             tgt_positions=positions, src_pads=src_pad_mask,
+                    predictions = self.model(device=self.device, src_inputs=masked_info["src_text"],
+                                             tgt_inputs=masked_info["to_recover"],
+                                             tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
                                              pad_idx=model.text_processor.pad_token_id(),
                                              src_langs=batch["langs"].squeeze(0),
                                              log_softmax=True)
-                    ntokens = targets.size(0)
+                    ntokens = masked_info["targets"].size(0)
 
                     if ntokens == 0:  # Nothing to predict!
                         continue
 
-                    loss = self.criterion(predictions, targets).mean().data * ntokens
+                    loss = self.criterion(predictions, masked_info["targets"]).mean().data * ntokens
                     total_dev_loss += float(loss)
                     total_dev_tokens += ntokens
                 except RuntimeError:
                     torch.cuda.empty_cache()
                     print("Error in processing", src_inputs.size(), src_inputs.size())
-                mass_unmask(src_text, src_mask, mask_idx)
+                mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
             dev_loss = total_dev_loss / total_dev_tokens
             print("Current dev loss", dev_loss)

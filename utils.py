@@ -1,5 +1,6 @@
 import math
 import random
+from typing import Dict
 
 import torch
 from torch.nn.utils.rnn import pad_sequence
@@ -34,7 +35,7 @@ def unmask_text(mask, masked_ids, texts):
     texts[mask] = masked_ids
 
 
-def mass_mask(mask_prob, pad_indices, src_text, text_processor: TextProcessor):
+def mass_mask(mask_prob, pad_indices, src_text, text_processor: TextProcessor) -> Dict:
     """
         20% of times, mask from start to middle
         20% of times, mask from middle to end
@@ -70,7 +71,8 @@ def mass_mask(mask_prob, pad_indices, src_text, text_processor: TextProcessor):
         random_index() if r < 0.9 else int(mask_idx[c]))
     replacements = list(map(lambda i: rand_select(random.random(), i), range(mask_idx.size(0))))
     src_text[src_mask] = torch.LongTensor(replacements)
-    return src_mask, masked_ids, src_text, to_recover, to_recover_pos, mask_idx
+    return {"src_mask": src_mask, "targets": masked_ids, "src_text": src_text, "to_recover": to_recover,
+            "positions": to_recover_pos, "mask_idx": mask_idx}
 
 
 def mass_unmask(src_text, src_mask, masked_ids):

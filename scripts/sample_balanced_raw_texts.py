@@ -70,15 +70,15 @@ print(l1_needed, l2_needed)
 if l1_needed > 0:
     random.shuffle(raw_doc1)
     docs1 += raw_doc1[:l1_needed]
-    
+
 if l2_needed > 0:
     random.shuffle(raw_doc2)
     docs2 += raw_doc2[:l2_needed]
 
 with open(options.o1, "w") as w:
-    w.write("\n".join(docs1))
+    w.write("\n".join(set(docs1)))
 
 with open(options.o2, "w") as w:
-    w.write("\n".join(docs2))
+    w.write("\n".join(set(docs2)))
 
 print("Done!")

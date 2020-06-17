@@ -15,4 +15,4 @@ with open(path, "rb") as fp:
         images |= set(map(lambda img: img["img_path"], content["images"]))
         print(docs, end="\r")
 
-print(docs, "docs,", sens, "sens,", len(types), "types", len(images), "images")
+print(docs, "docs,", sens, "sens,", len(types), "types,", len(images), "images")

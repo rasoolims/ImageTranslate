@@ -5,7 +5,6 @@ import pickle
 import sys
 import time
 
-import torch
 import torch.utils.data as data_utils
 from IPython.core import ultratb
 from torchvision import transforms
@@ -14,7 +13,6 @@ import dataset
 import train_mt
 from image_doc_model import ImageSeq2Seq
 from lm import LM
-from textprocessor import TextProcessor
 from train_mass import MassTrainer
 from utils import *
 

@@ -15,7 +15,7 @@ import dataset
 from lm import LM
 from parallel import DataParallelModel, DataParallelCriterion
 from textprocessor import TextProcessor
-from utils import *
+from utils import build_optimizer, mask_text, unmask_text
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -54,13 +54,12 @@ class LMTrainer:
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
         cur_loss = 0
+        model = self.model.module if hasattr(self.model, "module") else self.model
 
         for i, batch in enumerate(data_iter):
             if self.optimizer is not None:
                 self.optimizer.zero_grad()
-            model_to_call = self.model.module if hasattr(self.model, "module") else self.model
-            mask, target, texts = LM.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"],
-                                               model_to_call.text_processor)
+            mask, target, texts = mask_text(self.mask_prob, batch["pad_mask"], batch["texts"], model.text_processor)
             try:
                 predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"],
                                          langs=batch["langs"])
@@ -72,7 +71,7 @@ class LMTrainer:
                 loss = self.criterion(predictions, target).mean()
                 loss.backward()
 
-                LM.unmask_text(mask, target, texts)
+                unmask_text(mask, target, texts)
 
                 if self.optimizer is not None:
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
@@ -118,15 +117,12 @@ class LMTrainer:
 
     def validate_and_save(self, saving_path, dev_data_iter):
         with torch.no_grad():
-            model = (
-                self.model.module if hasattr(self.model, "module") else self.model
-            )
+            model = self.model.module if hasattr(self.model, "module") else self.model
             model.eval()
             total_dev_loss, total_dev_tokens = 0, 0
             for batch in dev_data_iter:
-                model_to_call = self.model.module if hasattr(self.model, "module") else self.model
-                mask, target, texts = LM.mask_text(self.mask_prob, batch["pad_mask"], batch["texts"].clone(),
-                                                   model_to_call.text_processor)
+                mask, target, texts = mask_text(self.mask_prob, batch["pad_mask"], batch["texts"].clone(),
+                                                model.text_processor)
                 predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"],
                                          langs=batch["langs"])
                 ntokens = target.size(0)

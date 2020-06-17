@@ -21,6 +21,7 @@ from loss import SmoothedNLLLoss
 from parallel import DataParallelModel, DataParallelCriterion
 from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
+from utils import build_optimizer, mask_text, unmask_text
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -90,10 +91,10 @@ class MTTrainer:
 
             try:
                 if self.self_translate:
-                    mask, masked_ids, src_inputs = LM.mask_text(mask_prob=self.mask_prob, pads=src_mask,
-                                                                texts=src_inputs,
-                                                                text_processor=model.text_processor,
-                                                                mask_eos=False)
+                    mask, masked_ids, src_inputs = mask_text(mask_prob=self.mask_prob, pads=src_mask,
+                                                             texts=src_inputs,
+                                                             text_processor=model.text_processor,
+                                                             mask_eos=False)
 
                 predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                          src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=dst_langs,
@@ -126,10 +127,10 @@ class MTTrainer:
                     src_langs = batch["src_langs"]
                     dst_langs = batch["dst_langs"]
 
-                    mask, masked_ids, src_inputs = LM.mask_text(mask_prob=self.mask_prob, pads=src_mask,
-                                                                texts=src_inputs,
-                                                                text_processor=model.text_processor,
-                                                                mask_eos=False)
+                    mask, masked_ids, src_inputs = mask_text(mask_prob=self.mask_prob, pads=src_mask,
+                                                             texts=src_inputs,
+                                                             text_processor=model.text_processor,
+                                                             mask_eos=False)
 
                     predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                              src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
@@ -151,7 +152,7 @@ class MTTrainer:
                     total_tokens += ntokens
                     tokens += ntokens
                     sentences += int(src_inputs.size(0))
-                    LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
+                    unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
 
                 if self.optimizer is not None:
                     # We accumulate the gradients for both tasks!
@@ -215,8 +216,8 @@ class MTTrainer:
                 src_pad_idx = batch["pad_idx"].squeeze(0)
 
                 if self.self_translate:
-                    mask, masked_ids, src_inputs = LM.mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
-                                                                text_processor=model.text_processor, mask_eos=False)
+                    mask, masked_ids, src_inputs = mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
+                                                             text_processor=model.text_processor, mask_eos=False)
 
                 src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs)
                 src_text += [generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in src_ids]
@@ -235,7 +236,7 @@ class MTTrainer:
                     mt_output.append(generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
 
                 if self.self_translate:
-                    LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
+                    unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
 
             model.train()
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
@@ -276,9 +277,9 @@ class MTTrainer:
 
                 try:
                     if self.self_translate:
-                        mask, masked_ids, src_inputs = LM.mask_text(mask_prob=self.mask_prob, pads=src_mask,
-                                                                    texts=src_inputs,
-                                                                    text_processor=model.text_processor, mask_eos=False)
+                        mask, masked_ids, src_inputs = mask_text(mask_prob=self.mask_prob, pads=src_mask,
+                                                                 texts=src_inputs,
+                                                                 text_processor=model.text_processor, mask_eos=False)
 
                     predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                              src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
@@ -296,7 +297,7 @@ class MTTrainer:
                     total_dev_loss += float(loss)
                     total_dev_tokens += ntokens
                     if self.self_translate:
-                        LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
+                        unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
                 except RuntimeError:
                     print("Error in processing", src_inputs.size(), tgt_inputs.size())
                     torch.cuda.empty_cache()

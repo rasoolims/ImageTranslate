@@ -1,9 +1,7 @@
 import copy
 import datetime
-import math
 import os
 import pickle
-import random
 import sys
 import time
 from typing import Dict, List
@@ -21,52 +19,9 @@ from lm import LM
 from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mt import MTTrainer
-from utils import build_optimizer
+from utils import build_optimizer, mass_mask, mass_unmask
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
-
-
-def mask_text(mask_prob, pad_indices, src_text, text_processor: TextProcessor):
-    """
-        20% of times, mask from start to middle
-        20% of times, mask from middle to end
-        60% of times, mask a random index
-    """
-    index_range = pad_indices - (1 - mask_prob) * pad_indices
-    src_mask = torch.zeros(src_text.size(), dtype=torch.bool)
-    to_recover = []
-    to_recover_pos = []
-    for i, irange in enumerate(index_range):
-        range_size = int(pad_indices[i] / 2)
-        r = random.random()
-        last_idx = int(math.ceil(irange))
-        if r > 0.8:
-            start = 1
-        elif r > 0.6:
-            start = last_idx
-        else:
-            start = random.randint(2, last_idx) if last_idx >= 2 else 2
-
-        end = start + range_size
-        src_mask[i, start:end] = True
-        to_recover.append(src_text[i, start - 1:end])
-        to_recover_pos.append(torch.arange(start - 1, end))
-    to_recover = pad_sequence(to_recover, batch_first=True, padding_value=text_processor.pad_token_id())
-    to_recover_pos = pad_sequence(to_recover_pos, batch_first=True, padding_value=int(src_text.size(-1)) - 1)
-
-    assert 0 < mask_prob < 1
-    masked_ids = src_text[:, 1:][src_mask[:, 1:]]
-    mask_idx = src_text[src_mask]
-    random_index = lambda: random.randint(len(text_processor.special_tokens), text_processor.vocab_size() - 1)
-    rand_select = lambda r, c: text_processor.mask_token_id() if r < 0.8 else (
-        random_index() if r < 0.9 else int(mask_idx[c]))
-    replacements = list(map(lambda i: rand_select(random.random(), i), range(mask_idx.size(0))))
-    src_text[src_mask] = torch.LongTensor(replacements)
-    return src_mask, masked_ids, src_text, to_recover, to_recover_pos, mask_idx
-
-
-def unmask(src_text, src_mask, masked_ids):
-    src_text[src_mask] = masked_ids
 
 
 class MassTrainer(MTTrainer):
@@ -92,7 +47,7 @@ class MassTrainer(MTTrainer):
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
                 pad_indices = batch["pad_idx"].squeeze(0)
 
-                src_mask, targets, src_text, to_recover, positions, mask_idx = mask_text(self.mask_prob, pad_indices,
+                src_mask, targets, src_text, to_recover, positions, mask_idx = mass_mask(self.mask_prob, pad_indices,
                                                                                          src_inputs,
                                                                                          model.text_processor)
 
@@ -130,7 +85,7 @@ class MassTrainer(MTTrainer):
                 except RuntimeError as err:
                     torch.cuda.empty_cache()
                     print("Error in processing", src_inputs.size(), src_inputs.size())
-                unmask(src_text, src_mask, mask_idx)
+                mass_unmask(src_text, src_mask, mask_idx)
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start
@@ -286,7 +241,7 @@ class MassTrainer(MTTrainer):
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
                 pad_indices = batch["pad_idx"].squeeze(0)
 
-                src_mask, targets, src_text, to_recover, positions, mask_idx = mask_text(self.mask_prob, pad_indices,
+                src_mask, targets, src_text, to_recover, positions, mask_idx = mass_mask(self.mask_prob, pad_indices,
                                                                                          src_inputs,
                                                                                          model.text_processor)
 
@@ -307,7 +262,7 @@ class MassTrainer(MTTrainer):
                 except RuntimeError:
                     torch.cuda.empty_cache()
                     print("Error in processing", src_inputs.size(), src_inputs.size())
-                unmask(src_text, src_mask, mask_idx)
+                mass_unmask(src_text, src_mask, mask_idx)
 
             dev_loss = total_dev_loss / total_dev_tokens
             print("Current dev loss", dev_loss)

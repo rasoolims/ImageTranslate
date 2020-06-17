@@ -13,9 +13,9 @@ from IPython.core import ultratb
 from torch.nn.utils.rnn import pad_sequence
 
 import dataset
-import train_mt
 from albert_seq2seq import MassSeq2Seq
 from lm import LM
+from option_parser import get_mass_option_parser
 from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mt import MTTrainer
@@ -397,19 +397,8 @@ class MassTrainer(MTTrainer):
             finetune_epoch += 1
 
 
-def get_option_parser():
-    parser = train_mt.get_option_parser()
-    parser.add_option("--dev_mt", dest="mt_dev_path",
-                      help="Path to the MT dev data pickle files (SHOULD NOT BE USED IN UNSUPERVISED SETTING)",
-                      metavar="FILE", default=None)
-    parser.add_option("--fstep", dest="finetune_step", help="Number of finetuneing steps", type="int", default=125000)
-    parser.set_default("mask_prob", 0.5)
-    parser.set_default("model_size", 5)
-    return parser
-
-
 if __name__ == "__main__":
-    parser = get_option_parser()
+    parser = get_mass_option_parser()
     (options, args) = parser.parse_args()
     print(options)
     MassTrainer.train(options=options)

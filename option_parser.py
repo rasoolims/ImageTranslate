@@ -1,0 +1,71 @@
+from optparse import OptionParser
+
+
+def get_lm_option_parser():
+    parser = OptionParser()
+    parser.add_option("--train", dest="train_path", help="Path to the train data pickle files for large data",
+                      metavar="FILE", default=None)
+    parser.add_option("--dev", dest="dev_path", help="Path to the dev data pickle files for large data", metavar="FILE",
+                      default=None)
+    parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
+    parser.add_option("--cache_size", dest="cache_size", help="Number of blocks in cache", type="int", default=300)
+    parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
+                      default=None)
+    parser.add_option("--pretrained", dest="pretrained_path", help="Directory of pretrained model", metavar="FILE",
+                      default=None)
+    parser.add_option("--epoch", dest="num_epochs", help="Number of training epochs", type="int", default=100)
+    parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
+    parser.add_option("--batch", dest="batch", help="Batch size", type="int", default=512)
+    parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
+    parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
+    parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.0025)
+    parser.add_option("--warmup", dest="warmup", help="Number of warmup steps", type="int", default=12500)
+    parser.add_option("--step", dest="step", help="Number of training steps", type="int", default=125000)
+    parser.add_option("--decay", dest="weight_decay", help="Weight decay", type="float", default=0.01)
+    parser.add_option("--max_grad_norm", dest="max_grad_norm", help="Max grad norm", type="float", default=1.0)
+    parser.add_option("--cont", action="store_true", dest="continue_train",
+                      help="Continue training from pretrained model", default=False)
+    parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)
+    parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
+    parser.add_option("--size", dest="model_size", help="Model size: 3 (base), 2 (medium), 1 (small)", type="int",
+                      default=1)
+    return parser
+
+
+def get_mt_option_parser():
+    parser = get_lm_option_parser()
+    parser.add_option("--mono", dest="monolingual_path",
+                      help="Path to the monolingual data pickle files for auxiliary BART training", metavar="FILE",
+                      default=None)
+    parser.add_option("--capacity", dest="total_capacity", help="Batch capcity", type="int", default=150)
+    parser.add_option("--lm", dest="lm_path", help="LM pretrained model", metavar="FILE", default=None)
+    parser.add_option("--beam", dest="beam_width", help="Beam width", type="int", default=5)
+    parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Disjoint encoder/decoder", default=False)
+    parser.add_option("--max_len_a", dest="max_len_a", help="a for beam search (a*l+b)", type="float", default=1.3)
+    parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)
+    parser.add_option("--len-penalty", dest="len_penalty_ratio", help="Length penalty", type="float", default=0.8)
+    parser.add_option("--checkpoint", dest="checkpoint", help="Number of checkpoints to average", type="int", default=5)
+    parser.add_option("--max_seq_len", dest="max_seq_len", help="Max sequence length", type="int", default=175)
+    parser.add_option("--pretrain", action="store_true", dest="pretrain",
+                      help="Use self to self translation similar to BART!", default=False)
+    parser.add_option("--nll", action="store_true", dest="nll_loss", help="Use NLL loss instead of smoothed NLL loss",
+                      default=False)
+    parser.set_default("batch", 20000)
+    return parser
+
+
+def get_mass_option_parser():
+    parser = get_mt_option_parser()
+    parser.add_option("--dev_mt", dest="mt_dev_path",
+                      help="Path to the MT dev data pickle files (SHOULD NOT BE USED IN UNSUPERVISED SETTING)",
+                      metavar="FILE", default=None)
+    parser.add_option("--fstep", dest="finetune_step", help="Number of finetuneing steps", type="int", default=125000)
+    parser.set_default("mask_prob", 0.5)
+    parser.set_default("model_size", 5)
+    return parser
+
+
+def get_img_options_parser():
+    parser = get_mt_option_parser()
+    parser.add_option("--image", dest="image_dir", help="Path to the image files", metavar="FILE", default=None)
+    return parser

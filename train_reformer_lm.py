@@ -7,7 +7,7 @@ import torch.utils.data as data_utils
 from IPython.core import ultratb
 
 import dataset
-import train_lm
+from option_parser import get_lm_option_parser
 from reformer_lm import ReformerLM
 from textprocessor import TextProcessor
 from train_lm import LMTrainer
@@ -61,12 +61,8 @@ class ReformerTrainer(LMTrainer):
                                        step=step)
 
 
-def get_options_parser():
-    return train_lm.get_option_parser()
-
-
 if __name__ == "__main__":
-    parser = get_options_parser()
+    parser = get_lm_option_parser()
     (options, args) = parser.parse_args()
     print(options)
     ReformerTrainer.train(options=options)

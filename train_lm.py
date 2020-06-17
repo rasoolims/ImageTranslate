@@ -3,7 +3,6 @@ import os
 import pickle
 import sys
 import time
-from optparse import OptionParser
 
 import torch
 import torch.nn as nn
@@ -13,6 +12,7 @@ from IPython.core import ultratb
 
 import dataset
 from lm import LM
+from option_parser import get_lm_option_parser
 from parallel import DataParallelModel, DataParallelCriterion
 from textprocessor import TextProcessor
 from utils import build_optimizer, mask_text, unmask_text
@@ -193,39 +193,8 @@ class LMTrainer:
                                        step=step)
 
 
-def get_option_parser():
-    parser = OptionParser()
-    parser.add_option("--train", dest="train_path", help="Path to the train data pickle files for large data",
-                      metavar="FILE", default=None)
-    parser.add_option("--dev", dest="dev_path", help="Path to the dev data pickle files for large data", metavar="FILE",
-                      default=None)
-    parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
-    parser.add_option("--cache_size", dest="cache_size", help="Number of blocks in cache", type="int", default=300)
-    parser.add_option("--model", dest="model_path", help="Directory path to save the best model", metavar="FILE",
-                      default=None)
-    parser.add_option("--pretrained", dest="pretrained_path", help="Directory of pretrained model", metavar="FILE",
-                      default=None)
-    parser.add_option("--epoch", dest="num_epochs", help="Number of training epochs", type="int", default=100)
-    parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
-    parser.add_option("--batch", dest="batch", help="Batch size", type="int", default=512)
-    parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
-    parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
-    parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.0025)
-    parser.add_option("--warmup", dest="warmup", help="Number of warmup steps", type="int", default=12500)
-    parser.add_option("--step", dest="step", help="Number of training steps", type="int", default=125000)
-    parser.add_option("--decay", dest="weight_decay", help="Weight decay", type="float", default=0.01)
-    parser.add_option("--max_grad_norm", dest="max_grad_norm", help="Max grad norm", type="float", default=1.0)
-    parser.add_option("--cont", action="store_true", dest="continue_train",
-                      help="Continue training from pretrained model", default=False)
-    parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)
-    parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
-    parser.add_option("--size", dest="model_size", help="Model size: 3 (base), 2 (medium), 1 (small)", type="int",
-                      default=1)
-    return parser
-
-
 if __name__ == "__main__":
-    parser = get_option_parser()
+    parser = get_lm_option_parser()
     (options, args) = parser.parse_args()
     print(options)
     LMTrainer.train(options=options)

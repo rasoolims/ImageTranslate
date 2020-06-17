@@ -5,16 +5,17 @@ import pickle
 import sys
 import time
 
+import torch
 import torch.utils.data as data_utils
 from IPython.core import ultratb
 from torchvision import transforms
 
 import dataset
-import train_mt
 from image_doc_model import ImageSeq2Seq
 from lm import LM
+from option_parser import get_img_options_parser
 from train_mass import MassTrainer
-from utils import *
+from utils import build_optimizer
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -190,14 +191,8 @@ class ImageDocTrainer(MassTrainer):
             train_epoch += 1
 
 
-def get_options_parser():
-    parser = train_mt.get_option_parser()
-    parser.add_option("--image", dest="image_dir", help="Path to the image files", metavar="FILE", default=None)
-    return parser
-
-
 if __name__ == "__main__":
-    parser = get_options_parser()
+    parser = get_img_options_parser()
     (options, args) = parser.parse_args()
     print(options)
     ImageDocTrainer.train(options=options)

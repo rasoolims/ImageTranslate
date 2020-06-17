@@ -14,10 +14,10 @@ import transformers.optimization as optim
 from IPython.core import ultratb
 
 import dataset
-import train_lm
 from albert_seq2seq import AlbertSeq2Seq
 from lm import LM
 from loss import SmoothedNLLLoss
+from option_parser import get_mt_option_parser
 from parallel import DataParallelModel, DataParallelCriterion
 from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
@@ -435,30 +435,8 @@ class MTTrainer:
         torch.cuda.empty_cache()
 
 
-def get_option_parser():
-    parser = train_lm.get_option_parser()
-    parser.add_option("--mono", dest="monolingual_path",
-                      help="Path to the monolingual data pickle files for auxiliary BART training", metavar="FILE",
-                      default=None)
-    parser.add_option("--capacity", dest="total_capacity", help="Batch capcity", type="int", default=150)
-    parser.add_option("--lm", dest="lm_path", help="LM pretrained model", metavar="FILE", default=None)
-    parser.add_option("--beam", dest="beam_width", help="Beam width", type="int", default=5)
-    parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Disjoint encoder/decoder", default=False)
-    parser.add_option("--max_len_a", dest="max_len_a", help="a for beam search (a*l+b)", type="float", default=1.3)
-    parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)
-    parser.add_option("--len-penalty", dest="len_penalty_ratio", help="Length penalty", type="float", default=0.8)
-    parser.add_option("--checkpoint", dest="checkpoint", help="Number of checkpoints to average", type="int", default=5)
-    parser.add_option("--max_seq_len", dest="max_seq_len", help="Max sequence length", type="int", default=175)
-    parser.add_option("--pretrain", action="store_true", dest="pretrain",
-                      help="Use self to self translation similar to BART!", default=False)
-    parser.add_option("--nll", action="store_true", dest="nll_loss", help="Use NLL loss instead of smoothed NLL loss",
-                      default=False)
-    parser.set_default("batch", 20000)
-    return parser
-
-
 if __name__ == "__main__":
-    parser = get_option_parser()
+    parser = get_mt_option_parser()
     (options, args) = parser.parse_args()
     print(options)
     MTTrainer.train(options=options)

@@ -102,6 +102,11 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
 
     lang_specific_images["shared"] = cross_image_docs
 
+    print("*****")
+    for lang in lang_specific_images.keys():
+        print(lang, len(lang_specific_images[lang]))
+    print("*****")
+
     with open(output_file, "wb") as fp:
         marshal.dump((lang_specific_images, unique_images, unique_docs), fp)
 

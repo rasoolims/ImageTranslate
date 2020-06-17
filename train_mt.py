@@ -66,8 +66,7 @@ class MTTrainer:
         self.best_bleu = -1.0
 
     def train_epoch(self, data_iter: data_utils.DataLoader, dev_data_iter: data_utils.DataLoader, saving_path: str,
-                    step: int, max_grad_norm: float = 1.0,
-                    monolingual_data_iter: Optional[data_utils.DataLoader] = None):
+                    step: int, monolingual_data_iter: Optional[data_utils.DataLoader] = None):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -156,7 +155,7 @@ class MTTrainer:
 
                 if self.optimizer is not None:
                     # We accumulate the gradients for both tasks!
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
                     self.optimizer.step()
                     self.scheduler.step()
                     step += 1

@@ -27,7 +27,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class MassTrainer(MTTrainer):
     def train_epoch(self, data_iter: List[data_utils.DataLoader], dev_data_iter: data_utils.DataLoader,
                     saving_path: str,
-                    step: int, mt_dev_iter: data_utils.DataLoader = None, max_grad_norm: float = 1.0, **kwargs):
+                    step: int, mt_dev_iter: data_utils.DataLoader = None, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -74,7 +74,7 @@ class MassTrainer(MTTrainer):
 
                     if self.optimizer is not None:
                         # We accumulate the gradients for both tasks!
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
                         self.optimizer.step()
                         self.scheduler.step()
                         step += 1
@@ -115,7 +115,7 @@ class MassTrainer(MTTrainer):
         return step
 
     def fine_tune(self, data_iter: List[data_utils.DataLoader], lang_directions: Dict[int, int], saving_path: str,
-                  step: int, max_grad_norm: float = 1.0, dev_data_iter: data_utils.DataLoader = None):
+                  step: int, dev_data_iter: data_utils.DataLoader = None):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -187,7 +187,7 @@ class MassTrainer(MTTrainer):
 
                     if self.optimizer is not None:
                         # We accumulate the gradients for both tasks!
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
                         self.optimizer.step()
                         self.scheduler.step()
                         step += 1

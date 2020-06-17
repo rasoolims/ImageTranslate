@@ -48,8 +48,8 @@ class LMTrainer:
         self.best_train_loss = float("inf")
         self.last_train_loss = float("inf")
 
-    def train_epoch(self, data_iter: data_utils.DataLoader, dev_data_iter: data_utils.DataLoader,
-                    saving_path: str, step: int, max_grad_norm: float = 1.0):
+    def train_epoch(self, data_iter: data_utils.DataLoader, dev_data_iter: data_utils.DataLoader, saving_path: str,
+                    step: int):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -74,7 +74,7 @@ class LMTrainer:
                 unmask_text(mask, target, texts)
 
                 if self.optimizer is not None:
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
 
                     self.optimizer.step()
                     self.scheduler.step()

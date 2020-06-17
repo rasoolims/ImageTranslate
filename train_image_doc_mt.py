@@ -21,9 +21,8 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 class ImageDocTrainer(MassTrainer):
-    def train_epoch(self, data_iter: data_utils.DataLoader, step: int, max_grad_norm: float = 1.0,
-                    dev_data_iter: data_utils.DataLoader = None, saving_path: str = None,
-                    mt_dev_iter: data_utils.DataLoader = None, **kwargs):
+    def train_epoch(self, data_iter: data_utils.DataLoader, step: int, dev_data_iter: data_utils.DataLoader = None,
+                    saving_path: str = None, mt_dev_iter: data_utils.DataLoader = None, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -60,7 +59,7 @@ class ImageDocTrainer(MassTrainer):
 
                 if self.optimizer is not None:
                     # We accumulate the gradients for both tasks!
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
                     self.optimizer.step()
                     self.scheduler.step()
                     step += 1

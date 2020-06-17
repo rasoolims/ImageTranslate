@@ -160,7 +160,7 @@ class ImageDocTrainer(MassTrainer):
         collator = dataset.ImageTextCollator()
         num_batches = max(1, torch.cuda.device_count())
 
-        train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True, pin_memory=pin_memory,
+        train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=False, pin_memory=pin_memory,
                                              collate_fn=collator)
         dev_loader = None
         if options.dev_path is not None:

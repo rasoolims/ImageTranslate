@@ -21,19 +21,11 @@ def mask_text(mask_prob, pads, texts, text_processor: TextProcessor, mask_eos: b
         mask[eos_idx] = False  # We should not mask end-of-sentence (usually in case of BART training).
 
     masked_ids = texts[mask]
-    replacements = masked_ids.clone()
-    for i in range(len(replacements)):
-        r = random.random()
-        if r < 0.8:
-            replacements[i] = text_processor.mask_token_id()
-        elif r < 0.9:
-            # Replace with another random word.
-            random_index = random.randint(len(text_processor.special_tokens), text_processor.vocab_size() - 1)
-            replacements[i] = random_index
-        else:
-            # keep the word
-            pass
-    texts[mask] = replacements
+    random_index = lambda: random.randint(len(text_processor.special_tokens), text_processor.vocab_size() - 1)
+    rand_select = lambda r, c: text_processor.mask_token_id() if r < 0.8 else (
+        random_index() if r < 0.9 else int(masked_ids[c]))
+    replacements = list(map(lambda i: rand_select(random.random(), i), range(masked_ids.size(0))))
+    texts[mask] = torch.LongTensor(replacements)
     return mask, masked_ids, texts
 
 

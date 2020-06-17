@@ -71,8 +71,6 @@ docs1 = list(docs1)
 docs2 = list(docs2)
 raw_doc1 = list(raw_doc1)
 raw_doc2 = list(raw_doc2)
-random.shuffle(raw_doc1)
-random.shuffle(raw_doc2)
 
 min_doc = min(len(docs1), len(docs2))
 max_doc = max(len(docs1), len(docs2))
@@ -82,8 +80,12 @@ min_needed = min(max_doc, options.min_doc)
 l1_needed = min(len(raw_doc1), max(0, min_needed - len(docs1)))
 l2_needed = min(len(raw_doc2), max(0, min_needed - len(docs2)))
 
-docs1 += raw_doc1[:l1_needed]
-docs2 += raw_doc2[:l2_needed]
+if l1_needed > 0:
+    random.shuffle(raw_doc1)
+    docs1 += raw_doc1[:l1_needed]
+if l2_needed > 0:
+    random.shuffle(raw_doc2)
+    docs2 += raw_doc2[:l2_needed]
 
 with open(options.o1, "w") as w:
     w.write("\n".join(docs1))

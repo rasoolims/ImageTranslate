@@ -37,7 +37,7 @@ sens1 = set()
 with open(options.l1_json, "rb") as fp:
     contents = json.load(fp)
     for i, content in enumerate(contents):
-        sens1 |= extract_sentences(content["content"], 0)
+        sens1.add(content["content"].strip())
         sens1 |= set(map(lambda img: img["caption"], content["images"]))
         print(i, end="\r")
 
@@ -47,15 +47,15 @@ sens2 = set()
 with open(options.l2_json, "rb") as fp:
     contents = json.load(fp)
     for i, content in enumerate(contents):
-        sens2 |= extract_sentences(content["content"], 0)
+        sens2.add(content["content"].strip())
         sens2 |= set(map(lambda img: img["caption"], content["images"]))
         print(i, end="\r")
-print(len(sens2), "sens in", options.l2_json)
+print(len(sens2), "docs in", options.l2_json)
 
 raw_sen1 = set()
 with open(options.l1_raw, "r") as reader:
     for i, line in enumerate(reader):
-        raw_sen1 |= extract_sentences(line, options.min_len)
+        raw_sen1.add(line.strip())
         print(i, end="\r")
 
 print(len(raw_sen1), "raw sentences in", options.l1_raw)
@@ -63,7 +63,7 @@ print(len(raw_sen1), "raw sentences in", options.l1_raw)
 raw_sen2 = set()
 with open(options.l1_raw, "r") as reader:
     for i, line in enumerate(reader):
-        raw_sen2 |= extract_sentences(line, options.min_len)
+        raw_sen2.add(line.strip())
         print(i, end="\r")
 
 print(len(raw_sen2), "raw sentences in", options.l2_raw)

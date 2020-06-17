@@ -14,6 +14,7 @@ import dataset
 from image_doc_model import ImageSeq2Seq
 from lm import LM
 from option_parser import get_img_options_parser
+from textprocessor import TextProcessor
 from train_mass import MassTrainer
 from utils import build_optimizer
 

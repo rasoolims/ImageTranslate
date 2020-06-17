@@ -3,18 +3,18 @@ import random
 from optparse import OptionParser
 
 
-def extract_sentences(line, min_len):
+def extract_doctences(line, min_len):
     line = line.strip()
     if len(line) == 0:
         return set()
 
-    sens = line.split("</s>")
-    sen_split = sens[0].strip().split(" ")
-    sens[0] = " ".join(sen_split[1:])
-    lang = sen_split[0]
+    docs = line.split("</s>")
+    doc_split = docs[0].strip().split(" ")
+    docs[0] = " ".join(doc_split[1:])
+    lang = doc_split[0]
     len_condition = lambda s: len(s.strip()) > 0 and len(s.strip().split(" ")) > min_len
     return set(filter(lambda x: x is not None,
-                      map(lambda s: " ".join([lang, s.strip(), "</s>"]) if len_condition(s) else None, sens)))
+                      map(lambda s: " ".join([lang, s.strip(), "</s>"]) if len_condition(s) else None, docs)))
 
 
 def get_option_parser():
@@ -25,70 +25,70 @@ def get_option_parser():
     parser.add_option("--l2r", dest="l2_raw", help="Raw txt for the second language", metavar="FILE", default=None)
     parser.add_option("--o1", dest="o1", help="Output txt for the first language", metavar="FILE", default=None)
     parser.add_option("--o2", dest="o2", help="Output txt for the second language", metavar="FILE", default=None)
-    parser.add_option("--min_sen", dest="min_sen", help="Min number of sentences", type=int, default=1000000)
+    parser.add_option("--min_doc", dest="min_doc", help="Min number of doctences", type=int, default=1000000)
     return parser
 
 
 parser = get_option_parser()
 (options, args) = parser.parse_args()
 
-sens1 = set()
+docs1 = set()
 with open(options.l1_json, "rb") as fp:
     contents = json.load(fp)
     for i, content in enumerate(contents):
-        sens1.add(content["content"].strip())
-        sens1 |= set(map(lambda img: img["caption"], content["images"]))
+        docs1.add(content["content"].strip())
+        docs1 |= set(map(lambda img: img["caption"], content["images"]))
         print(i, end="\r")
 
-print(len(sens1), "docs in", options.l1_json)
+print(len(docs1), "docs in", options.l1_json)
 
-sens2 = set()
+docs2 = set()
 with open(options.l2_json, "rb") as fp:
     contents = json.load(fp)
     for i, content in enumerate(contents):
-        sens2.add(content["content"].strip())
-        sens2 |= set(map(lambda img: img["caption"], content["images"]))
+        docs2.add(content["content"].strip())
+        docs2 |= set(map(lambda img: img["caption"], content["images"]))
         print(i, end="\r")
-print(len(sens2), "docs in", options.l2_json)
+print(len(docs2), "docs in", options.l2_json)
 
-raw_sen1 = set()
+raw_doc1 = set()
 with open(options.l1_raw, "r") as reader:
     for i, line in enumerate(reader):
-        raw_sen1.add(line.strip())
+        raw_doc1.add(line.strip())
         print(i, end="\r")
 
-print(len(raw_sen1), "docs sentences in", options.l1_raw)
+print(len(raw_doc1), "docs doctences in", options.l1_raw)
 
-raw_sen2 = set()
-with open(options.l1_raw, "r") as reader:
+raw_doc2 = set()
+with open(options.l2_raw, "r") as reader:
     for i, line in enumerate(reader):
-        raw_sen2.add(line.strip())
+        raw_doc2.add(line.strip())
         print(i, end="\r")
 
-print(len(raw_sen2), "docs sentences in", options.l2_raw)
+print(len(raw_doc2), "docs doctences in", options.l2_raw)
 
-sens1 = list(sens1)
-sens2 = list(sens2)
-raw_sen1 = list(raw_sen1)
-raw_sen2 = list(raw_sen2)
-random.shuffle(raw_sen1)
-random.shuffle(raw_sen2)
+docs1 = list(docs1)
+docs2 = list(docs2)
+raw_doc1 = list(raw_doc1)
+raw_doc2 = list(raw_doc2)
+random.shuffle(raw_doc1)
+random.shuffle(raw_doc2)
 
-min_sen = min(len(sens1), len(sens2))
-max_sen = max(len(sens1), len(sens2))
+min_doc = min(len(docs1), len(docs2))
+max_doc = max(len(docs1), len(docs2))
 
-min_needed = min(max_sen, options.min_sen)
+min_needed = min(max_doc, options.min_doc)
 
-l1_needed = min(len(raw_sen1), max(0, min_needed - len(sens1)))
-l2_needed = min(len(raw_sen2), max(0, min_needed - len(sens2)))
+l1_needed = min(len(raw_doc1), max(0, min_needed - len(docs1)))
+l2_needed = min(len(raw_doc2), max(0, min_needed - len(docs2)))
 
-sens1 += raw_sen1[:l1_needed]
-sens2 += raw_sen2[:l2_needed]
+docs1 += raw_doc1[:l1_needed]
+docs2 += raw_doc2[:l2_needed]
 
 with open(options.o1, "w") as w:
-    w.write("\n".join(sens1))
+    w.write("\n".join(docs1))
 
 with open(options.o2, "w") as w:
-    w.write("\n".join(sens2))
+    w.write("\n".join(docs2))
 
 print("Done!")

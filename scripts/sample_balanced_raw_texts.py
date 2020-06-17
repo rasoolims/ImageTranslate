@@ -3,20 +3,6 @@ import random
 from optparse import OptionParser
 
 
-def extract_doctences(line, min_len):
-    line = line.strip()
-    if len(line) == 0:
-        return set()
-
-    docs = line.split("</s>")
-    doc_split = docs[0].strip().split(" ")
-    docs[0] = " ".join(doc_split[1:])
-    lang = doc_split[0]
-    len_condition = lambda s: len(s.strip()) > 0 and len(s.strip().split(" ")) > min_len
-    return set(filter(lambda x: x is not None,
-                      map(lambda s: " ".join([lang, s.strip(), "</s>"]) if len_condition(s) else None, docs)))
-
-
 def get_option_parser():
     parser = OptionParser()
     parser.add_option("--l1j", dest="l1_json", help="Json path for the first language", metavar="FILE", default=None)
@@ -80,9 +66,11 @@ min_needed = min(max_doc, options.min_doc)
 l1_needed = min(len(raw_doc1), max(0, min_needed - len(docs1)))
 l2_needed = min(len(raw_doc2), max(0, min_needed - len(docs2)))
 
+print(l1_needed, l2_needed)
 if l1_needed > 0:
     random.shuffle(raw_doc1)
     docs1 += raw_doc1[:l1_needed]
+    
 if l2_needed > 0:
     random.shuffle(raw_doc2)
     docs2 += raw_doc2[:l2_needed]

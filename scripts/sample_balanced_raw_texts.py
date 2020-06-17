@@ -40,7 +40,8 @@ print(len(docs2), "docs in", options.l2_json)
 raw_doc1 = set()
 with open(options.l1_raw, "r") as reader:
     for i, line in enumerate(reader):
-        raw_doc1.add(line.strip())
+        if line.strip() not in docs1:
+            raw_doc1.add(line.strip())
         print(i, end="\r")
 
 print(len(raw_doc1), "docs doctences in", options.l1_raw)
@@ -48,7 +49,8 @@ print(len(raw_doc1), "docs doctences in", options.l1_raw)
 raw_doc2 = set()
 with open(options.l2_raw, "r") as reader:
     for i, line in enumerate(reader):
-        raw_doc2.add(line.strip())
+        if line.strip() not in docs2:
+            raw_doc2.add(line.strip())
         print(i, end="\r")
 
 print(len(raw_doc2), "docs doctences in", options.l2_raw)
@@ -76,9 +78,9 @@ if l2_needed > 0:
     docs2 += raw_doc2[:l2_needed]
 
 with open(options.o1, "w") as w:
-    w.write("\n".join(set(docs1)))
+    w.write("\n".join(docs1))
 
 with open(options.o2, "w") as w:
-    w.write("\n".join(set(docs2)))
+    w.write("\n".join(docs2))
 
 print("Done!")

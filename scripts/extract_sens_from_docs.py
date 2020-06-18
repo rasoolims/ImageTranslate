@@ -18,8 +18,7 @@ def extract_doctences(line, min_len, max_len):
 
 path = os.path.abspath(sys.argv[1])
 min_len = int(sys.argv[2])
-max_len = int(sys.argv[2])
-
+max_len = int(sys.argv[3])
 output_path = os.path.abspath(sys.argv[4])
 
 with open(path, "r") as reader, open(output_path, "w") as writer:

@@ -97,8 +97,8 @@ class MTDataset(Dataset):
                     cur_src_batch) * cur_max_dst_len
                 batch_size = (cur_max_src_len + cur_max_dst_len) * len(cur_src_batch)
 
-                if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000 and \
-                        cur_src_batch[:-1] >= num_gpu:
+                if (batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000) and \
+                        len(cur_src_batch[:-1]) >= num_gpu and len(cur_src_batch) > 1:
                     src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
                     dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
                     src_pad_mask = (src_batch != pad_idx)
@@ -210,8 +210,8 @@ class MassDataset(Dataset):
                 batch_capacity_size = 2 * (cur_max_src_len ** 3) * len(cur_src_batch)
                 batch_size = 2 * cur_max_src_len * len(cur_src_batch)
 
-                if batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000 and \
-                        len(cur_src_batch[:-1]) >= num_gpu:
+                if (batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000) and \
+                        len(cur_src_batch[:-1]) >= num_gpu and len(cur_langs) > 1:
                     batches.append(cur_src_batch[:-1])
                     langs.append(cur_langs[:-1])
                     cur_src_batch = [cur_src_batch[-1]]
@@ -281,7 +281,7 @@ class ImageDocDataset(Dataset):
             del unique_images
             del unique_docs
 
-        print("Loaded %d batches!" % (len(self.batches)))
+        print("Loaded %d image batches!" % (len(self.batches)))
         print("End", datetime.datetime.now())
 
     def build_lang_batch(self, image_info_dict, max_doc_batch_capacity, text_processor, unique_docs, unique_images):

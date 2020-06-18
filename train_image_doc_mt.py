@@ -14,6 +14,7 @@ import dataset
 from image_doc_model import ImageSeq2Seq
 from lm import LM
 from option_parser import get_img_options_parser
+from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mass import MassTrainer
 from utils import build_optimizer
@@ -92,32 +93,12 @@ class ImageDocTrainer(MassTrainer):
 
         if dev_data_iter is not None:
             self.validate(dev_data_iter)
+
+        if mt_dev_iter is not None:
+            bleu = self.eval_bleu(mt_dev_iter, saving_path)
+            print("Pretraining BLEU:", bleu)
+
         return step
-
-    def validate(self, dev_data_iter):
-        model = (
-            self.model.module if hasattr(self.model, "module") else self.model
-        )
-        model.eval()
-        with torch.no_grad():
-            total_dev_loss, total_dev_tokens = 0, 0
-            for batch in dev_data_iter:
-                predictions = self.model(device=self.device, batch=batch, log_softmax=True)
-                targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
-                tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
-                targets = torch.cat([targets[i][tgt_mask_flat[i]] for i in range(len(batch))])
-                ntokens = targets.size(0)
-
-                if ntokens == 0:  # Nothing to predict!
-                    continue
-
-                loss = self.criterion(predictions, targets).mean().data * ntokens
-                total_dev_loss += float(loss)
-                total_dev_tokens += ntokens
-
-            dev_loss = total_dev_loss / total_dev_tokens
-            print("Current dev loss", dev_loss)
-            model.train()
 
     @staticmethod
     def train(options):
@@ -151,7 +132,7 @@ class ImageDocTrainer(MassTrainer):
 
         train_data = dataset.ImageDocDataset(root_img_dir=options.image_dir,
                                              data_bin_file=options.train_path, transform=transform,
-                                             max_doc_batch_capacity=options.total_capacity,
+                                             max_doc_batch_capacity=options.img_capacity,
                                              text_processor=mt_model.text_processor)
 
         pin_memory = torch.cuda.is_available()
@@ -164,10 +145,11 @@ class ImageDocTrainer(MassTrainer):
                                              collate_fn=collator)
         dev_loader = None
         if options.dev_path is not None:
-            dev_data = dataset.ImageDocDataset(root_img_dir=options.image_dir, data_bin_file=options.dev_path,
-                                               transform=transform,
-                                               max_doc_batch_capacity=options.total_capacity,
-                                               text_processor=mt_model.text_processor)
+            dev_data = dataset.MassDataset(batch_pickle_dir=options.dev_path,
+                                           max_batch_capacity=options.total_capacity,
+                                           max_batch=options.batch,
+                                           pad_idx=mt_model.text_processor.pad_token_id(),
+                                           max_seq_len=options.max_seq_len)
             dev_loader = data_utils.DataLoader(dev_data, batch_size=num_batches, shuffle=False,
                                                pin_memory=pin_memory, collate_fn=collator)
 
@@ -182,12 +164,32 @@ class ImageDocTrainer(MassTrainer):
                                   max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
                                   last_epoch=last_epoch)
 
+        mt_dev_loader = None
+        if options.mt_dev_path is not None:
+            mt_dev_data = dataset.MTDataset(batch_pickle_dir=options.mt_dev_path,
+                                            max_batch_capacity=options.total_capacity,
+                                            max_batch=int(options.batch / (options.beam_width * 2)),
+                                            pad_idx=mt_model.text_processor.pad_token_id())
+            mt_dev_loader = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+
+            print("creating reference")
+            trainer.reference = []
+
+            generator = (
+                trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
+            )
+
+            for batch in mt_dev_loader:
+                tgt_inputs = batch["dst_texts"].squeeze()
+                refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
+                ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
+                trainer.reference += ref
+
         step, train_epoch = 0, 1
         while step <= options.step:
             print("train epoch", train_epoch)
-            step = trainer.train_epoch(data_iter=train_loader, dev_data_iter=dev_loader,
-                                       saving_path=options.model_path,
-                                       step=step)
+            step = trainer.train_epoch(data_iter=train_loader, dev_data_iter=dev_loader, mt_dev_iter=mt_dev_loader,
+                                       saving_path=options.model_path, step=step)
             train_epoch += 1
 
 

@@ -37,7 +37,7 @@ def get_mt_option_parser():
     parser.add_option("--mono", dest="monolingual_path",
                       help="Path to the monolingual data pickle files for auxiliary BART training", metavar="FILE",
                       default=None)
-    parser.add_option("--capacity", dest="total_capacity", help="Batch capcity", type="int", default=150)
+    parser.add_option("--capacity", dest="total_capacity", help="Batch capacity", type="int", default=150)
     parser.add_option("--lm", dest="lm_path", help="LM pretrained model", metavar="FILE", default=None)
     parser.add_option("--beam", dest="beam_width", help="Beam width", type="int", default=5)
     parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Disjoint encoder/decoder", default=False)
@@ -66,6 +66,7 @@ def get_mass_option_parser():
 
 
 def get_img_options_parser():
-    parser = get_mt_option_parser()
+    parser = get_mass_option_parser()
     parser.add_option("--image", dest="image_dir", help="Path to the image files", metavar="FILE", default=None)
+    parser.add_option("--img_capacity", dest="img_capacity", help="Batch capacity", type="int", default=150)
     return parser

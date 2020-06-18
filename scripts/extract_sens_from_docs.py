@@ -17,11 +17,13 @@ def extract_doctences(line, min_len):
 
 
 path = os.path.abspath(sys.argv[1])
-output_path = os.path.abspath(sys.argv[2])
+min_len = int(sys.argv[2])
+output_path = os.path.abspath(sys.argv[3])
+
 
 with open(path, "r") as reader, open(output_path, "w") as writer:
     for i, line in enumerate(reader):
-        sens = extract_doctences(line, 0)
+        sens = extract_doctences(line, min_len)
         if len(sens) > 0:
             writer.write("\n".join(sens))
             writer.write("\n")

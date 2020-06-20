@@ -370,11 +370,11 @@ class MassTrainer(MTTrainer):
         step, train_epoch = last_epoch, 0
 
         while options.step > 0 and step < options.step:
+            train_epoch += 1
             print("train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=train_loader, dev_data_iter=dev_loader,
                                        saving_path=options.model_path, mt_dev_iter=mt_dev_loader,
                                        step=step)
-            train_epoch += 1
 
         finetune_epoch = 0
         mt_model.save(options.model_path + ".beam")

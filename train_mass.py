@@ -49,8 +49,8 @@ class MassTrainer(MTTrainer):
                 if src_inputs.size(0) < self.num_gpu:
                     continue
 
+                masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
                 try:
-                    masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
                     predictions = self.model(device=self.device, src_inputs=masked_info["src_text"],
                                              tgt_inputs=masked_info["to_recover"],
                                              tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
@@ -380,7 +380,8 @@ class MassTrainer(MTTrainer):
         mt_model.save(options.model_path + ".beam")
         if train_epoch > 0:
             # Resetting the optimizer for the purpose of finetuning.
-            trainer.optimizer = build_optimizer(mt_model, options.learning_rate, options.weight_decay), 0
+            model = mt_model.module if hasattr(mt_model, "module") else mt_model
+            trainer.optimizer = build_optimizer(model, options.learning_rate, options.weight_decay), 0
             trainer.scheduler = optim.get_linear_schedule_with_warmup(trainer.optimizer,
                                                                       num_warmup_steps=options.warmup,
                                                                       num_training_steps=options.finetune_step)

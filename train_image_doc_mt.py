@@ -59,12 +59,11 @@ class ImageDocTrainer(MassTrainer):
                 tokens += ntokens
                 sentences += sum([int(b["docs"].size(0)) + int(b["captions"].size(0)) for b in batch])
 
-                if self.optimizer is not None:
-                    # We accumulate the gradients for both tasks!
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
-                    self.optimizer.step()
-                    self.scheduler.step()
-                    step += 1
+                # We accumulate the gradients for both tasks!
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
+                self.optimizer.step()
+                self.scheduler.step()
+                step += 1
             except RuntimeError as err:
                 print("Error processing")
                 for b in batch:

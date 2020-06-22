@@ -41,8 +41,7 @@ class MassTrainer(MTTrainer):
         # Here we assume that the data_iter has only two elements.
         for i, batches in enumerate(zip(data_iter[0], data_iter[1])):
             for batch in batches:
-                if self.optimizer is not None:
-                    self.optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 src_inputs = batch["src_texts"].squeeze(0)
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
                 pad_indices = batch["pad_idx"].squeeze(0)
@@ -72,12 +71,11 @@ class MassTrainer(MTTrainer):
                     tokens += ntokens
                     sentences += int(src_inputs.size(0))
 
-                    if self.optimizer is not None:
-                        # We accumulate the gradients for both tasks!
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
-                        self.optimizer.step()
-                        self.scheduler.step()
-                        step += 1
+                    # We accumulate the gradients for both tasks!
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
+                    self.optimizer.step()
+                    self.scheduler.step()
+                    step += 1
 
                 except RuntimeError as err:
                     torch.cuda.empty_cache()
@@ -149,7 +147,7 @@ class MassTrainer(MTTrainer):
                                                  first_tokens=target_langs,
                                                  src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
                                                  pad_idx=model.text_processor.pad_token_id(),
-                                                 src_mask=src_pad_mask, unpad_output=False)
+                                                 src_mask=src_pad_mask, unpad_output=False, beam_width=1)
                         if self.num_gpu > 1:
                             new_outputs = []
                             for output in outputs:
@@ -317,8 +315,8 @@ class MassTrainer(MTTrainer):
             finetune_data, finetune_loader = [], []
             for i, train_path in enumerate(train_paths):
                 fd = dataset.MassDataset(batch_pickle_dir=train_path,
-                                         max_batch_capacity=int(options.batch / (options.beam_width)),
-                                         max_batch=int(options.batch / (options.beam_width)),
+                                         max_batch_capacity=int(options.batch),
+                                         max_batch=int(options.batch),
                                          pad_idx=mt_model.text_processor.pad_token_id(),
                                          max_seq_len=options.max_seq_len, keep_examples=False,
                                          example_list=None if train_data is None else train_data[i].examples_list)
@@ -381,7 +379,7 @@ class MassTrainer(MTTrainer):
         if train_epoch > 0:
             # Resetting the optimizer for the purpose of finetuning.
             model = mt_model.module if hasattr(mt_model, "module") else mt_model
-            trainer.optimizer = build_optimizer(model, options.learning_rate, options.weight_decay), 0
+            trainer.optimizer = build_optimizer(model, options.learning_rate, options.weight_decay)
             trainer.scheduler = optim.get_linear_schedule_with_warmup(trainer.optimizer,
                                                                       num_warmup_steps=options.warmup,
                                                                       num_training_steps=options.finetune_step)

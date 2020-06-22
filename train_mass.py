@@ -200,13 +200,13 @@ class MassTrainer(MTTrainer):
                           "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
                               step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
-                    if step % 1000 == 0:
+                    if step % 5000 == 0:
                         # Save every 1000 steps!
                         model.save(saving_path + ".beam.latest")
                         with open(os.path.join(saving_path + ".beam.latest", "optim"), "wb") as fp:
                             pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
 
-                    if step % 500 == 0 and dev_data_iter is not None:
+                    if step % 5000 == 0 and dev_data_iter is not None:
                         bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
                         print("BLEU:", bleu)
 

@@ -73,6 +73,12 @@ class BeamDecoder(nn.Module):
         max_lens = torch.LongTensor(list(map(lambda x: max_len_func(x), src_sizes))).to(device)
 
         cur_size = torch.zeros(top_beam_outputs.size(0)).to(device) if beam_width > 1 else None
+
+        seq2seq_model = (
+            self.seq2seq_model.module if hasattr(self.seq2seq_model, "module") else self.seq2seq_model
+        )
+        vocab = torch.stack([torch.LongTensor([range(seq2seq_model.config.vocab_size)])] * beam_width, dim=1).view(-1)
+
         for i in range(1, max_len):
             cur_outputs = top_beam_outputs.view(-1, top_beam_outputs.size(-1))
 
@@ -116,7 +122,6 @@ class BeamDecoder(nn.Module):
                 # Regardless of output, if already reached EOS, make it PAD!
                 flat_indices[eos_mask] = pad_idx
 
-            word_indices = torch.stack([torch.LongTensor([range(output.size(1))])] * beam_width, dim=1).view(-1)
             if i > 1:
                 beam_indices = indices / output.size(-1)
                 beam_indices_to_select = torch.stack([beam_indices] * top_beam_outputs.size(-1), dim=2)
@@ -125,7 +130,7 @@ class BeamDecoder(nn.Module):
             else:
                 beam_to_use = torch.repeat_interleave(top_beam_outputs, beam_width, 0)
                 sizes_to_use = torch.repeat_interleave(cur_size, beam_width, 0) if beam_width > 1 else None
-            word_indices = word_indices[flat_indices].unsqueeze(-1).to(beam_to_use.device)
+            word_indices = vocab[flat_indices].unsqueeze(-1)
             top_beam_outputs = torch.cat([beam_to_use, word_indices], dim=1).view(batch_size, beam_width, i + 1)
             if beam_width > 1:
                 cur_size = (sizes_to_use + ~(word_indices.squeeze() == pad_idx)).view(batch_size, beam_width)

@@ -130,7 +130,7 @@ class BeamDecoder(nn.Module):
             else:
                 beam_to_use = torch.repeat_interleave(top_beam_outputs, beam_width, 0)
                 sizes_to_use = torch.repeat_interleave(cur_size, beam_width, 0) if beam_width > 1 else None
-            word_indices = vocab[flat_indices].unsqueeze(-1)
+            word_indices = vocab[flat_indices].unsqueeze(-1).clone()
             top_beam_outputs = torch.cat([beam_to_use, word_indices], dim=1).view(batch_size, beam_width, i + 1)
             if beam_width > 1:
                 cur_size = (sizes_to_use + ~(word_indices.squeeze() == pad_idx)).view(batch_size, beam_width)

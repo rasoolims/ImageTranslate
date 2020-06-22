@@ -77,7 +77,8 @@ class BeamDecoder(nn.Module):
         seq2seq_model = (
             self.seq2seq_model.module if hasattr(self.seq2seq_model, "module") else self.seq2seq_model
         )
-        vocab = torch.stack([torch.LongTensor([range(seq2seq_model.config.vocab_size)])] * beam_width, dim=1).view(-1)
+        vocab = torch.stack([torch.LongTensor([range(seq2seq_model.config.vocab_size)])] * beam_width, dim=1).view(
+            -1).to(device)
 
         for i in range(1, max_len):
             cur_outputs = top_beam_outputs.view(-1, top_beam_outputs.size(-1))
@@ -130,7 +131,7 @@ class BeamDecoder(nn.Module):
             else:
                 beam_to_use = torch.repeat_interleave(top_beam_outputs, beam_width, 0)
                 sizes_to_use = torch.repeat_interleave(cur_size, beam_width, 0) if beam_width > 1 else None
-            word_indices = vocab[flat_indices].unsqueeze(-1).clone()
+            word_indices = vocab[flat_indices].unsqueeze(-1)
             top_beam_outputs = torch.cat([beam_to_use, word_indices], dim=1).view(batch_size, beam_width, i + 1)
             if beam_width > 1:
                 cur_size = (sizes_to_use + ~(word_indices.squeeze() == pad_idx)).view(batch_size, beam_width)

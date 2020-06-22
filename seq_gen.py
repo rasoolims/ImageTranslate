@@ -24,17 +24,6 @@ def get_outputs_until_eos(eos, outputs, size_limit=None, remove_first_token: boo
     return final_outputs
 
 
-class BatchedBeamElement():
-    def __init__(self, outputs, scores=None):
-        self.outputs = outputs
-
-        if scores is not None:
-            assert len(scores) == self.outputs.size(0)
-            self.scores = scores
-        else:
-            self.scores = torch.zeros(self.outputs.size()).to(self.outputs.device)
-
-
 class BeamDecoder(nn.Module):
     def __init__(self, seq2seq_model, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
                  len_penalty_ratio: float = 0.8):

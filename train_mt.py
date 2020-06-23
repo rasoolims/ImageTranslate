@@ -180,7 +180,7 @@ class MTTrainer:
                     # Save every 1000 steps!
                     model.save_checkpoint(saving_path)
                     with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                        pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0),
+                        pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
                                     fp)
 
                 if step % 500 == 0:
@@ -193,7 +193,7 @@ class MTTrainer:
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model.save(saving_path + ".latest")
         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-            pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
+            pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
         self.validate(dev_data_iter)
         bleu = self.eval_bleu(dev_data_iter, saving_path)
@@ -256,7 +256,7 @@ class MTTrainer:
             print("Saving best BLEU", self.best_bleu)
             model.save(saving_path)
             with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
+                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
             with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
                 writer.write("\n".join(

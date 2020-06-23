@@ -269,7 +269,6 @@ class ImageDocDataset(Dataset):
             image_info_dict, unique_images, unique_docs = marshal.load(fp)
             self.languages = list(image_info_dict.keys())
             for lang in self.languages:
-                print("Language", lang)
                 b, im = self.build_lang_batch(image_info_dict[lang], max_doc_batch_capacity,
                                               text_processor, unique_docs, unique_images)
                 self.batches[lang] = b

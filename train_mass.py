@@ -94,7 +94,7 @@ class MassTrainer(MTTrainer):
                         model.save(saving_path + ".latest")
                         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                             pickle.dump(
-                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
+                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
                     if step % 5000 == 0:
                         self.validate(dev_data_iter)
@@ -106,7 +106,7 @@ class MassTrainer(MTTrainer):
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model.save(saving_path + ".latest")
         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-            pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
+            pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
         self.validate(dev_data_iter)
         if mt_dev_iter is not None:
@@ -208,7 +208,7 @@ class MassTrainer(MTTrainer):
                         model.save(saving_path + ".beam.latest")
                         with open(os.path.join(saving_path + ".beam.latest", "optim"), "wb") as fp:
                             pickle.dump(
-                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
+                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
                     if step % 5000 == 0 and dev_data_iter is not None:
                         bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")

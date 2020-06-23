@@ -113,7 +113,7 @@ class LMTrainer:
             )
             model_to_save.save(saving_path + ".latest")
             with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
+                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
         self.last_train_loss = current_loss
 
         self.validate_and_save(saving_path, dev_data_iter)
@@ -147,7 +147,7 @@ class LMTrainer:
                 )
                 model_to_save.save(saving_path)
                 with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                    pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
+                    pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
             model.train()
 
     @staticmethod

@@ -71,5 +71,5 @@ def get_img_options_parser():
     parser = get_mass_option_parser()
     parser.add_option("--mass_train", dest="mass_train_path", metavar="FILE", default=None)
     parser.add_option("--image", dest="image_dir", help="Path to the image files", metavar="FILE", default=None)
-    parser.add_option("--img_capacity", dest="img_capacity", help="Batch capacity", type="int", default=150)
+    parser.add_option("--img_capacity", dest="img_capacity", help="Batch capacity", type="int", default=50)
     return parser

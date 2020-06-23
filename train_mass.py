@@ -386,9 +386,10 @@ class MassTrainer(MTTrainer):
             model = mt_model.module if hasattr(mt_model, "module") else mt_model
             trainer.optimizer = build_optimizer(model, options.learning_rate, options.weight_decay,
                                                 use_adam=options.adam)
-            trainer.scheduler = optim.get_linear_schedule_with_warmup(trainer.optimizer,
-                                                                      num_warmup_steps=options.warmup,
-                                                                      num_training_steps=options.finetune_step)
+            if not options.adam:
+                trainer.scheduler = optim.get_linear_schedule_with_warmup(trainer.optimizer,
+                                                                          num_warmup_steps=options.warmup,
+                                                                          num_training_steps=options.finetune_step)
 
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
             print("finetune epoch", finetune_epoch)

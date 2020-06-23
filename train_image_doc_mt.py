@@ -4,27 +4,46 @@ import os
 import pickle
 import sys
 import time
+from typing import List
 
 import torch
 import torch.utils.data as data_utils
+import transformers.optimization as optim
 from IPython.core import ultratb
+from torch.nn.utils.rnn import pad_sequence
 from torchvision import transforms
 
 import dataset
+from albert_seq2seq import MassSeq2Seq
 from image_doc_model import ImageSeq2Seq
 from lm import LM
 from option_parser import get_img_options_parser
+from parallel import DataParallelModel
 from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mass import MassTrainer
-from utils import build_optimizer
+from utils import build_optimizer, mass_mask, mass_unmask
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
 
 class ImageDocTrainer(MassTrainer):
-    def train_epoch(self, data_iter: data_utils.DataLoader, step: int, dev_data_iter: data_utils.DataLoader = None,
-                    saving_path: str = None, mt_dev_iter: data_utils.DataLoader = None, **kwargs):
+    def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
+                 step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
+                 len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0,
+                 nll_loss: bool = False):
+        super().__init__(model, mask_prob, clip, optimizer, warmup, step, beam_width, max_len_a, max_len_b,
+                         len_penalty_ratio, self_translate, last_epoch, nll_loss)
+
+        self.mass_model = MassSeq2Seq(config=model.config, encoder=model.encoder, decoder=model.decoder,
+                                      output_layer=model.output_layer,
+                                      text_processor=model.text_processor, checkpoint=model.checkpoint)
+        if self.num_gpu > 1:
+            self.model = DataParallelModel(self.mass_model)
+
+    def train_epoch(self, data_iter: data_utils.DataLoader, mass_data_iter: List[data_utils.DataLoader], step: int,
+                    saving_path: str = None, mt_dev_iter: data_utils.DataLoader = None, fine_tune: bool = False,
+                    lang_directions: dict = False, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -34,56 +53,121 @@ class ImageDocTrainer(MassTrainer):
             self.model.module if hasattr(self.model, "module") else self.model
         )
 
-        for i, batch in enumerate(data_iter):
-            if self.optimizer is not None:
+        shortest = min([len(l) for l in mass_data_iter] + [len(data_iter)])
+        model = (
+            self.model.module if hasattr(self.model, "module") else self.model
+        )
+
+        for i, batches in enumerate(zip(data_iter, mass_data_iter[0], mass_data_iter[1])):
+            for batch in batches:
                 self.optimizer.zero_grad()
+                is_img_batch = isinstance(batch, list) and "captions" in batch[0]
+                try:
+                    if is_img_batch:  # Image data
+                        predictions = self.model(device=self.device, batch=batch, log_softmax=True)
+                        targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
+                        tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
+                        targets = torch.cat([targets[i][tgt_mask_flat[i]] for i in range(len(batch))])
+                        ntokens = targets.size(0)
+                        sentences += sum([int(b["docs"].size(0)) + int(b["captions"].size(0)) for b in batch])
+                    else:  # MASS data
+                        src_inputs = batch["src_texts"].squeeze(0)
+                        src_pad_mask = batch["src_pad_mask"].squeeze(0)
+                        pad_indices = batch["pad_idx"].squeeze(0)
+                        if src_inputs.size(0) < self.num_gpu:
+                            continue
 
-            try:
-                predictions = self.model(device=self.device, batch=batch, log_softmax=True)
-                targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
-                tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
-                targets = torch.cat([targets[i][tgt_mask_flat[i]] for i in range(len(batch))])
+                        if not fine_tune:
+                            masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
+                            predictions = self.mass_model(device=self.device, src_inputs=masked_info["src_text"],
+                                                          tgt_inputs=masked_info["to_recover"],
+                                                          tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
+                                                          pad_idx=model.text_processor.pad_token_id(),
+                                                          src_langs=batch["langs"].squeeze(0),
+                                                          log_softmax=True)
+                            targets = masked_info["targets"]
+                            ntokens = targets.size(0)
+                        else:
+                            target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
+                            dst_langs = torch.LongTensor(
+                                [model.text_processor.languages[model.text_processor.id2token(lang_directions[int(l)])]
+                                 for l in src_inputs[:, 0]])
 
-                ntokens = targets.size(0)
+                            model.eval()
+                            with torch.no_grad():
+                                # We do not backpropagate the data generator following the MASS paper.
+                                outputs = self.generator(device=self.device, src_inputs=src_inputs,
+                                                         src_sizes=pad_indices,
+                                                         first_tokens=target_langs,
+                                                         src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
+                                                         pad_idx=model.text_processor.pad_token_id(),
+                                                         src_mask=src_pad_mask, unpad_output=False, beam_width=1)
+                                if self.num_gpu > 1:
+                                    new_outputs = []
+                                    for output in outputs:
+                                        new_outputs += output
+                                    outputs = new_outputs
 
-                if ntokens == 0:  # Nothing to predict!
-                    continue
+                                translations = pad_sequence(outputs, batch_first=True)
+                                translation_pad_mask = (translations != model.text_processor.pad_token_id())
+                            model.train()
 
-                loss = self.criterion(predictions, targets).mean()
-                loss.backward()
+                            # Now use it for back-translation loss.
+                            predictions = self.mass_model(device=self.device, src_inputs=translations,
+                                                          tgt_inputs=src_inputs,
+                                                          src_pads=translation_pad_mask,
+                                                          pad_idx=model.text_processor.pad_token_id(),
+                                                          src_langs=dst_langs,
+                                                          tgt_langs=batch["langs"].squeeze(0),
+                                                          log_softmax=True)
+                            src_targets = src_inputs[:, 1:].contiguous().view(-1)
+                            src_mask_flat = src_pad_mask[:, 1:].contiguous().view(-1)
+                            targets = src_targets[src_mask_flat]
+                            ntokens = targets.size(0)
 
-                loss = float(loss.data) * ntokens
-                total_loss += loss
-                cur_loss += loss
-                total_tokens += ntokens
-                tokens += ntokens
-                sentences += sum([int(b["docs"].size(0)) + int(b["captions"].size(0)) for b in batch])
+                    if ntokens == 0:  # Nothing to predict!
+                        continue
 
-                # We accumulate the gradients for both tasks!
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
-                self.optimizer.step()
-                if self.scheduler is not None:
-                    self.scheduler.step()
-                step += 1
-            except RuntimeError as err:
-                print("Error processing")
-                for b in batch:
-                    if isinstance(b, list):
-                        b = b[0]
-                    print(b["images"].size(), b["captions"].size(), b["docs"].size())
-                print("****")
+                    loss = self.criterion(predictions, targets).mean()
+                    loss.backward()
 
-            if step % 50 == 0 and tokens > 0:
-                elapsed = time.time() - start
-                print(datetime.datetime.now(),
-                      "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
-                          step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
+                    loss = float(loss.data) * ntokens
+                    total_loss += loss
+                    cur_loss += loss
+                    total_tokens += ntokens
+                    tokens += ntokens
 
-                if step % 1000 == 0:
-                    # Save every 1000 steps!
-                    model_to_save.save_checkpoint(saving_path)
+                    # We accumulate the gradients for both tasks!
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
+                    self.optimizer.step()
+                    if self.scheduler is not None:
+                        self.scheduler.step()
+                    step += 1
 
-                start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
+                    if not is_img_batch and not fine_tune:
+                        mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
+
+                except RuntimeError as err:
+                    print("Error processing")
+                    for b in batch:
+                        if isinstance(b, list):
+                            b = b[0]
+                        print(b["images"].size(), b["captions"].size(), b["docs"].size())
+                    print("****")
+
+                if step % 50 == 0 and tokens > 0:
+                    elapsed = time.time() - start
+                    print(datetime.datetime.now(),
+                          "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
+                              step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
+
+                    if step % 1000 == 0:
+                        # Save every 1000 steps!
+                        model_to_save.save_checkpoint(saving_path)
+
+                    start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
+            if i == shortest - 1:
+                break
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model_to_save.save(saving_path + ".latest")
@@ -214,11 +298,29 @@ class ImageDocTrainer(MassTrainer):
                 trainer.reference += ref
 
         step, train_epoch = 0, 1
-        while step <= options.step:
+        while options.step > 0 and step < options.step:
             print("train epoch", train_epoch)
-            step = trainer.train_epoch(data_iter=train_loader, mt_dev_iter=mt_dev_loader,
-                                       saving_path=options.model_path, step=step)
+            step = trainer.train_epoch(data_iter=train_loader, mass_data_iter=mass_train_loader,
+                                       mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step)
             train_epoch += 1
+
+        finetune_epoch = 0
+        mt_model.save(options.model_path + ".beam")
+        if train_epoch > 0:
+            # Resetting the optimizer for the purpose of finetuning.
+            model = mt_model.module if hasattr(mt_model, "module") else mt_model
+            trainer.optimizer = build_optimizer(model, options.learning_rate, options.weight_decay,
+                                                use_adam=options.adam)
+            trainer.scheduler = optim.get_linear_schedule_with_warmup(trainer.optimizer,
+                                                                      num_warmup_steps=options.warmup,
+                                                                      num_training_steps=options.finetune_step)
+
+        while options.finetune_step > 0 and step <= options.finetune_step + options.step:
+            print("finetune epoch", finetune_epoch)
+            step = trainer.train_epoch(data_iter=train_loader, mass_data_iter=finetune_loader,
+                                       mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
+                                       fine_tune=True, lang_directions=lang_directions)
+            finetune_epoch += 1
 
 
 if __name__ == "__main__":

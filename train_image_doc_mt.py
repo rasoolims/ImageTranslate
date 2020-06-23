@@ -49,10 +49,6 @@ class ImageDocTrainer(MassTrainer):
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
         cur_loss = 0
         sentences = 0
-        model_to_save = (
-            self.model.module if hasattr(self.model, "module") else self.model
-        )
-
         shortest = min([len(l) for l in mass_data_iter] + [len(data_iter)])
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
@@ -166,7 +162,7 @@ class ImageDocTrainer(MassTrainer):
                             bleu = self.eval_bleu(mt_dev_iter, saving_path)
                             print("Pretraining BLEU:", bleu)
 
-                        model_to_save.save(saving_path + ".latest")
+                        model.save(saving_path + ".latest")
                         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                             pickle.dump(
                                 (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
@@ -176,7 +172,7 @@ class ImageDocTrainer(MassTrainer):
                 break
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-        model_to_save.save(saving_path + ".latest")
+        model.save(saving_path + ".latest")
 
         if mt_dev_iter is not None:
             bleu = self.eval_bleu(mt_dev_iter, saving_path)

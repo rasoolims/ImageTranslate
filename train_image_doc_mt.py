@@ -161,9 +161,15 @@ class ImageDocTrainer(MassTrainer):
                           "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
                               step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
-                    if step % 1000 == 0:
-                        # Save every 1000 steps!
-                        model_to_save.save_checkpoint(saving_path)
+                    if step % 500 == 0:
+                        if mt_dev_iter is not None:
+                            bleu = self.eval_bleu(mt_dev_iter, saving_path)
+                            print("Pretraining BLEU:", bleu)
+
+                        model_to_save.save(saving_path + ".latest")
+                        with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                            pickle.dump(
+                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
 
                     start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
             if i == shortest - 1:

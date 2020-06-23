@@ -60,6 +60,8 @@ class ImageDocTrainer(MassTrainer):
                 is_img_batch = isinstance(batch, list) and "captions" in batch[0]
                 if True:
                     if is_img_batch:  # Image data
+                        if len(batch) < self.num_gpu:
+                            continue
                         predictions = self.model(device=self.device, batch=batch, log_softmax=True)
                         targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
                         tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]

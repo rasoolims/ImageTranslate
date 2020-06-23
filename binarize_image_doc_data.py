@@ -84,8 +84,7 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, root_i
                             print("Skipped", path)
                             pass
 
-                if (d_num + 1) % 10000 == 0:
-                    print("***", d_num + 1, len(image_info_dict))
+                    print("***", d_num, len(image_info_dict), end="\r")
 
             print(len(doc_dicts), max_caption_len, max_doc_size, "->", num_docs, len(image_info_dict))
 

@@ -62,7 +62,8 @@ class ImageDocTrainer(MassTrainer):
                 # We accumulate the gradients for both tasks!
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
                 self.optimizer.step()
-                self.scheduler.step()
+                if self.scheduler is not None:
+                    self.scheduler.step()
                 step += 1
             except RuntimeError as err:
                 print("Error processing")
@@ -82,16 +83,10 @@ class ImageDocTrainer(MassTrainer):
                     # Save every 1000 steps!
                     model_to_save.save_checkpoint(saving_path)
 
-                if step % 500 == 0 and dev_data_iter is not None:
-                    self.validate(dev_data_iter)
-
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model_to_save.save(saving_path + ".latest")
-
-        if dev_data_iter is not None:
-            self.validate(dev_data_iter)
 
         if mt_dev_iter is not None:
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
@@ -142,26 +137,60 @@ class ImageDocTrainer(MassTrainer):
 
         train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=False, pin_memory=pin_memory,
                                              collate_fn=collator)
-        dev_loader = None
-        if options.dev_path is not None:
-            dev_data = dataset.MassDataset(batch_pickle_dir=options.dev_path,
-                                           max_batch_capacity=options.total_capacity,
-                                           max_batch=options.batch,
-                                           pad_idx=mt_model.text_processor.pad_token_id(),
-                                           max_seq_len=options.max_seq_len)
-            dev_loader = data_utils.DataLoader(dev_data, batch_size=num_batches, shuffle=False,
-                                               pin_memory=pin_memory, collate_fn=collator)
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
                 optimizer, last_epoch = pickle.load(fp)
         else:
-            optimizer, last_epoch = build_optimizer(mt_model, options.learning_rate, options.weight_decay), 0
+            optimizer, last_epoch = build_optimizer(mt_model, options.learning_rate, options.weight_decay,
+                                                    use_adam=options.adam), 0
         trainer = ImageDocTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                                   warmup=options.warmup, step=options.step,
                                   beam_width=options.beam_width, max_len_a=options.max_len_a,
                                   max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
                                   last_epoch=last_epoch)
+
+        mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
+        mass_train_paths = options.mass_train_path.strip().split(",")
+        if options.step > 0 and last_epoch < options.step:
+            mass_train_data, mass_train_loader = [], []
+            for i, mass_train_path in enumerate(mass_train_paths):
+                td = dataset.MassDataset(batch_pickle_dir=mass_train_path,
+                                         max_batch_capacity=options.total_capacity, max_batch=options.batch,
+                                         pad_idx=mt_model.text_processor.pad_token_id(),
+                                         max_seq_len=options.max_seq_len, keep_examples=True)
+                mass_train_data.append(td)
+                dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)
+                mass_train_loader.append(dl)
+
+        lang_directions = {}
+        if options.finetune_step > 0:
+            finetune_data, finetune_loader = [], []
+            for i, mass_train_path in enumerate(mass_train_paths):
+                fd = dataset.MassDataset(batch_pickle_dir=mass_train_path,
+                                         max_batch_capacity=int(options.total_capacity / 2),
+                                         max_batch=int(options.batch / 2),
+                                         pad_idx=mt_model.text_processor.pad_token_id(),
+                                         max_seq_len=options.max_seq_len, keep_examples=False,
+                                         example_list=None if mass_train_data is None else mass_train_data[
+                                             i].examples_list)
+                finetune_data.append(fd)
+                fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory)
+                finetune_loader.append(fl)
+
+                if mass_train_data is not None:
+                    mass_train_data[i].examples_list = []
+
+            langs = set()
+            for fd in finetune_data:
+                for lang1 in fd.lang_ids:
+                    langs.add(lang1)
+
+            for lang1 in langs:
+                for lang2 in langs:
+                    if lang1 != lang2:
+                        # Assuming that we only have two languages!
+                        lang_directions[lang1] = lang2
 
         mt_dev_loader = None
         if options.mt_dev_path is not None:
@@ -187,7 +216,7 @@ class ImageDocTrainer(MassTrainer):
         step, train_epoch = 0, 1
         while step <= options.step:
             print("train epoch", train_epoch)
-            step = trainer.train_epoch(data_iter=train_loader, dev_data_iter=dev_loader, mt_dev_iter=mt_dev_loader,
+            step = trainer.train_epoch(data_iter=train_loader, mt_dev_iter=mt_dev_loader,
                                        saving_path=options.model_path, step=step)
             train_epoch += 1
 

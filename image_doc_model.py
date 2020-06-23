@@ -4,13 +4,13 @@ import pickle
 import torch.nn.functional as F
 from transformers.modeling_albert import *
 
-from albert_seq2seq import AlbertSeq2Seq, future_mask, AlbertDecoderTransformer
+from albert_seq2seq import MassSeq2Seq, future_mask, AlbertDecoderTransformer
 from image_model import init_net, ModifiedResnet
 from lm import LM
 from textprocessor import TextProcessor
 
 
-class ImageSeq2Seq(AlbertSeq2Seq):
+class ImageSeq2Seq(MassSeq2Seq):
     def __init__(self, config: AlbertConfig, encoder: AlbertModel, decoder, output_layer: AlbertMLMHead,
                  text_processor: TextProcessor, checkpoint: int = 5, freeze_image: bool = False):
         super(ImageSeq2Seq, self).__init__(config, encoder, decoder, output_layer, text_processor, checkpoint)

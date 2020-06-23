@@ -29,6 +29,8 @@ def get_lm_option_parser():
     parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
     parser.add_option("--size", dest="model_size", help="Model size: 3 (base), 2 (medium), 1 (small)", type="int",
                       default=1)
+    parser.add_option("--adam", action="store_true", dest="adam",
+                      help="Use Adam with inverse square root optimizer instead of Lamb", default=False)
     return parser
 
 

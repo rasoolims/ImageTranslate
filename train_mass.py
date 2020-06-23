@@ -74,7 +74,8 @@ class MassTrainer(MTTrainer):
                     # We accumulate the gradients for both tasks!
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
                     self.optimizer.step()
-                    self.scheduler.step()
+                    if self.scheduler is not None:
+                        self.scheduler.step()
                     step += 1
 
                 except RuntimeError as err:
@@ -92,7 +93,8 @@ class MassTrainer(MTTrainer):
                         # Save every 1000 steps!
                         model.save(saving_path + ".latest")
                         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                            pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
+                            pickle.dump(
+                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
 
                     if step % 5000 == 0:
                         self.validate(dev_data_iter)
@@ -104,7 +106,7 @@ class MassTrainer(MTTrainer):
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model.save(saving_path + ".latest")
         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-            pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
+            pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
 
         self.validate(dev_data_iter)
         if mt_dev_iter is not None:
@@ -187,7 +189,8 @@ class MassTrainer(MTTrainer):
                         # We accumulate the gradients for both tasks!
                         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
                         self.optimizer.step()
-                        self.scheduler.step()
+                        if self.scheduler is not None:
+                            self.scheduler.step()
                         step += 1
 
                 except RuntimeError as err:
@@ -204,7 +207,8 @@ class MassTrainer(MTTrainer):
                         # Save every 1000 steps!
                         model.save(saving_path + ".beam.latest")
                         with open(os.path.join(saving_path + ".beam.latest", "optim"), "wb") as fp:
-                            pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
+                            pickle.dump(
+                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
 
                     if step % 5000 == 0 and dev_data_iter is not None:
                         bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
@@ -288,7 +292,8 @@ class MassTrainer(MTTrainer):
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
                 optimizer, last_epoch = pickle.load(fp)
         else:
-            optimizer, last_epoch = build_optimizer(mt_model, options.learning_rate, options.weight_decay), 0
+            optimizer, last_epoch = build_optimizer(mt_model, options.learning_rate, options.weight_decay,
+                                                    use_adam=options.adam), 0
 
         train_data, train_loader, dev_loader, finetune_loader, mt_dev_loader = None, None, None, None, None
         train_paths = options.train_path.strip().split(",")
@@ -379,7 +384,8 @@ class MassTrainer(MTTrainer):
         if train_epoch > 0:
             # Resetting the optimizer for the purpose of finetuning.
             model = mt_model.module if hasattr(mt_model, "module") else mt_model
-            trainer.optimizer = build_optimizer(model, options.learning_rate, options.weight_decay)
+            trainer.optimizer = build_optimizer(model, options.learning_rate, options.weight_decay,
+                                                use_adam=options.adam)
             trainer.scheduler = optim.get_linear_schedule_with_warmup(trainer.optimizer,
                                                                       num_warmup_steps=options.warmup,
                                                                       num_training_steps=options.finetune_step)

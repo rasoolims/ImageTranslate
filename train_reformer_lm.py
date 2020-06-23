@@ -37,7 +37,8 @@ class ReformerTrainer(LMTrainer):
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
                 optimizer, last_epoch = pickle.load(fp)
         else:
-            optimizer, last_epoch = build_optimizer(lm, options.learning_rate, options.weight_decay), 0
+            optimizer, last_epoch = build_optimizer(lm, options.learning_rate, options.weight_decay,
+                                                    use_adam=options.adam), 0
 
         lm.config.hidden_dropout_prob = options.dropout
         lm.config.local_attention_probs_dropout_prob = options.dropout

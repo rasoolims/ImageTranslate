@@ -19,6 +19,7 @@ from lm import LM
 from loss import SmoothedNLLLoss
 from option_parser import get_mt_option_parser
 from parallel import DataParallelModel, DataParallelCriterion
+from pytorch_lamb.pytorch_lamb import Lamb
 from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
 from utils import build_optimizer, mask_text, unmask_text
@@ -40,10 +41,13 @@ class MTTrainer:
         self.model = self.model.to(self.device)
         self.self_translate = self_translate
 
-        self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
-                                                               num_training_steps=step)
-        self.scheduler.last_epoch = last_epoch
-        print("Scheduler Last epoch", last_epoch)
+        if isinstance(self.optimizer, Lamb):
+            self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
+                                                                   num_training_steps=step)
+            self.scheduler.last_epoch = last_epoch
+            print("Scheduler Last epoch", last_epoch)
+        else:
+            self.scheduler = None
 
         self.mask_prob = mask_prob
         if nll_loss:
@@ -157,7 +161,8 @@ class MTTrainer:
                     # We accumulate the gradients for both tasks!
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
                     self.optimizer.step()
-                    self.scheduler.step()
+                    if self.scheduler is not None:
+                        self.scheduler.step()
                     step += 1
 
 
@@ -175,7 +180,8 @@ class MTTrainer:
                     # Save every 1000 steps!
                     model.save_checkpoint(saving_path)
                     with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                        pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
+                        pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0),
+                                    fp)
 
                 if step % 500 == 0:
                     self.validate(dev_data_iter)
@@ -187,7 +193,7 @@ class MTTrainer:
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model.save(saving_path + ".latest")
         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-            pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
+            pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
 
         self.validate(dev_data_iter)
         bleu = self.eval_bleu(dev_data_iter, saving_path)
@@ -250,7 +256,7 @@ class MTTrainer:
             print("Saving best BLEU", self.best_bleu)
             model.save(saving_path)
             with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
+                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
 
             with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
                 writer.write("\n".join(
@@ -350,7 +356,8 @@ class MTTrainer:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
                 optimizer, last_epoch = pickle.load(fp)
         else:
-            optimizer, last_epoch = build_optimizer(mt_model, options.learning_rate, options.weight_decay), 0
+            optimizer, last_epoch = build_optimizer(mt_model, options.learning_rate, options.weight_decay,
+                                                    use_adam=options.adam), 0
         trainer = MTTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                             warmup=options.warmup, step=options.step, beam_width=options.beam_width,
                             max_len_a=options.max_len_a, max_len_b=options.max_len_b,

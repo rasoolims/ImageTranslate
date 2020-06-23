@@ -14,6 +14,7 @@ import dataset
 from lm import LM
 from option_parser import get_lm_option_parser
 from parallel import DataParallelModel, DataParallelCriterion
+from pytorch_lamb.pytorch_lamb import Lamb
 from textprocessor import TextProcessor
 from utils import build_optimizer, mask_text, unmask_text
 
@@ -30,10 +31,12 @@ class LMTrainer:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.model.to(self.device)
 
-        if self.optimizer is not None:
+        if isinstance(self.optimizer, Lamb):
             self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
                                                                    num_training_steps=step)
             self.scheduler.last_epoch = last_epoch
+        else:
+            self.scheduler = None
 
         self.mask_prob = mask_prob
         self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
@@ -77,7 +80,8 @@ class LMTrainer:
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
 
                     self.optimizer.step()
-                    self.scheduler.step()
+                    if self.scheduler is not None:
+                        self.scheduler.step()
                     step += 1
 
                 loss = float(loss.data) * ntokens
@@ -109,7 +113,7 @@ class LMTrainer:
             )
             model_to_save.save(saving_path + ".latest")
             with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
+                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
         self.last_train_loss = current_loss
 
         self.validate_and_save(saving_path, dev_data_iter)
@@ -143,7 +147,7 @@ class LMTrainer:
                 )
                 model_to_save.save(saving_path)
                 with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                    pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
+                    pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
             model.train()
 
     @staticmethod
@@ -172,7 +176,8 @@ class LMTrainer:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
                 optimizer, last_epoch = pickle.load(fp)
         else:
-            optimizer, last_epoch = build_optimizer(lm, options.learning_rate, options.weight_decay), 0
+            optimizer, last_epoch = build_optimizer(lm, options.learning_rate, options.weight_decay,
+                                                    use_adam=options.adam), 0
 
         trainer = LMTrainer(model=lm, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                             warmup=options.warmup, step=options.step, last_epoch=last_epoch)

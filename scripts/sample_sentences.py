@@ -14,6 +14,6 @@ with open(input_file, "r") as reader:
 
 random.shuffle(sentences)
 
-with open(output_file, "r") as writer:
+with open(output_file, "w") as writer:
     writer.write("\n".join(sentences[:line_count]))
 print("\nDone!")

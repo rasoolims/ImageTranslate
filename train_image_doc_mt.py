@@ -144,12 +144,7 @@ class ImageDocTrainer(MassTrainer):
                         mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
                 except RuntimeError as err:
-                    print("Error processing")
-                    for b in batch:
-                        if isinstance(b, list):
-                            b = b[0]
-                        print(b["images"].size(), b["captions"].size(), b["docs"].size())
-                    print("****")
+                    print("Error processing", is_img_batch)
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start

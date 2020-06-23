@@ -6,12 +6,23 @@ from collections import defaultdict
 from optparse import OptionParser
 
 import numpy as np
+from PIL import Image
+from torchvision import transforms
 
 from textprocessor import TextProcessor
 
 
-def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_to_use: str = None,
+def write(text_processor: TextProcessor, output_file: str, json_dir: str, root_img_dir, files_to_use: str = None,
           max_sen_per_doc: int = 32):
+    transform = transforms.Compose([  # [1]
+        transforms.Resize(256),  # [2]
+        transforms.CenterCrop(224),  # [3]
+        transforms.ToTensor(),  # [4]
+        transforms.Normalize(  # [5]
+            mean=[0.485, 0.456, 0.406],  # [6]
+            std=[0.229, 0.224, 0.225]  # [7]
+        )])
+
     relevant_files = None
     if files_to_use is not None:
         relevant_files = {f + ".json" for f in files_to_use.strip().split(",")}
@@ -52,17 +63,26 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, files_
                     num_captions += len(doc["images"])
                     for image in doc["images"]:
                         path = image["img_path"]
-                        if path not in image_path_dict:
-                            image_id = len(unique_images)
-                            unique_images[image_id] = path
-                            image_path_dict[path] = image_id
-                        else:
-                            image_id = image_path_dict[path]
-                            unique_images[image_id] = path
 
-                        caption = text_processor.tokenize_one_line(image["caption"], ignore_middle_eos=True)
-                        image_info_dict[image_id].append((caption, lang, doc_id))
-                        max_caption_len = max(len(caption), max_caption_len)
+                        try:
+                            if path not in image_path_dict:
+                                with Image.open(os.path.join(root_img_dir, path)) as im:
+                                    # make sure not to deal with rgba or grayscale images.
+                                    _ = transform(im.convert("RGB"))
+                                    im.close()
+                                image_id = len(unique_images)
+                                unique_images[image_id] = path
+                                image_path_dict[path] = image_id
+                            else:
+                                image_id = image_path_dict[path]
+                                unique_images[image_id] = path
+
+                            caption = text_processor.tokenize_one_line(image["caption"], ignore_middle_eos=True)
+                            image_info_dict[image_id].append((caption, lang, doc_id))
+                            max_caption_len = max(len(caption), max_caption_len)
+                        except Exception as err:
+                            print("Skipped", path)
+                            pass
 
                 if (d_num + 1) % 10000 == 0:
                     print("***", d_num + 1, len(image_info_dict))
@@ -117,6 +137,7 @@ def get_options():
     parser.add_option("--data", dest="data_path", help="Path to the data folder", metavar="FILE", default=None)
     parser.add_option("--files", dest="files_to_use", help="Which files to use", type="str", default=None)
     parser.add_option("--output", dest="output_file", help="Output pickle file.", metavar="FILE", default=None)
+    parser.add_option("--image", dest="image_dir", help="Root image directory", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--max_sen", dest="max_sen",
                       help="Maximum number of sentences in one document. If more, will split", type=int, default=64)
@@ -132,6 +153,7 @@ if __name__ == "__main__":
     write(text_processor=tokenizer,
           output_file=options.output_file,
           json_dir=options.data_path,
+          root_img_dir=options.image_dir,
           files_to_use=options.files_to_use,
           max_sen_per_doc=options.max_sen)
     print("finished")

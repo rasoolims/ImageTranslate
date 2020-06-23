@@ -58,7 +58,7 @@ class ImageDocTrainer(MassTrainer):
             for batch in batches:
                 self.optimizer.zero_grad()
                 is_img_batch = isinstance(batch, list) and "captions" in batch[0]
-                try:
+                if True:
                     if is_img_batch:  # Image data
                         predictions = self.model(device=self.device, batch=batch, log_softmax=True)
                         targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
@@ -143,8 +143,8 @@ class ImageDocTrainer(MassTrainer):
                     if not is_img_batch and not fine_tune:
                         mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
-                except RuntimeError as err:
-                    print("Error processing", is_img_batch)
+                # except RuntimeError as err:
+                #     print("Error processing", is_img_batch)
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start

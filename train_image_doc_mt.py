@@ -149,7 +149,7 @@ class ImageDocTrainer(MassTrainer):
                     print("Error processing", is_img_batch)
                     if is_img_batch:
                         for b in batch:
-                            print(b["docs"].size())
+                            print(b["docs"].size(), b["images"].size())
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start

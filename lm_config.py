@@ -1,6 +1,33 @@
 from typing import Dict
 
 
+def _image_config(vocab_size: int, pad_token_id: int, bos_token_id: int, eos_token_id: int) -> Dict:
+    config = {
+        "attention_probs_dropout_prob": 0.1,
+        "hidden_act": "gelu_new",
+        "hidden_dropout_prob": 0.1,
+        "embedding_size": 256,
+        "hidden_size": 1024,
+        "initializer_range": 0.02,
+        "intermediate_size": 2048,
+        "max_position_embeddings": 512,
+        "num_attention_heads": 8,  # smaller than usual
+        "num_hidden_layers": 4,  # smaller than usual
+        "num_hidden_groups": 1,
+        "net_structure_type": 0,
+        "gap_size": 0,
+        "num_memory_blocks": 0,
+        "inner_group_num": 1,
+        "down_scale_factor": 1,
+        "type_vocab_size": 2,
+        "vocab_size": vocab_size,
+        "pad_token_id": pad_token_id,
+        "bos_token_id": bos_token_id,
+        "eos_token_id": eos_token_id,
+    }
+    return config
+
+
 def _mass_config(vocab_size: int, pad_token_id: int, bos_token_id: int, eos_token_id: int) -> Dict:
     config = {
         "attention_probs_dropout_prob": 0.1,
@@ -152,6 +179,8 @@ def get_config(size: int, vocab_size: int, pad_token_id: int, bos_token_id: int,
         function = _toy_config
     elif size == 5:
         function = _mass_config
+    elif size == 6:
+        function = _image_config
 
     return function(vocab_size=vocab_size, pad_token_id=pad_token_id, bos_token_id=bos_token_id,
                     eos_token_id=eos_token_id)

@@ -14,6 +14,7 @@ with open(input_file, "rb") as fp:
     lang_specific_images, unique_images, unique_docs = marshal.load(fp)
 
 min_len = min([len(v) if l != "shared" else float("inf") for l, v in lang_specific_images.items()])
+min_len = max(min_len, len(lang_specific_images["shared"]))
 languages = set(lang_specific_images.keys()) - {"shared"}
 
 print([(l, len(v)) for l, v in lang_specific_images.items()])

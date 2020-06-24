@@ -188,7 +188,8 @@ class ImageDocTrainer(MassTrainer):
         text_processor = TextProcessor(options.tokenizer_path)
 
         if options.pretrained_path is not None:
-            mt_model, lm = ImageSeq2Seq.load(options.pretrained_path)
+            mt_model, lm = ImageSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path,
+                                             sep_decoder=options.sep_encoder)
         else:
             if options.lm_path is None:
                 lm = LM(text_processor=text_processor, size=options.model_size)

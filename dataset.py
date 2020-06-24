@@ -305,10 +305,10 @@ class ImageDocDataset(Dataset):
 
                     docs = unique_docs[doc]
                     doc_len = len(docs) * (len(docs[0]) ** 2)  # based on transformer's memory consumption!
+                    batch_size = (49 ** 3 + max(doc_len, cur_max_doc_cap) ** 3) * (len(cur_image_batch) + 1)
 
-                    if cur_max_doc_cap > 0 and (max(cur_max_doc_cap, doc_len) * (
-                            len(cur_caption_batch) + 1) > max_doc_batch_capacity or len(
-                        cur_image_batch) >= max_img_per_batch):
+                    if cur_max_doc_cap > 0 and (batch_size > max_doc_batch_capacity
+                                                or len(cur_image_batch) >= max_img_per_batch):
                         all_docs = pad_sequence(tensorfier(cur_doc_batch), batch_first=True,
                                                 padding_value=self.pad_idx)
                         all_captions = pad_sequence(tensorfier(cur_caption_batch), batch_first=True,

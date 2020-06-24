@@ -210,7 +210,8 @@ class ImageDocTrainer(MassTrainer):
         train_data = dataset.ImageDocDataset(root_img_dir=options.image_dir,
                                              data_bin_file=options.train_path, transform=transform,
                                              max_doc_batch_capacity=options.img_capacity,
-                                             text_processor=mt_model.text_processor)
+                                             text_processor=mt_model.text_processor,
+                                             max_img_per_batch=options.max_image)
 
         pin_memory = torch.cuda.is_available()
 

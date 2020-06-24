@@ -254,7 +254,7 @@ class MassDataset(Dataset):
 
 class ImageDocDataset(Dataset):
     def __init__(self, root_img_dir: str, data_bin_file: str, transform, max_doc_batch_capacity: int,
-                 text_processor: TextProcessor):
+                 text_processor: TextProcessor, max_img_per_batch: int):
         self.transform = transform
         self.pad_idx = text_processor.pad_token_id()
         self.batches = {}
@@ -270,7 +270,7 @@ class ImageDocDataset(Dataset):
             self.languages = list(image_info_dict.keys())
             for lang in self.languages:
                 b, im = self.build_lang_batch(image_info_dict[lang], max_doc_batch_capacity,
-                                              text_processor, unique_docs, unique_images)
+                                              text_processor, unique_docs, unique_images, max_img_per_batch)
                 self.batches[lang] = b
                 self.images_paths[lang] = im
                 self.image_batches[lang] = {}
@@ -284,7 +284,7 @@ class ImageDocDataset(Dataset):
         print("Loaded %d image batches!" % (len(self.batches)))
         print("End", datetime.datetime.now())
 
-    def build_lang_batch(self, image_info_dict, max_doc_batch_capacity, text_processor, unique_docs, unique_images):
+    def build_lang_batch(self, image_info_dict, max_doc_batch_capacity, text_processor, unique_docs, unique_images, max_img_per_batch):
         final_batches, final_image_paths = [], []
         tensorfier = lambda b: list(map(torch.LongTensor, b))
         cur_image_batch, cur_doc_batch, cur_caption_batch, cur_lang_batch, doc_indices, doc_split_sizes = [], [], [], [], [], []
@@ -305,8 +305,8 @@ class ImageDocDataset(Dataset):
                     docs = unique_docs[doc]
                     doc_len = len(docs) * (len(docs[0]) ** 2)  # based on transformer's memory consumption!
 
-                    if cur_max_doc_cap > 0 and max(cur_max_doc_cap, doc_len) * (
-                            len(cur_caption_batch) + 1) > max_doc_batch_capacity:
+                    if cur_max_doc_cap > 0 and (max(cur_max_doc_cap, doc_len) * (
+                            len(cur_caption_batch) + 1) > max_doc_batch_capacity or len(cur_image_batch)>max_img_per_batch):
                         all_docs = pad_sequence(tensorfier(cur_doc_batch), batch_first=True,
                                                 padding_value=self.pad_idx)
                         all_captions = pad_sequence(tensorfier(cur_caption_batch), batch_first=True,

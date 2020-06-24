@@ -308,7 +308,7 @@ class ImageDocDataset(Dataset):
 
                     if cur_max_doc_cap > 0 and (max(cur_max_doc_cap, doc_len) * (
                             len(cur_caption_batch) + 1) > max_doc_batch_capacity or len(
-                        cur_image_batch) > max_img_per_batch):
+                        cur_image_batch) >= max_img_per_batch):
                         all_docs = pad_sequence(tensorfier(cur_doc_batch), batch_first=True,
                                                 padding_value=self.pad_idx)
                         all_captions = pad_sequence(tensorfier(cur_caption_batch), batch_first=True,

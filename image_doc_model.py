@@ -46,7 +46,8 @@ class ImageSeq2Seq(MassSeq2Seq):
         # Split back based on images
         image_attended_split = torch.split(image_attended, doc_split)
 
-        max_images_attended = torch.stack([torch.max(spl, dim=0).values for spl in image_attended_split], 0)
+        max_list = list(map(lambda spl: torch.max(spl, dim=0).values, image_attended_split))
+        max_images_attended = torch.stack(max_list, 0)
         subseq_mask = future_mask(caption_mask[:, :-1]).to(device)
         decoder_output = self.decoder(encoder_states=max_images_attended, input_ids=captions[:, :-1],
                                       input_ids_mask=caption_mask[:, :-1], tgt_attn_mask=subseq_mask)

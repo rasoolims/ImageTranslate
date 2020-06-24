@@ -157,7 +157,7 @@ class ImageDocTrainer(MassTrainer):
                           "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
                               step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
-                    if step % 500 == 0:
+                    if step % 5000 == 0:
                         if mt_dev_iter is not None:
                             bleu = self.eval_bleu(mt_dev_iter, saving_path)
                             print("Pretraining BLEU:", bleu)

@@ -146,6 +146,7 @@ class ImageDocTrainer(MassTrainer):
                         mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
                 except RuntimeError as err:
+                    print(err)
                     print("Error processing", is_img_batch)
 
                 if step % 50 == 0 and tokens > 0:

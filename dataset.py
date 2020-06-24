@@ -284,7 +284,8 @@ class ImageDocDataset(Dataset):
         print("Loaded %d image batches!" % (len(self.batches)))
         print("End", datetime.datetime.now())
 
-    def build_lang_batch(self, image_info_dict, max_doc_batch_capacity, text_processor, unique_docs, unique_images, max_img_per_batch):
+    def build_lang_batch(self, image_info_dict, max_doc_batch_capacity, text_processor, unique_docs, unique_images,
+                         max_img_per_batch):
         final_batches, final_image_paths = [], []
         tensorfier = lambda b: list(map(torch.LongTensor, b))
         cur_image_batch, cur_doc_batch, cur_caption_batch, cur_lang_batch, doc_indices, doc_split_sizes = [], [], [], [], [], []
@@ -306,7 +307,8 @@ class ImageDocDataset(Dataset):
                     doc_len = len(docs) * (len(docs[0]) ** 2)  # based on transformer's memory consumption!
 
                     if cur_max_doc_cap > 0 and (max(cur_max_doc_cap, doc_len) * (
-                            len(cur_caption_batch) + 1) > max_doc_batch_capacity or len(cur_image_batch)>max_img_per_batch):
+                            len(cur_caption_batch) + 1) > max_doc_batch_capacity or len(
+                        cur_image_batch) > max_img_per_batch):
                         all_docs = pad_sequence(tensorfier(cur_doc_batch), batch_first=True,
                                                 padding_value=self.pad_idx)
                         all_captions = pad_sequence(tensorfier(cur_caption_batch), batch_first=True,

@@ -323,7 +323,6 @@ class ImageDocDataset(Dataset):
                         final_batches.append(entry)
                         cur_image_batch, cur_doc_batch, cur_caption_batch, cur_lang_batch, doc_indices, doc_split_sizes = [], [], [], [], [], []
                         cur_max_doc_cap = 0
-                        print("Loaded", len(self.batches), "batches", "\r", end="")
                     else:
                         cur_max_doc_cap = max(cur_max_doc_cap, doc_len)
                         cur_image_batch.append(unique_images[image])
@@ -359,7 +358,7 @@ class ImageDocDataset(Dataset):
         return min([len(b) for _, b in self.batches.items()]) * len(self.batches)
 
     def __getitem__(self, i):
-        # From different languages in our data, we pick of random language.
+        # From different languages in our data, we pick a random language.
         r = self.languages[random.randint(0, len(self.batches) - 1)]
 
         # We ignore the item number and actually generate a random index.

@@ -73,11 +73,10 @@ class TestModel(unittest.TestCase):
             tgt_mask = (tgt_inputs != processor.pad_token_id())
             src_langs = torch.tensor([[0], [0]]).squeeze()
             tgt_langs = torch.tensor([[1], [1]]).squeeze()
-            seq_output = seq2seq(device, src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs,
-                                 log_softmax=True)
+            seq_output = seq2seq(src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs, log_softmax=True)
             assert list(seq_output.size()) == [5, processor.vocab_size()]
 
-            seq_output = seq2seq(device, src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs)
+            seq_output = seq2seq(src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs)
             assert list(seq_output.size()) == [5, processor.vocab_size()]
 
     def test_data(self):

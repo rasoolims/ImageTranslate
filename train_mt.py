@@ -99,7 +99,7 @@ class MTTrainer:
                                                              text_processor=model.text_processor,
                                                              mask_eos=False)
 
-                predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                predictions = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                          src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=dst_langs,
                                          log_softmax=True)
                 targets = tgt_inputs[:, 1:].contiguous().view(-1)
@@ -135,7 +135,7 @@ class MTTrainer:
                                                              text_processor=model.text_processor,
                                                              mask_eos=False)
 
-                    predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                    predictions = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                              src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
                                              tgt_langs=dst_langs, log_softmax=True)
                     targets = tgt_inputs[:, 1:].contiguous().view(-1)
@@ -227,7 +227,7 @@ class MTTrainer:
                 src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs)
                 src_text += [generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in src_ids]
 
-                outputs = self.generator(device=self.device, src_inputs=src_inputs, src_sizes=src_pad_idx,
+                outputs = self.generator(src_inputs=src_inputs, src_sizes=src_pad_idx,
                                          first_tokens=tgt_inputs[:, 0],
                                          src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs,
                                          pad_idx=model.text_processor.pad_token_id())
@@ -256,7 +256,7 @@ class MTTrainer:
             print("Saving best BLEU", self.best_bleu)
             model.save(saving_path)
             with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
+                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
 
             with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
                 writer.write("\n".join(
@@ -286,7 +286,7 @@ class MTTrainer:
                                                                  texts=src_inputs,
                                                                  text_processor=model.text_processor, mask_eos=False)
 
-                    predictions = self.model(device=self.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                    predictions = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                              src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
                                              tgt_langs=dst_langs, log_softmax=True)
 
@@ -403,7 +403,7 @@ class MTTrainer:
         dst_langs = train_data.longest_batch[0]["dst_langs"]
         s, d, b = int(src_inputs.size(1)), int(tgt_inputs.size(1)), int(src_inputs.size(0))
         print(src_inputs.size(), tgt_inputs.size(), b * d * (s ** 2 + d ** 2))
-        predictions = trainer.model(device=trainer.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+        predictions = trainer.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                     src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=dst_langs,
                                     log_softmax=True)
         targets = tgt_inputs[:, 1:].contiguous().view(-1)
@@ -425,7 +425,7 @@ class MTTrainer:
         dst_langs = train_data.most_token_batch[0]["dst_langs"]
         s, d, b = int(src_inputs.size(1)), int(tgt_inputs.size(1)), int(src_inputs.size(0))
         print(src_inputs.size(), tgt_inputs.size(), b * (s + d))
-        predictions = trainer.model(device=trainer.device, src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+        predictions = trainer.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                     src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=dst_langs,
                                     log_softmax=True)
         targets = tgt_inputs[:, 1:].contiguous().view(-1)

@@ -41,13 +41,14 @@ class LM(nn.Module):
             self.encoder = encoder
         self.encoder._tie_or_clone_weights(self.masked_lm.decoder, self.encoder.embeddings.word_embeddings)
 
-    def forward(self, device, mask: torch.Tensor, texts: torch.Tensor, pads: torch.Tensor, langs: List = None):
+    def forward(self, mask: torch.Tensor, texts: torch.Tensor, pads: torch.Tensor, langs: List = None):
         """
         :param data: A minibatch as dictionary that has transformed image and tokenized text as long tensors.
         :return:
         """
         langs_tensor = langs.squeeze().unsqueeze(1).expand(-1, texts.size(1))
 
+        device = self.encoder.embeddings.word_embeddings.weight.device
         texts = texts.to(device)
         pads = pads.to(device)
         langs_tensor = langs_tensor.to(device)

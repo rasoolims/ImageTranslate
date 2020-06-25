@@ -62,7 +62,7 @@ class ImageDocTrainer(MassTrainer):
                     if is_img_batch:  # Image data
                         if len(batch) < self.num_gpu:
                             continue
-                        predictions = self.model(device=self.device, batch=batch, log_softmax=True)
+                        predictions = self.model(batch=batch, log_softmax=True)
                         targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
                         tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
                         targets = torch.cat([targets[i][tgt_mask_flat[i]] for i in range(len(batch))])
@@ -77,7 +77,7 @@ class ImageDocTrainer(MassTrainer):
 
                         if not fine_tune:
                             masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
-                            predictions = self.mass_model(device=self.device, src_inputs=masked_info["src_text"],
+                            predictions = self.mass_model(src_inputs=masked_info["src_text"],
                                                           tgt_inputs=masked_info["to_recover"],
                                                           tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
                                                           pad_idx=model.text_processor.pad_token_id(),
@@ -94,7 +94,7 @@ class ImageDocTrainer(MassTrainer):
                             model.eval()
                             with torch.no_grad():
                                 # We do not backpropagate the data generator following the MASS paper.
-                                outputs = self.generator(device=self.device, src_inputs=src_inputs,
+                                outputs = self.generator(src_inputs=src_inputs,
                                                          src_sizes=pad_indices,
                                                          first_tokens=target_langs,
                                                          src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
@@ -111,7 +111,7 @@ class ImageDocTrainer(MassTrainer):
                             model.train()
 
                             # Now use it for back-translation loss.
-                            predictions = self.mass_model(device=self.device, src_inputs=translations,
+                            predictions = self.mass_model(src_inputs=translations,
                                                           tgt_inputs=src_inputs,
                                                           src_pads=translation_pad_mask,
                                                           pad_idx=model.text_processor.pad_token_id(),

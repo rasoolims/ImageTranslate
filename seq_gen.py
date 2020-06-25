@@ -43,8 +43,8 @@ class BeamDecoder(nn.Module):
         length_penalty = torch.pow((lengths + 6.0) / 6.0, self.len_penalty_ratio)
         return length_penalty.unsqueeze(-1)
 
-    def forward(self, device, src_inputs, src_sizes, first_tokens, src_mask, src_langs, tgt_langs, pad_idx,
-                max_len: int = None, unpad_output: bool = True, beam_width: int = None):
+    def forward(self, src_inputs, src_sizes, first_tokens, src_mask, src_langs, tgt_langs, pad_idx, max_len: int = None,
+                unpad_output: bool = True, beam_width: int = None):
         """
 
         :param device:
@@ -55,10 +55,10 @@ class BeamDecoder(nn.Module):
         """
         if beam_width is None:
             beam_width = self.beam_width
-
+        device = self.seq2seq_model.encoder.embeddings.word_embeddings.weight.device
         batch_size = src_inputs.size(0)
         src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
-        encoder_states = self.seq2seq_model.encode(device, src_inputs, src_mask, src_langs)[0]
+        encoder_states = self.seq2seq_model.encode(src_inputs, src_mask, src_langs)[0]
         eos = self.seq2seq_model.text_processor.sep_token_id()
 
         src_mask = src_mask.to(device)

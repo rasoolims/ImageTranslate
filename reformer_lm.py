@@ -33,12 +33,13 @@ class ReformerLM(nn.Module):
         self.lm_head: ReformerOnlyLMHead = reformer.lm_head
         self.encoder: ReformerModel = reformer.reformer
 
-    def forward(self, device, mask: torch.Tensor, texts: torch.Tensor, pads: torch.Tensor, langs: List = None):
+    def forward(self, mask: torch.Tensor, texts: torch.Tensor, pads: torch.Tensor, langs: List = None):
         """
         We currently don't use langs.
         :param data: A minibatch as dictionary that has transformed image and tokenized text as long tensors.
         :return:
         """
+        device = self.encoder.embeddings.word_embeddings.weight.device
         texts = texts.to(device)
         pads = pads.to(device)
         text_hidden = self.encoder(texts, attention_mask=pads)[0]

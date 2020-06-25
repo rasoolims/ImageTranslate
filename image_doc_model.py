@@ -18,11 +18,12 @@ class ImageSeq2Seq(MassSeq2Seq):
                                                     freeze=freeze_image)
         self.image_decoder = AlbertImageTransformer(AlbertTransformer(config))
 
-    def forward(self, device, batch, log_softmax: bool = False, **kwargs):
+    def forward(self, batch, log_softmax: bool = False, **kwargs):
         if isinstance(batch, list):
             assert len(batch) == 1
             batch = batch[0]
 
+        device = self.encoder.embeddings.word_embeddings.weight.device
         images = batch["images"].to(device)
         captions = batch["captions"].to(device)
         docs = batch["docs"].to(device)
@@ -33,7 +34,7 @@ class ImageSeq2Seq(MassSeq2Seq):
         src_langs = batch["langs"].unsqueeze(-1).expand(-1, docs.size(-1))
 
         "Take in and process masked src and target sequences."
-        doc_states = self.encode(device, docs, doc_mask, src_langs)[0]
+        doc_states = self.encode(docs, doc_mask, src_langs)[0]
 
         image_embeddings = self.image_model(images)
 

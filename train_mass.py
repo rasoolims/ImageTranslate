@@ -50,7 +50,7 @@ class MassTrainer(MTTrainer):
 
                 masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
                 try:
-                    predictions = self.model(device=self.device, src_inputs=masked_info["src_text"],
+                    predictions = self.model(src_inputs=masked_info["src_text"],
                                              tgt_inputs=masked_info["to_recover"],
                                              tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
                                              pad_idx=model.text_processor.pad_token_id(),
@@ -145,7 +145,7 @@ class MassTrainer(MTTrainer):
                     model.eval()
                     with torch.no_grad():
                         # We do not backpropagate the data generator following the MASS paper.
-                        outputs = self.generator(device=self.device, src_inputs=src_inputs, src_sizes=src_pad_idx,
+                        outputs = self.generator(src_inputs=src_inputs, src_sizes=src_pad_idx,
                                                  first_tokens=target_langs,
                                                  src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
                                                  pad_idx=model.text_processor.pad_token_id(),
@@ -161,7 +161,7 @@ class MassTrainer(MTTrainer):
                     model.train()
 
                     # Now use it for back-translation loss.
-                    predictions = self.model(device=self.device, src_inputs=translations, tgt_inputs=src_inputs,
+                    predictions = self.model(src_inputs=translations, tgt_inputs=src_inputs,
                                              src_pads=translation_pad_mask,
                                              pad_idx=model.text_processor.pad_token_id(),
                                              src_langs=dst_langs,
@@ -221,7 +221,7 @@ class MassTrainer(MTTrainer):
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model.save(saving_path + ".beam.latest")
         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-            pickle.dump((self.optimizer, self.scheduler.last_epoch), fp)
+            pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
         if dev_data_iter is not None:
             bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
@@ -242,7 +242,7 @@ class MassTrainer(MTTrainer):
 
                 try:
                     masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
-                    predictions = self.model(device=self.device, src_inputs=masked_info["src_text"],
+                    predictions = self.model(src_inputs=masked_info["src_text"],
                                              tgt_inputs=masked_info["to_recover"],
                                              tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
                                              pad_idx=model.text_processor.pad_token_id(),

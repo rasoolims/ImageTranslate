@@ -64,8 +64,7 @@ class LMTrainer:
                 self.optimizer.zero_grad()
             mask, target, texts = mask_text(self.mask_prob, batch["pad_mask"], batch["texts"], model.text_processor)
             try:
-                predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"],
-                                         langs=batch["langs"])
+                predictions = self.model(mask=mask, texts=texts, pads=batch["pad_mask"], langs=batch["langs"])
                 ntokens = target.size(0)
 
                 if ntokens == 0:  # Nothing to predict!
@@ -127,8 +126,7 @@ class LMTrainer:
             for batch in dev_data_iter:
                 mask, target, texts = mask_text(self.mask_prob, batch["pad_mask"], batch["texts"].clone(),
                                                 model.text_processor)
-                predictions = self.model(device=self.device, mask=mask, texts=texts, pads=batch["pad_mask"],
-                                         langs=batch["langs"])
+                predictions = self.model(mask=mask, texts=texts, pads=batch["pad_mask"], langs=batch["langs"])
                 ntokens = target.size(0)
 
                 if ntokens == 0:  # Nothing to predict!
@@ -147,7 +145,7 @@ class LMTrainer:
                 )
                 model_to_save.save(saving_path)
                 with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                    pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
+                    pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
             model.train()
 
     @staticmethod

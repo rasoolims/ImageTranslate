@@ -217,6 +217,7 @@ class ImageDocTrainer(MassTrainer):
                                              text_processor=mt_model.text_processor,
                                              max_img_per_batch=options.max_image)
         print("Min length of training data", len(train_data))
+        print("Data length", [(l, len(b)) for l, b in train_data.batches.items()])
 
         pin_memory = torch.cuda.is_available()
 

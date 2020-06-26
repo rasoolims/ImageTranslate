@@ -46,10 +46,9 @@ class MTTrainer:
         self.num_gpu = torch.cuda.device_count()
         if self.fp16:
             self.rank = rank
-            torch.distributed.init_process_group(backend='nccl')
-            distributed.init_process_group(backend="mpi", group_name="main", rank=self.rank, world_size=self.num_gpu)
             os.environ['WORLD_SIZE'] = str(self.num_gpu)
-            os.environ['RANK'] = str(0) # todo
+            os.environ['RANK'] = str(0)  # todo
+            distributed.init_process_group(backend='nccl', world_size=self.num_gpu)
             self.device = torch.device('cuda', rank)
         self.model = self.model.to(self.device)
         self.self_translate = self_translate

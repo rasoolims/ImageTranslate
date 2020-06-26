@@ -260,7 +260,8 @@ class ImageDocTrainer(MassTrainer):
                                          max_seq_len=options.max_seq_len, keep_examples=True)
                 mass_train_data.append(td)
                 sampler = DistributedSampler(td, rank=options.local_rank) if options.fp16 else None
-                dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory, sampler=sampler)
+                dl = data_utils.DataLoader(td, batch_size=1, shuffle=~options.fp16, pin_memory=pin_memory,
+                                           sampler=sampler)
                 mass_train_loader.append(dl)
 
         lang_directions = {}
@@ -276,7 +277,8 @@ class ImageDocTrainer(MassTrainer):
                                              i].examples_list)
                 finetune_data.append(fd)
                 sampler = DistributedSampler(fd, rank=options.local_rank) if options.fp16 else None
-                fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory, sampler=sampler)
+                fl = data_utils.DataLoader(fd, batch_size=1, shuffle=~options.fp16, pin_memory=pin_memory,
+                                           sampler=sampler)
                 finetune_loader.append(fl)
 
                 if mass_train_data is not None:

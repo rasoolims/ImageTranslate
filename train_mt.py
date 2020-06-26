@@ -14,7 +14,6 @@ import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
 from torch.nn.parallel import DistributedDataParallel
-from torch.utils.data.distributed import DistributedSampler
 
 import dataset
 from albert_seq2seq import AlbertSeq2Seq
@@ -34,7 +33,7 @@ class MTTrainer:
     def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
                  step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
                  len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0,
-                 nll_loss: bool = False, fp16: bool = False, rank: int = 0):
+                 nll_loss: bool = False, fp16: bool = False, rank: int = -1):
         self.model = model
 
         self.clip = clip
@@ -42,7 +41,7 @@ class MTTrainer:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.fp16 = fp16
-        self.rank = 0
+        self.rank = -1
         self.num_gpu = torch.cuda.device_count()
         if self.fp16:
             self.rank = rank
@@ -364,33 +363,24 @@ class MTTrainer:
 
         train_data = dataset.MTDataset(batch_pickle_dir=options.train_path,
                                        max_batch_capacity=options.total_capacity, max_batch=options.batch,
-                                       pad_idx=mt_model.text_processor.pad_token_id())
+                                       pad_idx=mt_model.text_processor.pad_token_id(), rank=options.local_rank)
         dev_data = dataset.MTDataset(batch_pickle_dir=options.dev_path,
                                      max_batch_capacity=options.total_capacity,
                                      max_batch=int(options.batch / options.beam_width),
-                                     pad_idx=mt_model.text_processor.pad_token_id())
+                                     pad_idx=mt_model.text_processor.pad_token_id(), rank=options.local_rank)
         monolingual_data = None
         if options.monolingual_path is not None:
             monolingual_data = dataset.MTDataset(batch_pickle_dir=options.monolingual_path,
                                                  max_batch_capacity=options.total_capacity, max_batch=options.batch,
-                                                 pad_idx=mt_model.text_processor.pad_token_id())
+                                                 pad_idx=mt_model.text_processor.pad_token_id(),
+                                                 rank=options.local_rank)
 
         pin_memory = torch.cuda.is_available()
 
-        train_sampler, mono_sampler = None, None
-        if options.fp16:
-            train_sampler = DistributedSampler(train_data, rank=options.local_rank)
-            if monolingual_data is not None:
-                mono_sampler = DistributedSampler(monolingual_data, rank=options.local_rank)
-
-        train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=not options.fp16, pin_memory=pin_memory,
-                                             sampler=train_sampler)
-        monolingual_loader = data_utils.DataLoader(monolingual_data, batch_size=1, shuffle=not options.fp16,
-                                                   sampler=mono_sampler,
+        train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+        monolingual_loader = data_utils.DataLoader(monolingual_data, batch_size=1, shuffle=True,
                                                    pin_memory=pin_memory) if monolingual_data is not None else None
-        dev_sampler = DistributedSampler(dev_data)
-        dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory,
-                                           sampler=dev_sampler)
+        dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:

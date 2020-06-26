@@ -13,7 +13,6 @@ import transformers.optimization as optim
 from IPython.core import ultratb
 from torch.nn.parallel import DistributedDataParallel
 from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data.distributed import DistributedSampler
 from torchvision import transforms
 
 import dataset
@@ -235,7 +234,8 @@ class ImageDocTrainer(MassTrainer):
                                              data_bin_file=options.train_path, transform=transform,
                                              max_doc_batch_capacity=options.img_capacity,
                                              text_processor=mt_model.text_processor,
-                                             max_img_per_batch=options.max_image)
+                                             max_img_per_batch=options.max_image,
+                                             rank=options.local_rank)
         print("Min length of training data", len(train_data))
         print("Data length", [(l, len(b)) for l, b in train_data.batches.items()])
 
@@ -245,9 +245,8 @@ class ImageDocTrainer(MassTrainer):
         collator = dataset.ImageTextCollator()
         num_batches = max(1, torch.cuda.device_count())
 
-        train_sampler = DistributedSampler(train_data, rank=options.local_rank) if options.fp16 else None
         train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=False, pin_memory=pin_memory,
-                                             collate_fn=collator, sampler=train_sampler)
+                                             collate_fn=collator)
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
@@ -269,11 +268,9 @@ class ImageDocTrainer(MassTrainer):
                 td = dataset.MassDataset(batch_pickle_dir=mass_train_path,
                                          max_batch_capacity=options.total_capacity, max_batch=options.batch,
                                          pad_idx=mt_model.text_processor.pad_token_id(),
-                                         max_seq_len=options.max_seq_len, keep_examples=True)
+                                         max_seq_len=options.max_seq_len, keep_examples=True, rank=options.local_rank)
                 mass_train_data.append(td)
-                sampler = DistributedSampler(td, rank=options.local_rank) if options.fp16 else None
-                dl = data_utils.DataLoader(td, batch_size=1, shuffle=not options.fp16, pin_memory=pin_memory,
-                                           sampler=sampler)
+                dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)
                 mass_train_loader.append(dl)
 
         lang_directions = {}
@@ -286,11 +283,10 @@ class ImageDocTrainer(MassTrainer):
                                          pad_idx=mt_model.text_processor.pad_token_id(),
                                          max_seq_len=options.max_seq_len, keep_examples=False,
                                          example_list=None if mass_train_data is None else mass_train_data[
-                                             i].examples_list)
+                                             i].examples_list,
+                                         rank=options.local_rank)
                 finetune_data.append(fd)
-                sampler = DistributedSampler(fd, rank=options.local_rank) if options.fp16 else None
-                fl = data_utils.DataLoader(fd, batch_size=1, shuffle=not options.fp16, pin_memory=pin_memory,
-                                           sampler=sampler)
+                fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory)
                 finetune_loader.append(fl)
 
                 if mass_train_data is not None:
@@ -312,10 +308,9 @@ class ImageDocTrainer(MassTrainer):
             mt_dev_data = dataset.MTDataset(batch_pickle_dir=options.mt_dev_path,
                                             max_batch_capacity=options.total_capacity,
                                             max_batch=int(options.batch / (options.beam_width * 2)),
-                                            pad_idx=mt_model.text_processor.pad_token_id())
-            mt_dev_sampler = DistributedSampler(mt_dev_data, rank=options.local_rank) if options.fp16 else None
-            mt_dev_loader = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory,
-                                                  sampler=mt_dev_sampler)
+                                            pad_idx=mt_model.text_processor.pad_token_id(),
+                                            rank=options.local_rank)
+            mt_dev_loader = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
             print("creating reference")
             trainer.reference = []

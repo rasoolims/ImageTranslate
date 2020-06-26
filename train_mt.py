@@ -209,11 +209,10 @@ class MTTrainer:
         print(self.rank, "->", "Total loss in this epoch: %f" % (total_loss / total_tokens))
         if self.rank == 0:
             model.save(saving_path + ".latest")
+            with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
         if self.fp16:
             distributed.barrier()
-
-        with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-            pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
         self.validate(dev_data_iter)
         bleu = self.eval_bleu(dev_data_iter, saving_path)

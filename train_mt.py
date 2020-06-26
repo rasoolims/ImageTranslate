@@ -396,7 +396,7 @@ class MTTrainer:
                             last_epoch=last_epoch, nll_loss=options.nll_loss, fp16=options.fp16,
                             rank=options.local_rank)
 
-        print("creating reference")
+        print(options.local_rank, "creating reference")
         trainer.reference = []
         generator = (
             trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
@@ -407,12 +407,12 @@ class MTTrainer:
             ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
             trainer.reference += ref
 
-        print("Trying if largest batch fits into memory")
+        print(options.local_rank, "Trying if largest batch fits into memory")
         MTTrainer.memory_test(train_data, trainer)
 
         step, train_epoch = 0, 1
         while step <= options.step:
-            print("train epoch", train_epoch)
+            print(options.local_rank, "train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=train_loader, dev_data_iter=dev_loader,
                                        monolingual_data_iter=monolingual_loader, saving_path=options.model_path,
                                        step=step)

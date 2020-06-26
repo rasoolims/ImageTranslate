@@ -399,7 +399,7 @@ class MassTrainer(MTTrainer):
 
         while options.step > 0 and step < options.step:
             train_epoch += 1
-            print("train epoch", train_epoch)
+            print(options.local_rank, "train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=train_loader, dev_data_iter=dev_loader,
                                        saving_path=options.model_path, mt_dev_iter=mt_dev_loader,
                                        step=step)
@@ -417,7 +417,7 @@ class MassTrainer(MTTrainer):
                                                                           num_training_steps=options.finetune_step)
 
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
-            print("finetune epoch", finetune_epoch)
+            print(options.local_rank, "finetune epoch", finetune_epoch)
             step = trainer.fine_tune(data_iter=finetune_loader, lang_directions=lang_directions,
                                      saving_path=options.model_path, step=step, dev_data_iter=mt_dev_loader)
             finetune_epoch += 1

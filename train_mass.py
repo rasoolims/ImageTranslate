@@ -318,7 +318,7 @@ class MassTrainer(MTTrainer):
                                          pad_idx=mt_model.text_processor.pad_token_id(),
                                          max_seq_len=options.max_seq_len, keep_examples=True)
                 train_data.append(td)
-                train_sampler = DistributedSampler(td) if options.fp16 else None
+                train_sampler = DistributedSampler(td, rank=options.local_rank) if options.fp16 else None
                 dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory, sampler=train_sampler)
                 train_loader.append(dl)
 
@@ -327,7 +327,7 @@ class MassTrainer(MTTrainer):
                                            max_batch=options.batch,
                                            pad_idx=mt_model.text_processor.pad_token_id(),
                                            max_seq_len=options.max_seq_len)
-            dev_sampler = DistributedSampler(dev_data) if options.fp16 else None
+            dev_sampler = DistributedSampler(dev_data, rank=options.local_rank) if options.fp16 else None
             dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory,
                                                sampler=dev_sampler)
 
@@ -342,7 +342,7 @@ class MassTrainer(MTTrainer):
                                          max_seq_len=options.max_seq_len, keep_examples=False,
                                          example_list=None if train_data is None else train_data[i].examples_list)
                 finetune_data.append(fd)
-                fd_sampler = DistributedSampler(fd) if options.fp16 else None
+                fd_sampler = DistributedSampler(fd, rank=options.local_rank) if options.fp16 else None
                 fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory, sampler=fd_sampler)
                 finetune_loader.append(fl)
 

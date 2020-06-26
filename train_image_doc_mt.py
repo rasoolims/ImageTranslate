@@ -233,7 +233,7 @@ class ImageDocTrainer(MassTrainer):
         collator = dataset.ImageTextCollator()
         num_batches = max(1, torch.cuda.device_count())
 
-        train_sampler = DistributedSampler(train_data) if options.fp16 else None
+        train_sampler = DistributedSampler(train_data, rank=options.local_rank) if options.fp16 else None
         train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=False, pin_memory=pin_memory,
                                              collate_fn=collator, sampler=train_sampler)
 
@@ -259,7 +259,7 @@ class ImageDocTrainer(MassTrainer):
                                          pad_idx=mt_model.text_processor.pad_token_id(),
                                          max_seq_len=options.max_seq_len, keep_examples=True)
                 mass_train_data.append(td)
-                sampler = DistributedSampler(td) if options.fp16 else None
+                sampler = DistributedSampler(td, rank=options.local_rank) if options.fp16 else None
                 dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory, sampler=sampler)
                 mass_train_loader.append(dl)
 
@@ -275,7 +275,7 @@ class ImageDocTrainer(MassTrainer):
                                          example_list=None if mass_train_data is None else mass_train_data[
                                              i].examples_list)
                 finetune_data.append(fd)
-                sampler = DistributedSampler(fd) if options.fp16 else None
+                sampler = DistributedSampler(fd, rank=options.local_rank) if options.fp16 else None
                 fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory, sampler=sampler)
                 finetune_loader.append(fl)
 

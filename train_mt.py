@@ -372,9 +372,9 @@ class MTTrainer:
 
         train_sampler, mono_sampler = None, None
         if options.fp16:
-            train_sampler = DistributedSampler(train_data)
+            train_sampler = DistributedSampler(train_data, rank=options.local_rank)
             if monolingual_data is not None:
-                mono_sampler = DistributedSampler(monolingual_data)
+                mono_sampler = DistributedSampler(monolingual_data, rank=options.local_rank)
 
         train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory,
                                              sampler=train_sampler)

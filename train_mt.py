@@ -254,7 +254,7 @@ class MTTrainer:
                                          first_tokens=tgt_inputs[:, 0],
                                          src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs,
                                          pad_idx=model.text_processor.pad_token_id())
-                if self.num_gpu > 1:
+                if not self.fp16 and self.num_gpu > 1:
                     new_outputs = []
                     for output in outputs:
                         new_outputs += output

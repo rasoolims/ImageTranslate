@@ -42,8 +42,9 @@ class MTTrainer:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.fp16 = fp16
-        self.rank = rank
+        self.rank = 0
         if self.fp16:
+            self.rank = rank
             torch.distributed.init_process_group(backend='nccl')
             distributed.init_process_group(backend="mpi", group_name="main", rank=self.rank)
             self.device = torch.device('cuda', rank)

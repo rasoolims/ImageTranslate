@@ -269,6 +269,7 @@ class MTTrainer:
             model.train()
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
 
+        print(self.rank, "->", "Saving translation output", bleu)
         with open(os.path.join(saving_path, "bleu.output"), "w") as writer:
             writer.write("\n".join(
                 [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in

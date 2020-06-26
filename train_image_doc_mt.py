@@ -105,7 +105,7 @@ class ImageDocTrainer(MassTrainer):
                                                          src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
                                                          pad_idx=model.text_processor.pad_token_id(),
                                                          src_mask=src_pad_mask, unpad_output=False, beam_width=1)
-                                if self.num_gpu > 1:
+                                if not self.fp16 and self.num_gpu > 1:
                                     new_outputs = []
                                     for output in outputs:
                                         new_outputs += output

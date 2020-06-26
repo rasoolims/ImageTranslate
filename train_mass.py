@@ -21,7 +21,7 @@ from option_parser import get_mass_option_parser
 from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mt import MTTrainer
-from utils import build_optimizer, mass_mask, mass_unmask, init_distributed
+from utils import build_optimizer, mass_mask, mass_unmask, init_distributed, cleanup_distributed
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -307,6 +307,14 @@ class MassTrainer(MTTrainer):
             encoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
             mt_model = MassSeq2Seq(config=lm.config, encoder=encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
                                    text_processor=lm.text_processor, checkpoint=options.checkpoint)
+
+            if options.fp16:
+                if options.local_rank == 0:
+                    mt_model.save(options.model_path)
+                distributed.barrier()
+                mt_model, lm = MassSeq2Seq.load(out_dir=options.model_path, tok_dir=options.tokenizer_path,
+                                                sep_decoder=options.sep_encoder)
+
         MTTrainer.config_dropout(mt_model, options.dropout)
 
         pin_memory = torch.cuda.is_available()
@@ -434,4 +442,5 @@ if __name__ == "__main__":
     print(options)
     init_distributed(options)
     MassTrainer.train(options=options)
+    if options.fp16: cleanup_distributed(options)
     print("Finished Training!")

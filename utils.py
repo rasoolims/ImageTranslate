@@ -91,6 +91,11 @@ def init_distributed(options):
                                              rank=options.local_rank)
 
 
+def cleanup_distributed(options):
+    if options.fp16:
+        torch.distributed.destroy_process_group()
+
+
 class AdamInverseSqrtWithWarmup(optim.Adam):
     """
     Decay the LR based on the inverse square root of the update number.

@@ -25,7 +25,7 @@ from parallel import DataParallelModel, DataParallelCriterion
 from pytorch_lamb.pytorch_lamb import Lamb
 from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
-from utils import build_optimizer, mask_text, unmask_text, init_distributed
+from utils import build_optimizer, mask_text, unmask_text, init_distributed, cleanup_distributed
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -354,6 +354,13 @@ class MTTrainer:
             mt_model = AlbertSeq2Seq(config=lm.config, encoder=encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
                                      text_processor=lm.text_processor, checkpoint=options.checkpoint)
 
+            if options.fp16:
+                if options.local_rank == 0:
+                    mt_model.save(options.model_path)
+                distributed.barrier()
+                mt_model, lm = AlbertSeq2Seq.load(out_dir=options.model_path, tok_dir=options.tokenizer_path,
+                                                  sep_decoder=options.sep_encoder)
+
         if options.local_rank == 0 or not options.fp16:
             mt_model.save(options.model_path)
 
@@ -484,4 +491,5 @@ if __name__ == "__main__":
     print(options)
     init_distributed(options)
     MTTrainer.train(options=options)
+    if options.fp16: cleanup_distributed(options)
     print("Finished Training!")

@@ -166,16 +166,17 @@ class ImageDocTrainer(MassTrainer):
 
                     if step % 500 == 0:
                         if mt_dev_iter is not None and step % 5000 == 0:
-                            bleu = self.eval_bleu(mt_dev_iter, saving_path)
-                            print(self.rank, "->", "Pretraining BLEU:", bleu)
                             if self.rank == 0 or not self.fp16:
-                                model.save(saving_path + ".latest")
-                                with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                                    pickle.dump(
-                                        (self.optimizer,
-                                         self.scheduler.last_epoch if self.scheduler is not None else step),
-                                        fp)
-                            distributed.barrier()
+                                bleu = self.eval_bleu(mt_dev_iter, saving_path)
+                                print(self.rank, "->", "Pretraining BLEU:", bleu)
+                                if self.rank == 0 or not self.fp16:
+                                    model.save(saving_path + ".latest")
+                                    with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                                        pickle.dump(
+                                            (self.optimizer,
+                                             self.scheduler.last_epoch if self.scheduler is not None else step),
+                                            fp)
+                            if self.fp16: distributed.barrier()
 
                     start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
             if i == shortest - 1:
@@ -189,6 +190,7 @@ class ImageDocTrainer(MassTrainer):
         if mt_dev_iter is not None and (self.rank == 0 or not self.fp16):
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
             print(self.rank, "->", "Pretraining BLEU:", bleu)
+        if self.fp16: distributed.barrier()
 
         return step
 

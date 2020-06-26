@@ -122,6 +122,7 @@ class MassTrainer(MTTrainer):
         if mt_dev_iter is not None and (self.rank == 0 or not self.fp16):
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
             print(self.rank, "->", "Pretraining BLEU:", bleu)
+        if self.fp16: distributed.barrier()
         return step
 
     def fine_tune(self, data_iter: List[data_utils.DataLoader], lang_directions: Dict[int, int], saving_path: str,
@@ -228,6 +229,7 @@ class MassTrainer(MTTrainer):
                     if step % 5000 == 0 and dev_data_iter is not None and (self.rank == 0 or not self.fp16):
                         bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
                         print(self.rank, "->", "BLEU:", bleu)
+                    if self.fp16: distributed.barrier()
 
                     start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
             if i == shortest - 1:
@@ -243,6 +245,7 @@ class MassTrainer(MTTrainer):
         if dev_data_iter is not None and (self.rank == 0 or not self.fp16):
             bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
             print(self.rank, "->", "BLEU:", bleu)
+        if self.fp16: distributed.barrier()
         return step
 
     def validate(self, dev_data_iter):

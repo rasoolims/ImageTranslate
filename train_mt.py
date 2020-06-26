@@ -204,6 +204,7 @@ class MTTrainer:
                     if self.rank == 0 or not self.fp16:
                         bleu = self.eval_bleu(dev_data_iter, saving_path)
                         print(self.rank, "->", "BLEU:", bleu)
+                    if self.fp16: distributed.barrier()
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
@@ -219,6 +220,7 @@ class MTTrainer:
         if self.rank == 0 or not self.fp16:
             bleu = self.eval_bleu(dev_data_iter, saving_path)
             print(self.rank, "->", "BLEU:", bleu)
+        if self.fp16: distributed.barrier()
         return step
 
     def eval_bleu(self, dev_data_iter, saving_path):
@@ -267,25 +269,22 @@ class MTTrainer:
             model.train()
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
 
-        if self.rank == 0:
-            with open(os.path.join(saving_path, "bleu.output"), "w") as writer:
+        with open(os.path.join(saving_path, "bleu.output"), "w") as writer:
+            writer.write("\n".join(
+                [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
+                 zip(src_text, mt_output, self.reference[:len(mt_output)])]))
+
+        if bleu.score > self.best_bleu:
+            self.best_bleu = bleu.score
+            print(self.rank, "->", "Saving best BLEU", self.best_bleu)
+            model.save(saving_path)
+            with open(os.path.join(saving_path, "optim"), "wb") as fp:
+                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
+
+            with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
                 writer.write("\n".join(
                     [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
                      zip(src_text, mt_output, self.reference[:len(mt_output)])]))
-
-        if bleu.score > self.best_bleu:
-            if self.rank == 0:
-                self.best_bleu = bleu.score
-                print(self.rank, "->", "Saving best BLEU", self.best_bleu)
-                model.save(saving_path)
-                with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                    pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
-
-                with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
-                    writer.write("\n".join(
-                        [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
-                         zip(src_text, mt_output, self.reference[:len(mt_output)])]))
-            if self.fp16: distributed.barrier()
         return bleu.score
 
     def validate(self, dev_data_iter):

@@ -111,7 +111,8 @@ class ImageDocTrainer(MassTrainer):
                                         new_outputs += output
                                     outputs = new_outputs
 
-                                translations = pad_sequence(outputs, batch_first=True)
+                                translations = pad_sequence(outputs, batch_first=True,
+                                                            padding_value=model.text_processor.pad_token_id())
                                 translation_pad_mask = (translations != model.text_processor.pad_token_id())
                             model.train()
 

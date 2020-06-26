@@ -45,6 +45,7 @@ class MTTrainer:
         self.rank = rank
         if self.fp16:
             torch.distributed.init_process_group(backend='nccl')
+            distributed.init_process_group(backend="mpi", group_name="main")
             self.device = torch.device('cuda', rank)
         self.model = self.model.to(self.device)
         self.self_translate = self_translate

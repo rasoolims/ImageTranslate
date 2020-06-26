@@ -121,7 +121,7 @@ class MTTrainer:
 
                 if ntokens == 0:  # Nothing to predict!
                     continue
-
+                if self.fp16: targets = targets.to(self.device)
                 loss = self.criterion(predictions, targets).mean()
                 loss.backward()
 
@@ -157,7 +157,7 @@ class MTTrainer:
 
                     if ntokens == 0:  # Nothing to predict!
                         continue
-
+                    if self.fp16: targets = targets.to(predictions.device)
                     loss = self.criterion(predictions, targets).mean()
                     loss.backward()
 
@@ -317,7 +317,7 @@ class MTTrainer:
 
                     if ntokens == 0:  # Nothing to predict!
                         continue
-
+                    if self.fp16: targets = targets.to(predictions.device)
                     loss = self.criterion(predictions, targets).mean().data * ntokens
                     total_dev_loss += float(loss)
                     total_dev_tokens += ntokens
@@ -442,6 +442,7 @@ class MTTrainer:
 
         ntokens = targets.size(0)
         if ntokens > 0:  # Nothing to predict!
+            if options.fp16: targets = targets.to(predictions.device)
             loss = trainer.criterion(predictions, targets).mean()
             loss.backward()
         trainer.optimizer.zero_grad()
@@ -463,6 +464,7 @@ class MTTrainer:
         targets = targets[tgt_mask_flat]
         ntokens = targets.size(0)
         if ntokens > 0:  # Nothing to predict!
+            if options.fp16: targets = targets.to(predictions.device)
             loss = trainer.criterion(predictions, targets).mean()
             loss.backward()
         trainer.optimizer.zero_grad()

@@ -63,7 +63,9 @@ class MassTrainer(MTTrainer):
                     if ntokens == 0:  # Nothing to predict!
                         continue
 
-                    loss = self.criterion(predictions, masked_info["targets"]).mean() * ntokens
+                    targets = masked_info["targets"]
+                    if self.fp16: targets = targets.to(predictions.device)
+                    loss = self.criterion(predictions, targets).mean() * ntokens
                     loss.backward()
 
                     loss = float(loss.data)
@@ -184,6 +186,7 @@ class MassTrainer(MTTrainer):
                     if ntokens == 0:  # Nothing to predict!
                         continue
 
+                    if self.fp16: targets = targets.to(predictions.device)
                     bt_loss = self.criterion(predictions, targets).mean()
                     bt_loss.backward()
 
@@ -267,7 +270,9 @@ class MassTrainer(MTTrainer):
                     if ntokens == 0:  # Nothing to predict!
                         continue
 
-                    loss = self.criterion(predictions, masked_info["targets"]).mean().data * ntokens
+                    targets = masked_info["targets"]
+                    if self.fp16: targets = targets.to(predictions.device)
+                    loss = self.criterion(predictions, targets).mean().data * ntokens
                     total_dev_loss += float(loss)
                     total_dev_tokens += ntokens
                 except RuntimeError:

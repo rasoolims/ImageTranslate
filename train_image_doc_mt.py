@@ -131,7 +131,7 @@ class ImageDocTrainer(MassTrainer):
 
                     if ntokens == 0:  # Nothing to predict!
                         continue
-
+                    if self.fp16: targets = targets.to(predictions.device)
                     loss = self.criterion(predictions, targets).mean()
                     loss.backward()
 

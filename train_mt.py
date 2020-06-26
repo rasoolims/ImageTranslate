@@ -374,9 +374,9 @@ class MTTrainer:
             if monolingual_data is not None:
                 mono_sampler = DistributedSampler(monolingual_data, rank=options.local_rank)
 
-        train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=~options.fp16, pin_memory=pin_memory,
+        train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=not options.fp16, pin_memory=pin_memory,
                                              sampler=train_sampler)
-        monolingual_loader = data_utils.DataLoader(monolingual_data, batch_size=1, shuffle=~options.fp16,
+        monolingual_loader = data_utils.DataLoader(monolingual_data, batch_size=1, shuffle=not options.fp16,
                                                    sampler=mono_sampler,
                                                    pin_memory=pin_memory) if monolingual_data is not None else None
         dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)

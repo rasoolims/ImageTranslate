@@ -319,7 +319,7 @@ class MassTrainer(MTTrainer):
                                          max_seq_len=options.max_seq_len, keep_examples=True)
                 train_data.append(td)
                 train_sampler = DistributedSampler(td, rank=options.local_rank) if options.fp16 else None
-                dl = data_utils.DataLoader(td, batch_size=1, shuffle=~options.fp16, pin_memory=pin_memory,
+                dl = data_utils.DataLoader(td, batch_size=1, shuffle=not options.fp16, pin_memory=pin_memory,
                                            sampler=train_sampler)
                 train_loader.append(dl)
 
@@ -344,7 +344,7 @@ class MassTrainer(MTTrainer):
                                          example_list=None if train_data is None else train_data[i].examples_list)
                 finetune_data.append(fd)
                 fd_sampler = DistributedSampler(fd, rank=options.local_rank) if options.fp16 else None
-                fl = data_utils.DataLoader(fd, batch_size=1, shuffle=~options.fp16, pin_memory=pin_memory,
+                fl = data_utils.DataLoader(fd, batch_size=1, shuffle=not options.fp16, pin_memory=pin_memory,
                                            sampler=fd_sampler)
                 finetune_loader.append(fl)
 

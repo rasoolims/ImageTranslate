@@ -21,7 +21,7 @@ from option_parser import get_mass_option_parser
 from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mt import MTTrainer
-from utils import build_optimizer, mass_mask, mass_unmask
+from utils import build_optimizer, mass_mask, mass_unmask, init_distributed
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -419,5 +419,6 @@ if __name__ == "__main__":
     parser = get_mass_option_parser()
     (options, args) = parser.parse_args()
     print(options)
+    init_distributed(options)
     MassTrainer.train(options=options)
     print("Finished Training!")

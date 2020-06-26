@@ -25,7 +25,7 @@ from parallel import DataParallelModel, DataParallelCriterion
 from pytorch_lamb.pytorch_lamb import Lamb
 from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
-from utils import build_optimizer, mask_text, unmask_text
+from utils import build_optimizer, mask_text, unmask_text, init_distributed
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -336,11 +336,6 @@ class MTTrainer:
         if not os.path.exists(options.model_path):
             os.makedirs(options.model_path)
 
-        if options.fp16:
-            os.environ['WORLD_SIZE'] = str(torch.cuda.device_count())
-            distributed.init_process_group(backend='nccl', world_size=torch.cuda.device_count(),
-                                           rank=options.local_rank)
-
         text_processor = TextProcessor(options.tokenizer_path)
 
         if options.pretrained_path is not None:
@@ -480,5 +475,6 @@ if __name__ == "__main__":
     parser = get_mt_option_parser()
     (options, args) = parser.parse_args()
     print(options)
+    init_distributed(options)
     MTTrainer.train(options=options)
     print("Finished Training!")

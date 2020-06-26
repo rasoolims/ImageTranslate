@@ -1,4 +1,5 @@
 import math
+import os
 import random
 from typing import Dict
 
@@ -81,6 +82,13 @@ def mass_mask(mask_prob, pad_indices, src_text, text_processor: TextProcessor) -
 
 def mass_unmask(src_text, src_mask, masked_ids):
     src_text[src_mask] = masked_ids
+
+
+def init_distributed(options):
+    if options.fp16:
+        os.environ['WORLD_SIZE'] = str(torch.cuda.device_count())
+        torch.distributed.init_process_group(backend='nccl', world_size=torch.cuda.device_count(),
+                                             rank=options.local_rank)
 
 
 class AdamInverseSqrtWithWarmup(optim.Adam):

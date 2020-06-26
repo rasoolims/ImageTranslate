@@ -25,7 +25,7 @@ from parallel import DataParallelModel
 from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mass import MassTrainer
-from utils import build_optimizer, mass_mask, mass_unmask
+from utils import build_optimizer, mass_mask, mass_unmask, init_distributed
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -344,5 +344,6 @@ if __name__ == "__main__":
     parser = get_img_options_parser()
     (options, args) = parser.parse_args()
     print(options)
+    init_distributed(options)
     ImageDocTrainer.train(options=options)
     print("Finished Training!")

@@ -51,7 +51,7 @@ class MassTrainer(MTTrainer):
                     continue
 
                 masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
-                try:
+                if True:
                     predictions = self.model(src_inputs=masked_info["src_text"],
                                              tgt_inputs=masked_info["to_recover"],
                                              tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
@@ -82,9 +82,9 @@ class MassTrainer(MTTrainer):
                         self.scheduler.step()
                     step += 1
 
-                except RuntimeError as err:
-                    torch.cuda.empty_cache()
-                    print(self.rank, "->", "Error in processing", src_inputs.size(), src_inputs.size())
+                # except RuntimeError as err:
+                #     torch.cuda.empty_cache()
+                #     print(self.rank, "->", "Error in processing", src_inputs.size(), src_inputs.size())
                 mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
                 if step % 50 == 0 and tokens > 0:
@@ -151,7 +151,7 @@ class MassTrainer(MTTrainer):
                 if src_inputs.size(0) < self.num_gpu:
                     continue
 
-                try:
+                if True:
                     model.eval()
                     with torch.no_grad():
                         # We do not backpropagate the data generator following the MASS paper.
@@ -205,9 +205,9 @@ class MassTrainer(MTTrainer):
                             self.scheduler.step()
                         step += 1
 
-                except RuntimeError as err:
-                    torch.cuda.empty_cache()
-                    print(self.rank, "->", "Error in processing", src_inputs.size(), src_inputs.size())
+                # except RuntimeError as err:
+                #     torch.cuda.empty_cache()
+                #     print(self.rank, "->", "Error in processing", src_inputs.size(), src_inputs.size())
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start
@@ -257,7 +257,7 @@ class MassTrainer(MTTrainer):
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
                 pad_indices = batch["pad_idx"].squeeze(0)
 
-                try:
+                if True:
                     masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
                     predictions = self.model(src_inputs=masked_info["src_text"],
                                              tgt_inputs=masked_info["to_recover"],
@@ -275,9 +275,9 @@ class MassTrainer(MTTrainer):
                     loss = self.criterion(predictions, targets).mean().data * ntokens
                     total_dev_loss += float(loss)
                     total_dev_tokens += ntokens
-                except RuntimeError:
-                    torch.cuda.empty_cache()
-                    print(self.rank, "->", "Error in processing", src_inputs.size(), src_inputs.size())
+                # except RuntimeError:
+                #     torch.cuda.empty_cache()
+                #     print(self.rank, "->", "Error in processing", src_inputs.size(), src_inputs.size())
                 mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
             dev_loss = total_dev_loss / total_dev_tokens

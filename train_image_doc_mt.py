@@ -151,21 +151,21 @@ class ImageDocTrainer(MassTrainer):
                         mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
                 except RuntimeError as err:
-                    print("Error processing", is_img_batch)
+                    print(self.rank, "->", "Error processing", is_img_batch)
                     if is_img_batch:
                         for b in batch:
-                            print(b["docs"].size(), b["images"].size())
+                            print(self.rank, "->", b["docs"].size(), b["images"].size())
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start
-                    print(datetime.datetime.now(),
+                    print(self.rank, "->", datetime.datetime.now(),
                           "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
                               step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
                     if step % 500 == 0:
                         if mt_dev_iter is not None and step % 5000 == 0:
                             bleu = self.eval_bleu(mt_dev_iter, saving_path)
-                            print("Pretraining BLEU:", bleu)
+                            print(self.rank, "->", "Pretraining BLEU:", bleu)
 
                             model.save(saving_path + ".latest")
                             with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
@@ -177,14 +177,14 @@ class ImageDocTrainer(MassTrainer):
             if i == shortest - 1:
                 break
 
-        print("Total loss in this epoch: %f" % (total_loss / total_tokens))
+        print(self.rank, "->", "Total loss in this epoch: %f" % (total_loss / total_tokens))
         if self.rank == 0:
             model.save(saving_path + ".latest")
         if self.fp16: distributed.barrier()
 
         if mt_dev_iter is not None:
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
-            print("Pretraining BLEU:", bleu)
+            print(self.rank, "->", "Pretraining BLEU:", bleu)
 
         return step
 

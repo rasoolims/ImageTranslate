@@ -82,12 +82,12 @@ class MassTrainer(MTTrainer):
 
                 except RuntimeError as err:
                     torch.cuda.empty_cache()
-                    print("Error in processing", src_inputs.size(), src_inputs.size())
+                    print(self.rank, "->", "Error in processing", src_inputs.size(), src_inputs.size())
                 mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start
-                    print(datetime.datetime.now(),
+                    print(self.rank, "->", datetime.datetime.now(),
                           "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
                               step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
@@ -108,7 +108,7 @@ class MassTrainer(MTTrainer):
             if i == shortest - 1:
                 break  # Visited all elements in one data!
 
-        print("Total loss in this epoch: %f" % (total_loss / total_tokens))
+        print(self.rank, "->", "Total loss in this epoch: %f" % (total_loss / total_tokens))
         if self.rank == 0:
             model.save(saving_path + ".latest")
         if self.fp16: distributed.barrier()
@@ -119,7 +119,7 @@ class MassTrainer(MTTrainer):
         self.validate(dev_data_iter)
         if mt_dev_iter is not None:
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
-            print("Pretraining BLEU:", bleu)
+            print(self.rank, "->", "Pretraining BLEU:", bleu)
         return step
 
     def fine_tune(self, data_iter: List[data_utils.DataLoader], lang_directions: Dict[int, int], saving_path: str,
@@ -203,11 +203,11 @@ class MassTrainer(MTTrainer):
 
                 except RuntimeError as err:
                     torch.cuda.empty_cache()
-                    print("Error in processing", src_inputs.size(), src_inputs.size())
+                    print(self.rank, "->", "Error in processing", src_inputs.size(), src_inputs.size())
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start
-                    print(datetime.datetime.now(),
+                    print(self.rank, "->", datetime.datetime.now(),
                           "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
                               step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
@@ -223,13 +223,13 @@ class MassTrainer(MTTrainer):
 
                     if step % 5000 == 0 and dev_data_iter is not None:
                         bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
-                        print("BLEU:", bleu)
+                        print(self.rank, "->", "BLEU:", bleu)
 
                     start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
             if i == shortest - 1:
                 break
 
-        print("Total loss in this epoch: %f" % (total_loss / total_tokens))
+        print(self.rank, "->", "Total loss in this epoch: %f" % (total_loss / total_tokens))
         if self.rank == 0:
             model.save(saving_path + ".beam.latest")
             with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
@@ -238,7 +238,7 @@ class MassTrainer(MTTrainer):
 
         if dev_data_iter is not None:
             bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
-            print("BLEU:", bleu)
+            print(self.rank, "->", "BLEU:", bleu)
         return step
 
     def validate(self, dev_data_iter):
@@ -271,7 +271,7 @@ class MassTrainer(MTTrainer):
                     total_dev_tokens += ntokens
                 except RuntimeError:
                     torch.cuda.empty_cache()
-                    print("Error in processing", src_inputs.size(), src_inputs.size())
+                    print(self.rank, "->", "Error in processing", src_inputs.size(), src_inputs.size())
                 mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
             dev_loss = total_dev_loss / total_dev_tokens

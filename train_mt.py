@@ -53,7 +53,7 @@ class MTTrainer:
             self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
                                                                    num_training_steps=step)
             self.scheduler.last_epoch = last_epoch
-            print("Scheduler Last epoch", last_epoch)
+            print(self.rank, "->", "Scheduler Last epoch", last_epoch)
         else:
             self.scheduler = None
 
@@ -104,7 +104,7 @@ class MTTrainer:
             if src_inputs.size(0) < self.num_gpu:
                 continue
 
-            if True:
+            try:
                 if self.self_translate:
                     mask, masked_ids, src_inputs = mask_text(mask_prob=self.mask_prob, pads=src_mask,
                                                              texts=src_inputs,
@@ -177,13 +177,13 @@ class MTTrainer:
                         self.scheduler.step()
                     step += 1
 
-            # except RuntimeError as err:
-            #     print("Error in processing", src_inputs.size(), tgt_inputs.size())
-            #     torch.cuda.empty_cache()
+            except RuntimeError as err:
+                print(self.rank, "->", "Error in processing", src_inputs.size(), tgt_inputs.size())
+                torch.cuda.empty_cache()
 
             if step % 50 == 0 and tokens > 0:
                 elapsed = time.time() - start
-                print(datetime.datetime.now(),
+                print(self.rank, "->", datetime.datetime.now(),
                       "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
                           step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
@@ -200,11 +200,11 @@ class MTTrainer:
                 if step % 500 == 0:
                     self.validate(dev_data_iter)
                     bleu = self.eval_bleu(dev_data_iter, saving_path)
-                    print("BLEU:", bleu)
+                    print(self.rank, "->", "BLEU:", bleu)
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
-        print("Total loss in this epoch: %f" % (total_loss / total_tokens))
+        print(self.rank, "->", "Total loss in this epoch: %f" % (total_loss / total_tokens))
         if self.rank == 0:
             model.save(saving_path + ".latest")
         if self.fp16:
@@ -215,7 +215,7 @@ class MTTrainer:
 
         self.validate(dev_data_iter)
         bleu = self.eval_bleu(dev_data_iter, saving_path)
-        print("BLEU:", bleu)
+        print(self.rank, "->", "BLEU:", bleu)
         return step
 
     def eval_bleu(self, dev_data_iter, saving_path):
@@ -273,7 +273,7 @@ class MTTrainer:
         if bleu.score > self.best_bleu:
             if self.rank == 0:
                 self.best_bleu = bleu.score
-                print("Saving best BLEU", self.best_bleu)
+                print(self.rank, "->", "Saving best BLEU", self.best_bleu)
                 model.save(saving_path)
                 with open(os.path.join(saving_path, "optim"), "wb") as fp:
                     pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
@@ -324,11 +324,11 @@ class MTTrainer:
                     if self.self_translate:
                         unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
                 except RuntimeError:
-                    print("Error in processing", src_inputs.size(), tgt_inputs.size())
+                    print(self.rank, "->", "Error in processing", src_inputs.size(), tgt_inputs.size())
                     torch.cuda.empty_cache()
 
             dev_loss = total_dev_loss / total_dev_tokens
-            print("Current dev loss", dev_loss)
+            print(self.rank, "->", "Current dev loss", dev_loss)
             model.train()
 
     @staticmethod

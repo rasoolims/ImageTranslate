@@ -65,7 +65,8 @@ class MTTrainer:
             self.criterion = SmoothedNLLLoss(ignore_index=model.text_processor.pad_token_id())
 
         if fp16:
-            self.model = DistributedDataParallel(self.model, device_ids=[self.rank], output_device=self.rank)
+            self.model = DistributedDataParallel(self.model, device_ids=[self.rank], output_device=self.rank,
+                                                 find_unused_parameters=True)
         elif self.num_gpu > 1:
             print("Let's use", self.num_gpu, "GPUs!")
             self.model = DataParallelModel(self.model)

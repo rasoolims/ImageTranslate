@@ -46,8 +46,6 @@ class MTTrainer:
         self.num_gpu = torch.cuda.device_count()
         if self.fp16:
             self.rank = rank
-            os.environ['WORLD_SIZE'] = str(self.num_gpu)
-            os.environ['RANK'] = str(0)  # todo
             distributed.init_process_group(backend='nccl', init_method='env://')
             self.device = torch.device('cuda', rank)
         self.model = self.model.to(self.device)

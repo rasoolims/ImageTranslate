@@ -168,7 +168,7 @@ class ImageDocTrainer(MassTrainer):
                         if mt_dev_iter is not None and step % 5000 == 0:
                             bleu = self.eval_bleu(mt_dev_iter, saving_path)
                             print(self.rank, "->", "Pretraining BLEU:", bleu)
-                            if self.rank == 0:
+                            if self.rank == 0 or not self.fp16:
                                 model.save(saving_path + ".latest")
                                 with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                                     pickle.dump(
@@ -186,7 +186,7 @@ class ImageDocTrainer(MassTrainer):
             model.save(saving_path + ".latest")
         if self.fp16: distributed.barrier()
 
-        if mt_dev_iter is not None:
+        if mt_dev_iter is not None and (self.rank == 0 or not self.fp16):
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
             print(self.rank, "->", "Pretraining BLEU:", bleu)
 
@@ -300,7 +300,7 @@ class ImageDocTrainer(MassTrainer):
                         lang_directions[lang1] = lang2
 
         mt_dev_loader = None
-        if options.mt_dev_path is not None:
+        if options.mt_dev_path is not None and not (options.fp16 and options.local_rank != 0):
             mt_dev_data = dataset.MTDataset(batch_pickle_dir=options.mt_dev_path,
                                             max_batch_capacity=options.total_capacity,
                                             max_batch=int(options.batch / (options.beam_width * 2)),

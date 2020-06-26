@@ -119,7 +119,7 @@ class MassTrainer(MTTrainer):
         if self.fp16: distributed.barrier()
 
         self.validate(dev_data_iter)
-        if mt_dev_iter is not None:
+        if mt_dev_iter is not None and (self.rank == 0 or not self.fp16):
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
             print(self.rank, "->", "Pretraining BLEU:", bleu)
         return step
@@ -225,7 +225,7 @@ class MassTrainer(MTTrainer):
                                     fp)
                         if self.fp16: distributed.barrier()
 
-                    if step % 5000 == 0 and dev_data_iter is not None:
+                    if step % 5000 == 0 and dev_data_iter is not None and (self.rank == 0 or not self.fp16):
                         bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
                         print(self.rank, "->", "BLEU:", bleu)
 
@@ -240,7 +240,7 @@ class MassTrainer(MTTrainer):
                 pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
         if self.fp16: distributed.barrier()
 
-        if dev_data_iter is not None:
+        if dev_data_iter is not None and (self.rank == 0 or not self.fp16):
             bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
             print(self.rank, "->", "BLEU:", bleu)
         return step
@@ -375,7 +375,7 @@ class MassTrainer(MTTrainer):
                               nll_loss=options.nll_loss, fp16=options.fp16, rank=options.local_rank)
 
         mt_dev_loader = None
-        if options.mt_dev_path is not None:
+        if options.mt_dev_path is not None and not (options.fp16 and options.local_rank != 0):
             mt_dev_data = dataset.MTDataset(batch_pickle_dir=options.mt_dev_path,
                                             max_batch_capacity=options.total_capacity,
                                             max_batch=int(options.batch / (options.beam_width * 2)),

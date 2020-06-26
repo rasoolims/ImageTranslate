@@ -201,8 +201,9 @@ class MTTrainer:
 
                 if step % 500 == 0:
                     self.validate(dev_data_iter)
-                    bleu = self.eval_bleu(dev_data_iter, saving_path)
-                    print(self.rank, "->", "BLEU:", bleu)
+                    if self.rank == 0 or not self.fp16:
+                        bleu = self.eval_bleu(dev_data_iter, saving_path)
+                        print(self.rank, "->", "BLEU:", bleu)
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
@@ -215,8 +216,9 @@ class MTTrainer:
             distributed.barrier()
 
         self.validate(dev_data_iter)
-        bleu = self.eval_bleu(dev_data_iter, saving_path)
-        print(self.rank, "->", "BLEU:", bleu)
+        if self.rank == 0 or not self.fp16:
+            bleu = self.eval_bleu(dev_data_iter, saving_path)
+            print(self.rank, "->", "BLEU:", bleu)
         return step
 
     def eval_bleu(self, dev_data_iter, saving_path):

@@ -196,8 +196,9 @@ class ImageDocTrainer(MassTrainer):
 
     @staticmethod
     def train(options):
-        if not os.path.exists(options.model_path):
-            os.makedirs(options.model_path)
+        if options.local_rank == 0 or not options.fp16:
+            if not os.path.exists(options.model_path):
+                os.makedirs(options.model_path)
 
         text_processor = TextProcessor(options.tokenizer_path)
 
@@ -330,7 +331,8 @@ class ImageDocTrainer(MassTrainer):
             train_epoch += 1
 
         finetune_epoch = 0
-        mt_model.save(options.model_path + ".beam")
+        if options.local_rank == 0 or not options.fp16:
+            mt_model.save(options.model_path + ".beam")
         if train_epoch > 0:
             # Resetting the optimizer for the purpose of finetuning.
             model = mt_model.module if hasattr(mt_model, "module") else mt_model

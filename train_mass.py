@@ -289,8 +289,9 @@ class MassTrainer(MTTrainer):
 
     @staticmethod
     def train(options):
-        if not os.path.exists(options.model_path):
-            os.makedirs(options.model_path)
+        if options.local_rank == 0 or not options.fp16:
+            if not os.path.exists(options.model_path):
+                os.makedirs(options.model_path)
 
         if options.pretrained_path is not None:
             mt_model, lm = MassSeq2Seq.load(out_dir=options.pretrained_path, tok_dir=options.tokenizer_path,
@@ -408,7 +409,8 @@ class MassTrainer(MTTrainer):
                                        step=step)
 
         finetune_epoch = 0
-        mt_model.save(options.model_path + ".beam")
+        if options.local_rank == 0 or not options.fp16:
+            mt_model.save(options.model_path + ".beam")
         if train_epoch > 0:
             # Resetting the optimizer for the purpose of finetuning.
             model = mt_model.module if hasattr(mt_model, "module") else mt_model

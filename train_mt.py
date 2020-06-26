@@ -353,7 +353,8 @@ class MTTrainer:
             mt_model = AlbertSeq2Seq(config=lm.config, encoder=encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
                                      text_processor=lm.text_processor, checkpoint=options.checkpoint)
 
-        mt_model.save(options.model_path)
+        if options.local_rank == 0 or not options.fp16:
+            mt_model.save(options.model_path)
 
         train_data = dataset.MTDataset(batch_pickle_dir=options.train_path,
                                        max_batch_capacity=options.total_capacity, max_batch=options.batch,

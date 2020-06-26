@@ -46,8 +46,6 @@ class MTTrainer:
         self.num_gpu = torch.cuda.device_count()
         if self.fp16:
             self.rank = rank
-            os.environ['WORLD_SIZE'] = str(self.num_gpu)
-            distributed.init_process_group(backend='nccl', world_size=self.num_gpu, rank=self.rank)
             self.device = torch.device('cuda', rank)
         self.model = self.model.to(self.device)
         self.self_translate = self_translate
@@ -337,6 +335,11 @@ class MTTrainer:
     def train(options):
         if not os.path.exists(options.model_path):
             os.makedirs(options.model_path)
+
+        if options.fp16:
+            os.environ['WORLD_SIZE'] = str(torch.cuda.device_count())
+            distributed.init_process_group(backend='nccl', world_size=torch.cuda.device_count(),
+                                           rank=options.local_rank)
 
         text_processor = TextProcessor(options.tokenizer_path)
 

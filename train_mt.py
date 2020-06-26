@@ -201,9 +201,8 @@ class MTTrainer:
 
                 if step % 500 == 0:
                     self.validate(dev_data_iter)
-                    if self.rank == 0 or not self.fp16:
-                        bleu = self.eval_bleu(dev_data_iter, saving_path)
-                        print(self.rank, "->", "BLEU:", bleu)
+                    bleu = self.eval_bleu(dev_data_iter, saving_path)
+                    print(self.rank, "->", "BLEU:", bleu)
                     if self.fp16: distributed.barrier()
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
@@ -217,9 +216,8 @@ class MTTrainer:
             distributed.barrier()
 
         self.validate(dev_data_iter)
-        if self.rank == 0 or not self.fp16:
-            bleu = self.eval_bleu(dev_data_iter, saving_path)
-            print(self.rank, "->", "BLEU:", bleu)
+        bleu = self.eval_bleu(dev_data_iter, saving_path)
+        print(self.rank, "->", "BLEU:", bleu)
         if self.fp16: distributed.barrier()
         return step
 
@@ -269,8 +267,7 @@ class MTTrainer:
             model.train()
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
 
-        print(self.rank, "->", "Saving translation output", bleu)
-        with open(os.path.join(saving_path, "bleu.output"), "w") as writer:
+        with open(os.path.join(saving_path, "bleu.output" + str(self.rank)), "w") as writer:
             writer.write("\n".join(
                 [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
                  zip(src_text, mt_output, self.reference[:len(mt_output)])]))
@@ -278,11 +275,12 @@ class MTTrainer:
         if bleu.score > self.best_bleu:
             self.best_bleu = bleu.score
             print(self.rank, "->", "Saving best BLEU", self.best_bleu)
-            model.save(saving_path)
-            with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
+            if self.rank == 0:
+                model.save(saving_path)
+                with open(os.path.join(saving_path, "optim"), "wb") as fp:
+                    pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
 
-            with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
+            with open(os.path.join(saving_path, "bleu.best.output" + str(self.rank)), "w") as writer:
                 writer.write("\n".join(
                     [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
                      zip(src_text, mt_output, self.reference[:len(mt_output)])]))
@@ -390,7 +388,9 @@ class MTTrainer:
         monolingual_loader = data_utils.DataLoader(monolingual_data, batch_size=1, shuffle=not options.fp16,
                                                    sampler=mono_sampler,
                                                    pin_memory=pin_memory) if monolingual_data is not None else None
-        dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+        dev_sampler = DistributedSampler(dev_data)
+        dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory,
+                                           sampler=dev_sampler)
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:

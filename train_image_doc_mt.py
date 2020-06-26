@@ -166,16 +166,15 @@ class ImageDocTrainer(MassTrainer):
 
                     if step % 500 == 0:
                         if mt_dev_iter is not None and step % 5000 == 0:
+                            bleu = self.eval_bleu(mt_dev_iter, saving_path)
+                            print(self.rank, "->", "Pretraining BLEU:", bleu)
                             if self.rank == 0 or not self.fp16:
-                                bleu = self.eval_bleu(mt_dev_iter, saving_path)
-                                print(self.rank, "->", "Pretraining BLEU:", bleu)
-                                if self.rank == 0 or not self.fp16:
-                                    model.save(saving_path + ".latest")
-                                    with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                                        pickle.dump(
-                                            (self.optimizer,
-                                             self.scheduler.last_epoch if self.scheduler is not None else step),
-                                            fp)
+                                model.save(saving_path + ".latest")
+                                with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                                    pickle.dump(
+                                        (self.optimizer,
+                                         self.scheduler.last_epoch if self.scheduler is not None else step),
+                                        fp)
                             if self.fp16: distributed.barrier()
 
                     start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
@@ -187,7 +186,7 @@ class ImageDocTrainer(MassTrainer):
             model.save(saving_path + ".latest")
         if self.fp16: distributed.barrier()
 
-        if mt_dev_iter is not None and (self.rank == 0 or not self.fp16):
+        if mt_dev_iter is not None:
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
             print(self.rank, "->", "Pretraining BLEU:", bleu)
         if self.fp16: distributed.barrier()
@@ -314,7 +313,9 @@ class ImageDocTrainer(MassTrainer):
                                             max_batch_capacity=options.total_capacity,
                                             max_batch=int(options.batch / (options.beam_width * 2)),
                                             pad_idx=mt_model.text_processor.pad_token_id())
-            mt_dev_loader = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+            mt_dev_sampler = DistributedSampler(mt_dev_data, rank=options.local_rank) if options.fp16 else None
+            mt_dev_loader = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory,
+                                                  sampler=mt_dev_sampler)
 
             print("creating reference")
             trainer.reference = []

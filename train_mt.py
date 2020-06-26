@@ -74,7 +74,8 @@ class MTTrainer:
         self.generator = BeamDecoder(model, beam_width=beam_width, max_len_a=max_len_a, max_len_b=max_len_b,
                                      len_penalty_ratio=len_penalty_ratio)
         if fp16:
-            self.generator = DistributedDataParallel(self.generator, device_ids=[self.rank], output_device=self.rank)
+            self.generator = DistributedDataParallel(self.generator, device_ids=[self.rank], output_device=self.rank,
+                                                     find_unused_parameters=True)
         elif self.num_gpu > 1:
             self.generator = DataParallelModel(self.generator)
 

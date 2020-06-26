@@ -7,10 +7,13 @@ import time
 from typing import List
 
 import torch
+import torch.distributed as distributed
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
+from torch.nn.parallel import DistributedDataParallel
 from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data.distributed import DistributedSampler
 from torchvision import transforms
 
 import dataset
@@ -38,7 +41,9 @@ class ImageDocTrainer(MassTrainer):
         self.mass_model = MassSeq2Seq(config=model.config, encoder=model.encoder, decoder=model.decoder,
                                       output_layer=model.output_layer,
                                       text_processor=model.text_processor, checkpoint=model.checkpoint)
-        if self.num_gpu > 1:
+        if self.fp16:
+            self.mass_model = DistributedDataParallel(self.mass_model, device_ids=[self.rank], output_device=self.rank)
+        elif self.num_gpu > 1:
             self.mass_model = DataParallelModel(self.mass_model)
 
     def train_epoch(self, data_iter: data_utils.DataLoader, mass_data_iter: List[data_utils.DataLoader], step: int,
@@ -162,17 +167,20 @@ class ImageDocTrainer(MassTrainer):
                             bleu = self.eval_bleu(mt_dev_iter, saving_path)
                             print("Pretraining BLEU:", bleu)
 
-                        model.save(saving_path + ".latest")
-                        with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                            pickle.dump(
-                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
+                            model.save(saving_path + ".latest")
+                            with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                                pickle.dump(
+                                    (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
+                                    fp)
 
                     start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
             if i == shortest - 1:
                 break
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-        model.save(saving_path + ".latest")
+        if self.rank == 0:
+            model.save(saving_path + ".latest")
+        if self.fp16: distributed.barrier()
 
         if mt_dev_iter is not None:
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
@@ -225,8 +233,9 @@ class ImageDocTrainer(MassTrainer):
         collator = dataset.ImageTextCollator()
         num_batches = max(1, torch.cuda.device_count())
 
+        train_sampler = DistributedSampler(train_data) if options.fp16 else None
         train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=False, pin_memory=pin_memory,
-                                             collate_fn=collator)
+                                             collate_fn=collator, sampler=train_sampler)
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
@@ -250,7 +259,8 @@ class ImageDocTrainer(MassTrainer):
                                          pad_idx=mt_model.text_processor.pad_token_id(),
                                          max_seq_len=options.max_seq_len, keep_examples=True)
                 mass_train_data.append(td)
-                dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)
+                sampler = DistributedSampler(td) if options.fp16 else None
+                dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory, sampler=sampler)
                 mass_train_loader.append(dl)
 
         lang_directions = {}
@@ -265,7 +275,8 @@ class ImageDocTrainer(MassTrainer):
                                          example_list=None if mass_train_data is None else mass_train_data[
                                              i].examples_list)
                 finetune_data.append(fd)
-                fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory)
+                sampler = DistributedSampler(fd) if options.fp16 else None
+                fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory, sampler=sampler)
                 finetune_loader.append(fl)
 
                 if mass_train_data is not None:

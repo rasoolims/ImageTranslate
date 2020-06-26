@@ -31,6 +31,8 @@ def get_lm_option_parser():
                       default=1)
     parser.add_option("--adam", action="store_true", dest="adam",
                       help="Use Adam with inverse square root optimizer instead of Lamb", default=False)
+    parser.add_option("--fp16", action="store_true", dest="fp16", default=False)
+    parser.add_option("--local_rank", dest="local_rank", type=int, default=1)
     return parser
 
 

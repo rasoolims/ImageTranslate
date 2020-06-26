@@ -7,10 +7,12 @@ import time
 from typing import Dict, List
 
 import torch
+import torch.distributed as distributed
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
 from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data.distributed import DistributedSampler
 
 import dataset
 from albert_seq2seq import MassSeq2Seq
@@ -90,11 +92,14 @@ class MassTrainer(MTTrainer):
                               step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
                     if step % 500 == 0:
-                        # Save every 1000 steps!
-                        model.save(saving_path + ".latest")
-                        with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                            pickle.dump(
-                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
+                        if self.rank == 0:
+                            # Save every 1000 steps!
+                            model.save(saving_path + ".latest")
+                            with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                                pickle.dump(
+                                    (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
+                                    fp)
+                        if self.fp16: distributed.barrier()
 
                     if step % 5000 == 0:
                         self.validate(dev_data_iter)
@@ -104,7 +109,10 @@ class MassTrainer(MTTrainer):
                 break  # Visited all elements in one data!
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-        model.save(saving_path + ".latest")
+        if self.rank == 0:
+            model.save(saving_path + ".latest")
+        if self.fp16: distributed.barrier()
+
         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
             pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
@@ -204,11 +212,14 @@ class MassTrainer(MTTrainer):
                               step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
                     if step % 5000 == 0:
-                        # Save every 1000 steps!
-                        model.save(saving_path + ".beam.latest")
-                        with open(os.path.join(saving_path + ".beam.latest", "optim"), "wb") as fp:
-                            pickle.dump(
-                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
+                        if self.rank == 0:
+                            # Save every 1000 steps!
+                            model.save(saving_path + ".beam.latest")
+                            with open(os.path.join(saving_path + ".beam.latest", "optim"), "wb") as fp:
+                                pickle.dump(
+                                    (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
+                                    fp)
+                        if self.fp16: distributed.barrier()
 
                     if step % 5000 == 0 and dev_data_iter is not None:
                         bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
@@ -219,9 +230,11 @@ class MassTrainer(MTTrainer):
                 break
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-        model.save(saving_path + ".beam.latest")
-        with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-            pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
+        if self.rank == 0:
+            model.save(saving_path + ".beam.latest")
+            with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
+        if self.fp16: distributed.barrier()
 
         if dev_data_iter is not None:
             bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
@@ -305,7 +318,8 @@ class MassTrainer(MTTrainer):
                                          pad_idx=mt_model.text_processor.pad_token_id(),
                                          max_seq_len=options.max_seq_len, keep_examples=True)
                 train_data.append(td)
-                dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)
+                train_sampler = DistributedSampler(td) if options.fp16 else None
+                dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory, sampler=train_sampler)
                 train_loader.append(dl)
 
             dev_data = dataset.MassDataset(batch_pickle_dir=options.dev_path,
@@ -313,7 +327,9 @@ class MassTrainer(MTTrainer):
                                            max_batch=options.batch,
                                            pad_idx=mt_model.text_processor.pad_token_id(),
                                            max_seq_len=options.max_seq_len)
-            dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+            dev_sampler = DistributedSampler(dev_data) if options.fp16 else None
+            dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory,
+                                               sampler=dev_sampler)
 
         lang_directions = {}
         if options.finetune_step > 0:
@@ -326,7 +342,8 @@ class MassTrainer(MTTrainer):
                                          max_seq_len=options.max_seq_len, keep_examples=False,
                                          example_list=None if train_data is None else train_data[i].examples_list)
                 finetune_data.append(fd)
-                fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory)
+                fd_sampler = DistributedSampler(fd) if options.fp16 else None
+                fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory, sampler=fd_sampler)
                 finetune_loader.append(fl)
 
                 if train_data is not None:
@@ -347,7 +364,7 @@ class MassTrainer(MTTrainer):
                               warmup=options.warmup, step=options.step if options.step > 0 else options.finetune_step,
                               beam_width=options.beam_width, max_len_a=options.max_len_a, max_len_b=options.max_len_b,
                               len_penalty_ratio=options.len_penalty_ratio, last_epoch=last_epoch,
-                              nll_loss=options.nll_loss)
+                              nll_loss=options.nll_loss, fp16=options.fp16, rank=options.local_rank)
 
         mt_dev_loader = None
         if options.mt_dev_path is not None:

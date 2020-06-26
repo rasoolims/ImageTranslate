@@ -8,10 +8,13 @@ from typing import Optional
 
 import sacrebleu
 import torch
+import torch.distributed as distributed
 import torch.nn as nn
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
+from torch.nn.parallel import DistributedDataParallel
+from torch.utils.data.distributed import DistributedSampler
 
 import dataset
 from albert_seq2seq import AlbertSeq2Seq
@@ -31,13 +34,18 @@ class MTTrainer:
     def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
                  step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
                  len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0,
-                 nll_loss: bool = False):
+                 nll_loss: bool = False, fp16: bool = False, rank: int = 0):
         self.model = model
 
         self.clip = clip
         self.optimizer = optimizer
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.fp16 = fp16
+        self.rank = rank
+        if self.fp16:
+            torch.distributed.init_process_group(backend='nccl')
+            self.device = torch.device('cuda', rank)
         self.model = self.model.to(self.device)
         self.self_translate = self_translate
 
@@ -56,14 +64,18 @@ class MTTrainer:
             self.criterion = SmoothedNLLLoss(ignore_index=model.text_processor.pad_token_id())
 
         self.num_gpu = torch.cuda.device_count()
-        if self.num_gpu > 1:
+        if fp16:
+            self.model = DistributedDataParallel(self.model, device_ids=[self.rank], output_device=self.rank)
+        elif self.num_gpu > 1:
             print("Let's use", self.num_gpu, "GPUs!")
             self.model = DataParallelModel(self.model)
             self.criterion = DataParallelCriterion(self.criterion)
 
         self.generator = BeamDecoder(model, beam_width=beam_width, max_len_a=max_len_a, max_len_b=max_len_b,
                                      len_penalty_ratio=len_penalty_ratio)
-        if self.num_gpu > 1:
+        if fp16:
+            self.generator = DistributedDataParallel(self.generator, device_ids=[self.rank], output_device=self.rank)
+        elif self.num_gpu > 1:
             self.generator = DataParallelModel(self.generator)
 
         self.reference = None
@@ -87,12 +99,12 @@ class MTTrainer:
             src_mask = batch["src_pad_mask"].squeeze(0)
             tgt_inputs = batch["dst_texts"].squeeze(0)
             tgt_mask = batch["dst_pad_mask"].squeeze(0)
-            src_langs = batch["src_langs"]
-            dst_langs = batch["dst_langs"]
+            src_langs = batch["src_langs"].squeeze(0)
+            dst_langs = batch["dst_langs"].squeeze(0)
             if src_inputs.size(0) < self.num_gpu:
                 continue
 
-            try:
+            if True:
                 if self.self_translate:
                     mask, masked_ids, src_inputs = mask_text(mask_prob=self.mask_prob, pads=src_mask,
                                                              texts=src_inputs,
@@ -165,10 +177,9 @@ class MTTrainer:
                         self.scheduler.step()
                     step += 1
 
-
-            except RuntimeError as err:
-                print("Error in processing", src_inputs.size(), tgt_inputs.size())
-                torch.cuda.empty_cache()
+            # except RuntimeError as err:
+            #     print("Error in processing", src_inputs.size(), tgt_inputs.size())
+            #     torch.cuda.empty_cache()
 
             if step % 50 == 0 and tokens > 0:
                 elapsed = time.time() - start
@@ -177,11 +188,14 @@ class MTTrainer:
                           step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
                 if step % 1000 == 0:
-                    # Save every 1000 steps!
-                    model.save_checkpoint(saving_path)
-                    with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                        pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
-                                    fp)
+                    if self.rank == 0:
+                        # Save every 1000 steps!
+                        model.save(saving_path)
+                        with open(os.path.join(saving_path, "optim"), "wb") as fp:
+                            pickle.dump(
+                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
+                                fp)
+                    if self.fp16: distributed.barrier()
 
                 if step % 500 == 0:
                     self.validate(dev_data_iter)
@@ -191,7 +205,11 @@ class MTTrainer:
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-        model.save(saving_path + ".latest")
+        if self.rank == 0:
+            model.save(saving_path + ".latest")
+        if self.fp16:
+            distributed.barrier()
+
         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
             pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
@@ -246,23 +264,25 @@ class MTTrainer:
             model.train()
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
 
-        with open(os.path.join(saving_path, "bleu.output"), "w") as writer:
-            writer.write("\n".join(
-                [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
-                 zip(src_text, mt_output, self.reference[:len(mt_output)])]))
-
-        if bleu.score > self.best_bleu:
-            self.best_bleu = bleu.score
-            print("Saving best BLEU", self.best_bleu)
-            model.save(saving_path)
-            with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
-
-            with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
+        if self.rank == 0:
+            with open(os.path.join(saving_path, "bleu.output"), "w") as writer:
                 writer.write("\n".join(
                     [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
                      zip(src_text, mt_output, self.reference[:len(mt_output)])]))
 
+        if bleu.score > self.best_bleu:
+            if self.rank == 0:
+                self.best_bleu = bleu.score
+                print("Saving best BLEU", self.best_bleu)
+                model.save(saving_path)
+                with open(os.path.join(saving_path, "optim"), "wb") as fp:
+                    pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
+
+                with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
+                    writer.write("\n".join(
+                        [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
+                         zip(src_text, mt_output, self.reference[:len(mt_output)])]))
+            if self.fp16: distributed.barrier()
         return bleu.score
 
     def validate(self, dev_data_iter):
@@ -277,8 +297,8 @@ class MTTrainer:
                 src_mask = batch["src_pad_mask"].squeeze(0)
                 tgt_inputs = batch["dst_texts"].squeeze(0)
                 tgt_mask = batch["dst_pad_mask"].squeeze(0)
-                src_langs = batch["src_langs"]
-                dst_langs = batch["dst_langs"]
+                src_langs = batch["src_langs"].squeeze(0)
+                dst_langs = batch["dst_langs"].squeeze(0)
 
                 try:
                     if self.self_translate:
@@ -331,7 +351,7 @@ class MTTrainer:
             mt_model = AlbertSeq2Seq(config=lm.config, encoder=encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
                                      text_processor=lm.text_processor, checkpoint=options.checkpoint)
 
-        mt_model.save_config_and_tok(options.model_path)
+        mt_model.save(options.model_path)
 
         train_data = dataset.MTDataset(batch_pickle_dir=options.train_path,
                                        max_batch_capacity=options.total_capacity, max_batch=options.batch,
@@ -347,8 +367,16 @@ class MTTrainer:
                                                  pad_idx=mt_model.text_processor.pad_token_id())
 
         pin_memory = torch.cuda.is_available()
-        train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
-        monolingual_loader = data_utils.DataLoader(monolingual_data, batch_size=1, shuffle=True,
+
+        train_sampler, mono_sampler = None, None
+        if options.fp16:
+            train_sampler = DistributedSampler(train_data)
+            if monolingual_data is not None:
+                mono_sampler = DistributedSampler(monolingual_data)
+
+        train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory,
+                                             sampler=train_sampler)
+        monolingual_loader = data_utils.DataLoader(monolingual_data, batch_size=1, shuffle=True, sampler=mono_sampler,
                                                    pin_memory=pin_memory) if monolingual_data is not None else None
         dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
@@ -362,7 +390,8 @@ class MTTrainer:
                             warmup=options.warmup, step=options.step, beam_width=options.beam_width,
                             max_len_a=options.max_len_a, max_len_b=options.max_len_b,
                             len_penalty_ratio=options.len_penalty_ratio, self_translate=options.pretrain,
-                            last_epoch=last_epoch, nll_loss=options.nll_loss)
+                            last_epoch=last_epoch, nll_loss=options.nll_loss, fp16=options.fp16,
+                            rank=options.local_rank)
 
         print("creating reference")
         trainer.reference = []
@@ -437,7 +466,8 @@ class MTTrainer:
             loss.backward()
         trainer.optimizer.zero_grad()
         trainer.optimizer.step()
-        trainer.scheduler.step()
+        if trainer.scheduler is not None:
+            trainer.scheduler.step()
         torch.cuda.empty_cache()
 
 

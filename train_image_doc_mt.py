@@ -239,7 +239,7 @@ class ImageDocTrainer(MassTrainer):
                                   warmup=options.warmup, step=options.step,
                                   beam_width=options.beam_width, max_len_a=options.max_len_a,
                                   max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
-                                  last_epoch=last_epoch)
+                                  last_epoch=last_epoch, rank=options.local_rank, fp16=options.fp16)
 
         mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
         mass_train_paths = options.mass_train_path.strip().split(",")

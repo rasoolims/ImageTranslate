@@ -198,7 +198,7 @@ class MassDataset(Dataset):
             self.examples_list.append(MassDataset.read_example_file(path))
         print(datetime.datetime.now(), "Done!")
 
-        self.batch_items(max_batch, max_batch_capacity, max_seq_len, pad_idx)
+        self.batch_items(max_batch, max_batch_capacity, max_seq_len, pad_idx, rank)
         if not keep_examples:
             self.examples_list = []
 

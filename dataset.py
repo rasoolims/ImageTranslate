@@ -77,7 +77,7 @@ class MTDataset(Dataset):
         self.batches = []
         self.longest_batch = ([], 0)
         self.most_token_batch = ([], 0)
-        num_gpu = torch.cuda.device_count()
+        num_gpu = torch.cuda.device_count() if rank == -1 else 1
         paths = glob.glob(batch_pickle_dir + "*")
         for path in paths:
             part_num = int(path[path.rfind(".") + 1:])
@@ -170,7 +170,7 @@ class MassDataset(Dataset):
                                rank)
         else:
             self.examples_list = example_list
-            self.batch_items(max_batch, max_batch_capacity, max_seq_len, pad_idx)
+            self.batch_items(max_batch, max_batch_capacity, max_seq_len, pad_idx, rank)
 
     @staticmethod
     def read_example_file(path):
@@ -202,12 +202,12 @@ class MassDataset(Dataset):
         if not keep_examples:
             self.examples_list = []
 
-    def batch_items(self, max_batch, max_batch_capacity, max_seq_len, pad_idx):
+    def batch_items(self, max_batch, max_batch_capacity, max_seq_len, pad_idx, rank):
         print(datetime.datetime.now(), "Building batches")
         self.batches = []
         batches, langs = [], []
         self.lang_ids = set()
-        num_gpu = torch.cuda.device_count()
+        num_gpu = torch.cuda.device_count() if rank == -1 else 1
         cur_src_batch, cur_langs, cur_max_src_len = [], [], 0
         for examples in self.examples_list:
             for example in examples:

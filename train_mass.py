@@ -399,6 +399,10 @@ class MassTrainer(MTTrainer):
 
         step, train_epoch = last_epoch, 0
 
+        if options.fp16:
+            # Wait for others to reach this point.
+            distributed.barrier()
+
         while options.step > 0 and step < options.step:
             train_epoch += 1
             print(options.local_rank, "train epoch", train_epoch)
@@ -406,6 +410,9 @@ class MassTrainer(MTTrainer):
                                        saving_path=options.model_path, mt_dev_iter=mt_dev_loader,
                                        step=step)
 
+        if options.fp16:
+            # Wait for others to reach this point.
+            distributed.barrier()
         finetune_epoch = 0
         if options.local_rank == 0 or not options.fp16:
             mt_model.save(options.model_path + ".beam")

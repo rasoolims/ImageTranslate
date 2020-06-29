@@ -303,12 +303,21 @@ class ImageDocTrainer(MassTrainer):
                 ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
                 trainer.reference += ref
 
+        if options.fp16:
+            # Wait for others to reach this point.
+            distributed.barrier()
+
         step, train_epoch = 0, 1
         while options.step > 0 and step < options.step:
             print(options.local_rank, "train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=train_loader, mass_data_iter=mass_train_loader,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step)
             train_epoch += 1
+
+
+        if options.fp16:
+            # Wait for others to reach this point.
+            distributed.barrier()
 
         finetune_epoch = 0
         if options.local_rank == 0 or not options.fp16:

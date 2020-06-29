@@ -403,6 +403,10 @@ class MTTrainer:
             ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
             trainer.reference += ref
 
+        if options.fp16:
+            # Wait for others to reach this point.
+            distributed.barrier()
+            
         step, train_epoch = 0, 1
         while step <= options.step:
             print(options.local_rank, "train epoch", train_epoch)

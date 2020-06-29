@@ -303,7 +303,7 @@ class MassTrainer(MTTrainer):
             mt_model = MassSeq2Seq(config=lm.config, encoder=encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
                                    text_processor=lm.text_processor, checkpoint=options.checkpoint)
 
-            if options.fp16:
+            if options.local_rank>=0:
                 if options.local_rank == 0:
                     mt_model.save(options.model_path)
                 distributed.barrier()
@@ -400,7 +400,7 @@ class MassTrainer(MTTrainer):
 
         step, train_epoch = last_epoch, 0
 
-        if options.fp16:
+        if options.local_rank>=0:
             # Wait for others to reach this point.
             distributed.barrier()
 
@@ -411,7 +411,7 @@ class MassTrainer(MTTrainer):
                                        saving_path=options.model_path, mt_dev_iter=mt_dev_loader,
                                        step=step)
 
-        if options.fp16:
+        if options.local_rank>=0:
             # Wait for others to reach this point.
             distributed.barrier()
         finetune_epoch = 0
@@ -440,5 +440,5 @@ if __name__ == "__main__":
     print(options)
     init_distributed(options)
     MassTrainer.train(options=options)
-    if options.fp16: cleanup_distributed(options)
+    if options.local_rank>=0: cleanup_distributed(options)
     print("Finished Training!")

@@ -190,7 +190,7 @@ class ImageDocTrainer(MassTrainer):
             decoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
             mt_model = ImageSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                     text_processor=lm.text_processor, checkpoint=options.checkpoint)
-            if options.fp16:
+            if options.local_rank>=0:
                 if options.local_rank == 0:
                     mt_model.save(options.model_path)
                 distributed.barrier()
@@ -304,7 +304,7 @@ class ImageDocTrainer(MassTrainer):
                 ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
                 trainer.reference += ref
 
-        if options.fp16:
+        if options.local_rank>=0:
             # Wait for others to reach this point.
             distributed.barrier()
 
@@ -315,7 +315,7 @@ class ImageDocTrainer(MassTrainer):
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step)
             train_epoch += 1
 
-        if options.fp16:
+        if options.local_rank>=0:
             # Wait for others to reach this point.
             distributed.barrier()
 
@@ -345,5 +345,5 @@ if __name__ == "__main__":
     print(options)
     init_distributed(options)
     ImageDocTrainer.train(options=options)
-    if options.fp16: cleanup_distributed(options)
+    if options.local_rank>=0: cleanup_distributed(options)
     print("Finished Training!")

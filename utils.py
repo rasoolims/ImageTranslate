@@ -85,7 +85,7 @@ def mass_unmask(src_text, src_mask, masked_ids):
 
 
 def init_distributed(options):
-    if options.fp16:
+    if options.local_rank >= 0:
         os.environ['WORLD_SIZE'] = str(torch.cuda.device_count())
         torch.distributed.init_process_group(backend='nccl', world_size=torch.cuda.device_count(),
                                              rank=options.local_rank)

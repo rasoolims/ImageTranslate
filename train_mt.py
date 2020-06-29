@@ -39,7 +39,7 @@ class MTTrainer:
         self.fp16 = fp16
         self.rank = -1
         self.num_gpu = torch.cuda.device_count()
-        if self.fp16:
+        if self.rank>=0:
             self.rank = rank
             self.device = torch.device('cuda', rank)
         self.model = self.model.to(self.device)
@@ -350,7 +350,7 @@ class MTTrainer:
             mt_model = AlbertSeq2Seq(config=lm.config, encoder=encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
                                      text_processor=lm.text_processor, checkpoint=options.checkpoint)
 
-            if options.fp16:
+            if options.local_rank>=0:
                 if options.local_rank == 0:
                     mt_model.save(options.model_path)
                 distributed.barrier()
@@ -405,7 +405,7 @@ class MTTrainer:
             ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
             trainer.reference += ref
 
-        if options.fp16:
+        if options.local_rank>=0:
             # Wait for others to reach this point.
             distributed.barrier()
 
@@ -431,5 +431,5 @@ if __name__ == "__main__":
     print(options)
     init_distributed(options)
     MTTrainer.train(options=options)
-    if options.fp16: cleanup_distributed(options)
+    if options.local_rank>=0: cleanup_distributed(options)
     print("Finished Training!")

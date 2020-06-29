@@ -75,8 +75,6 @@ class MTDataset(Dataset):
                 """
         ngpu = torch.cuda.device_count()
         self.batches = []
-        self.longest_batch = ([], 0)
-        self.most_token_batch = ([], 0)
         num_gpu = torch.cuda.device_count() if rank == -1 else 1
         paths = glob.glob(batch_pickle_dir + "*")
         for path in paths:
@@ -113,12 +111,6 @@ class MTDataset(Dataset):
                         entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                                  "dst_pad_mask": dst_pad_mask, "src_langs": torch.LongTensor(cur_src_langs[:-1]),
                                  "dst_langs": torch.LongTensor(cur_dst_langs[:-1])}
-                        b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
-                        this_batch_size = (s ** 2 + d ** 2) * b * d
-                        if this_batch_size > self.longest_batch[1]:
-                            self.longest_batch = (entry, this_batch_size)
-                        if b * (s + d) > self.most_token_batch[1]:
-                            self.most_token_batch = (entry, b * (s + d))
                         self.batches.append(entry)
                         cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
                         cur_src_langs, cur_dst_langs = [cur_src_langs[-1]], [cur_dst_langs[-1]]
@@ -132,12 +124,6 @@ class MTDataset(Dataset):
             entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                      "dst_pad_mask": dst_pad_mask, "src_langs": torch.LongTensor(cur_src_langs),
                      "dst_langs": torch.LongTensor(cur_dst_langs)}
-            b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
-            this_batch_size = (s ** 2 + d ** 2) * b * d
-            if this_batch_size > self.longest_batch[1]:
-                self.longest_batch = (entry, this_batch_size)
-            if b * (s + d) > self.most_token_batch[1]:
-                self.most_token_batch = (entry, b * (s + d))
             self.batches.append(entry)
 
         for b in self.batches:
@@ -149,10 +135,6 @@ class MTDataset(Dataset):
             b["pad_idx"] = torch.LongTensor(pad_indices)
 
         print("Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
-        print("Longest batch size", self.longest_batch[0]["src_texts"].size(),
-              self.longest_batch[0]["dst_texts"].size())
-        print("Most token batch size", self.most_token_batch[0]["src_texts"].size(),
-              self.most_token_batch[0]["dst_texts"].size())
 
     def __len__(self):
         return len(self.batches)

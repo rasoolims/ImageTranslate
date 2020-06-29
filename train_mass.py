@@ -1,26 +1,22 @@
 import copy
 import datetime
-import os
 import pickle
 import sys
 import time
-from typing import Dict, List
+from typing import List
 
-import torch
 import torch.distributed as distributed
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
-from torch.nn.utils.rnn import pad_sequence
 
 import dataset
 from albert_seq2seq import MassSeq2Seq
 from lm import LM
 from option_parser import get_mass_option_parser
 from seq_gen import get_outputs_until_eos
-from textprocessor import TextProcessor
 from train_mt import MTTrainer
-from utils import build_optimizer, mass_mask, mass_unmask, init_distributed, cleanup_distributed
+from utils import *
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -65,7 +61,7 @@ class MassTrainer(MTTrainer):
                     targets = masked_info["targets"]
                     if self.fp16: targets = targets.to(predictions.device)
                     loss = self.criterion(predictions, targets).mean() * ntokens
-                    loss.backward()
+                    backward(loss, self.optimizer, self.fp16)
 
                     loss = float(loss.data)
                     total_loss += loss
@@ -188,7 +184,7 @@ class MassTrainer(MTTrainer):
 
                     if self.fp16: targets = targets.to(predictions.device)
                     bt_loss = self.criterion(predictions, targets).mean()
-                    bt_loss.backward()
+                    backward(bt_loss, self.optimizer, self.fp16)
 
                     bt_loss = float(bt_loss.data) * ntokens
                     total_loss += bt_loss

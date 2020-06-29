@@ -1,17 +1,14 @@
 import copy
 import datetime
-import os
 import pickle
 import sys
 import time
 from typing import List
 
-import torch
 import torch.distributed as distributed
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
-from torch.nn.utils.rnn import pad_sequence
 from torchvision import transforms
 
 import dataset
@@ -19,9 +16,8 @@ from image_doc_model import ImageSeq2Seq
 from lm import LM
 from option_parser import get_img_options_parser
 from seq_gen import get_outputs_until_eos
-from textprocessor import TextProcessor
 from train_mass import MassTrainer
-from utils import build_optimizer, mass_mask, mass_unmask, init_distributed, cleanup_distributed
+from utils import *
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -115,7 +111,7 @@ class ImageDocTrainer(MassTrainer):
                         continue
                     if self.fp16: targets = targets.to(predictions.device)
                     loss = self.criterion(predictions, targets).mean()
-                    loss.backward()
+                    backward(loss, self.optimizer, self.fp16)
 
                     loss = float(loss.data) * ntokens
                     total_loss += loss

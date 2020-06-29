@@ -1,13 +1,11 @@
 import copy
 import datetime
-import os
 import pickle
 import sys
 import time
 from typing import Optional
 
 import sacrebleu
-import torch
 import torch.distributed as distributed
 import torch.nn as nn
 import torch.utils.data as data_utils
@@ -21,10 +19,8 @@ from lm import LM
 from loss import SmoothedNLLLoss
 from option_parser import get_mt_option_parser
 from parallel import DataParallelModel, DataParallelCriterion
-from pytorch_lamb.pytorch_lamb import Lamb
 from seq_gen import BeamDecoder, get_outputs_until_eos
-from textprocessor import TextProcessor
-from utils import build_optimizer, mask_text, unmask_text, init_distributed, cleanup_distributed
+from utils import *
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -64,6 +60,7 @@ class MTTrainer:
             self.criterion = SmoothedNLLLoss(ignore_index=model.text_processor.pad_token_id())
 
         if fp16:
+            self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O2")
             self.model = DistributedDataParallel(self.model, device_ids=[self.rank], output_device=self.rank,
                                                  find_unused_parameters=True)
         elif self.num_gpu > 1:
@@ -74,6 +71,7 @@ class MTTrainer:
         self.generator = BeamDecoder(model, beam_width=beam_width, max_len_a=max_len_a, max_len_b=max_len_b,
                                      len_penalty_ratio=len_penalty_ratio)
         if fp16:
+            self.generator, _ = amp.initialize(self.generator, opt_level="O2")
             self.generator = DistributedDataParallel(self.generator, device_ids=[self.rank], output_device=self.rank,
                                                      find_unused_parameters=True)
         elif self.num_gpu > 1:
@@ -124,7 +122,7 @@ class MTTrainer:
                     continue
                 if self.fp16: targets = targets.to(self.device)
                 loss = self.criterion(predictions, targets).mean()
-                loss.backward()
+                backward(loss, self.optimizer, self.fp16)
 
                 loss = float(loss.data) * ntokens
                 total_loss += loss
@@ -160,7 +158,7 @@ class MTTrainer:
                         continue
                     if self.fp16: targets = targets.to(predictions.device)
                     loss = self.criterion(predictions, targets).mean()
-                    loss.backward()
+                    backward(loss, self.optimizer, self.fp16)
 
                     loss = float(loss.data) * ntokens
                     total_loss += loss
@@ -406,9 +404,6 @@ class MTTrainer:
             ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
             trainer.reference += ref
 
-        print(options.local_rank, "Trying if largest batch fits into memory")
-        MTTrainer.memory_test(train_data, trainer)
-
         step, train_epoch = 0, 1
         while step <= options.step:
             print(options.local_rank, "train epoch", train_epoch)
@@ -423,56 +418,6 @@ class MTTrainer:
         mt_model.encoder.config.attention_probs_dropout_prob = dropout
         mt_model.decoder.config.hidden_dropout_prob = dropout
         mt_model.decoder.config.attention_probs_dropout_prob = dropout
-
-    @staticmethod
-    def memory_test(train_data, trainer):
-        src_inputs = train_data.longest_batch[0]["src_texts"]
-        src_mask = train_data.longest_batch[0]["src_pad_mask"]
-        tgt_inputs = train_data.longest_batch[0]["dst_texts"]
-        tgt_mask = train_data.longest_batch[0]["dst_pad_mask"]
-        src_langs = train_data.longest_batch[0]["src_langs"]
-        dst_langs = train_data.longest_batch[0]["dst_langs"]
-        s, d, b = int(src_inputs.size(1)), int(tgt_inputs.size(1)), int(src_inputs.size(0))
-        print(src_inputs.size(), tgt_inputs.size(), b * d * (s ** 2 + d ** 2))
-        predictions = trainer.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                    src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=dst_langs,
-                                    log_softmax=True)
-        targets = tgt_inputs[:, 1:].contiguous().view(-1)
-        tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
-        targets = targets[tgt_mask_flat]
-
-        ntokens = targets.size(0)
-        if ntokens > 0:  # Nothing to predict!
-            if options.fp16: targets = targets.to(predictions.device)
-            loss = trainer.criterion(predictions, targets).mean()
-            loss.backward()
-        trainer.optimizer.zero_grad()
-        torch.cuda.empty_cache()
-
-        src_inputs = train_data.most_token_batch[0]["src_texts"]
-        src_mask = train_data.most_token_batch[0]["src_pad_mask"]
-        tgt_inputs = train_data.most_token_batch[0]["dst_texts"]
-        tgt_mask = train_data.most_token_batch[0]["dst_pad_mask"]
-        src_langs = train_data.most_token_batch[0]["src_langs"]
-        dst_langs = train_data.most_token_batch[0]["dst_langs"]
-        s, d, b = int(src_inputs.size(1)), int(tgt_inputs.size(1)), int(src_inputs.size(0))
-        print(src_inputs.size(), tgt_inputs.size(), b * (s + d))
-        predictions = trainer.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                    src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=dst_langs,
-                                    log_softmax=True)
-        targets = tgt_inputs[:, 1:].contiguous().view(-1)
-        tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
-        targets = targets[tgt_mask_flat]
-        ntokens = targets.size(0)
-        if ntokens > 0:  # Nothing to predict!
-            if options.fp16: targets = targets.to(predictions.device)
-            loss = trainer.criterion(predictions, targets).mean()
-            loss.backward()
-        trainer.optimizer.zero_grad()
-        trainer.optimizer.step()
-        if trainer.scheduler is not None:
-            trainer.scheduler.step()
-        torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":

@@ -224,7 +224,7 @@ class ImageDocTrainer(MassTrainer):
 
         # We assume that the collator function returns a list with the size of number of gpus (in case of cpus,
         collator = dataset.ImageTextCollator()
-        num_batches = max(1, torch.cuda.device_count())
+        num_batches = max(1, torch.cuda.device_count()) if options.local_rank == -1 else 1
 
         train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=False, pin_memory=pin_memory,
                                              collate_fn=collator)

@@ -29,7 +29,7 @@ class MTTrainer:
     def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
                  step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
                  len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0,
-                 nll_loss: bool = False, fp16: bool = False, rank: int = -1, opt_level:str="O1"):
+                 nll_loss: bool = False, fp16: bool = False, rank: int = -1, opt_level: str = "O1"):
         self.model = model
 
         self.clip = clip
@@ -61,6 +61,8 @@ class MTTrainer:
 
         if fp16:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level=opt_level)
+
+        if rank >= 0:
             self.model = DistributedDataParallel(self.model, device_ids=[self.rank], output_device=self.rank,
                                                  find_unused_parameters=True)
         elif self.num_gpu > 1:
@@ -70,7 +72,7 @@ class MTTrainer:
 
         self.generator = BeamDecoder(model, beam_width=beam_width, max_len_a=max_len_a, max_len_b=max_len_b,
                                      len_penalty_ratio=len_penalty_ratio)
-        if fp16:
+        if rank >= 0:
             self.generator = DistributedDataParallel(self.generator, device_ids=[self.rank], output_device=self.rank,
                                                      find_unused_parameters=True)
         elif self.num_gpu > 1:
@@ -119,7 +121,7 @@ class MTTrainer:
 
                 if ntokens == 0:  # Nothing to predict!
                     continue
-                if self.fp16: targets = targets.to(self.device)
+                if self.rank >= 0: targets = targets.to(self.device)
                 loss = self.criterion(predictions, targets).mean()
                 backward(loss, self.optimizer, self.fp16)
 
@@ -155,7 +157,7 @@ class MTTrainer:
 
                     if ntokens == 0:  # Nothing to predict!
                         continue
-                    if self.fp16: targets = targets.to(predictions.device)
+                    if self.rank >= 0: targets = targets.to(predictions.device)
                     loss = self.criterion(predictions, targets).mean()
                     backward(loss, self.optimizer, self.fp16)
 
@@ -193,13 +195,13 @@ class MTTrainer:
                             pickle.dump(
                                 (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
                                 fp)
-                    if self.fp16: distributed.barrier()
+                    if self.rank >= 0: distributed.barrier()
 
                 if step % 500 == 0:
                     self.validate(dev_data_iter)
                     bleu = self.eval_bleu(dev_data_iter, saving_path)
                     print(self.rank, "->", "BLEU:", bleu)
-                    if self.fp16: distributed.barrier()
+                    if self.rank >= 0: distributed.barrier()
 
                 start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
 
@@ -208,13 +210,13 @@ class MTTrainer:
             model.save(saving_path + ".latest")
             with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                 pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
-        if self.fp16:
+        if self.rank >= 0:
             distributed.barrier()
 
         self.validate(dev_data_iter)
         bleu = self.eval_bleu(dev_data_iter, saving_path)
         print(self.rank, "->", "BLEU:", bleu)
-        if self.fp16: distributed.barrier()
+        if self.rank >= 0: distributed.barrier()
         return step
 
     def eval_bleu(self, dev_data_iter, saving_path):
@@ -314,7 +316,7 @@ class MTTrainer:
 
                     if ntokens == 0:  # Nothing to predict!
                         continue
-                    if self.fp16: targets = targets.to(predictions.device)
+                    if self.rank >= 0: targets = targets.to(predictions.device)
                     loss = self.criterion(predictions, targets).mean().data * ntokens
                     total_dev_loss += float(loss)
                     total_dev_tokens += ntokens

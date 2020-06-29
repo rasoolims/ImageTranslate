@@ -59,7 +59,7 @@ class MassTrainer(MTTrainer):
                         continue
 
                     targets = masked_info["targets"]
-                    if self.fp16: targets = targets.to(predictions.device)
+                    if self.rank >= 0: targets = targets.to(predictions.device)
                     loss = self.criterion(predictions, targets).mean() * ntokens
                     backward(loss, self.optimizer, self.fp16)
 
@@ -96,7 +96,7 @@ class MassTrainer(MTTrainer):
                                 pickle.dump(
                                     (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
                                     fp)
-                        if self.fp16: distributed.barrier()
+                        if self.rank >= 0: distributed.barrier()
 
                     if step % 5000 == 0:
                         self.validate(dev_data_iter)
@@ -111,13 +111,13 @@ class MassTrainer(MTTrainer):
 
             with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                 pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
-        if self.fp16: distributed.barrier()
+        if self.rank >= 0: distributed.barrier()
 
         self.validate(dev_data_iter)
         if mt_dev_iter is not None:
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
             print(self.rank, "->", "Pretraining BLEU:", bleu)
-        if self.fp16: distributed.barrier()
+        if self.rank >= 0: distributed.barrier()
         return step
 
     def fine_tune(self, data_iter: List[data_utils.DataLoader], lang_directions: Dict[int, int], saving_path: str,
@@ -182,7 +182,7 @@ class MassTrainer(MTTrainer):
                     if ntokens == 0:  # Nothing to predict!
                         continue
 
-                    if self.fp16: targets = targets.to(predictions.device)
+                    if self.rank >= 0: targets = targets.to(predictions.device)
                     bt_loss = self.criterion(predictions, targets).mean()
                     backward(bt_loss, self.optimizer, self.fp16)
 
@@ -219,12 +219,12 @@ class MassTrainer(MTTrainer):
                                 pickle.dump(
                                     (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
                                     fp)
-                        if self.fp16: distributed.barrier()
+                        if self.rank >= 0: distributed.barrier()
 
                     if step % 5000 == 0 and dev_data_iter is not None:
                         bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
                         print(self.rank, "->", "BLEU:", bleu)
-                    if self.fp16: distributed.barrier()
+                    if self.rank >= 0: distributed.barrier()
 
                     start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
             if i == shortest - 1:
@@ -235,12 +235,12 @@ class MassTrainer(MTTrainer):
             model.save(saving_path + ".beam.latest")
             with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                 pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
-        if self.fp16: distributed.barrier()
+        if self.rank >= 0: distributed.barrier()
 
         if dev_data_iter is not None:
             bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
             print(self.rank, "->", "BLEU:", bleu)
-        if self.fp16: distributed.barrier()
+        if self.rank >= 0: distributed.barrier()
         return step
 
     def validate(self, dev_data_iter):
@@ -269,7 +269,7 @@ class MassTrainer(MTTrainer):
                         continue
 
                     targets = masked_info["targets"]
-                    if self.fp16: targets = targets.to(predictions.device)
+                    if self.rank >= 0: targets = targets.to(predictions.device)
                     loss = self.criterion(predictions, targets).mean().data * ntokens
                     total_dev_loss += float(loss)
                     total_dev_tokens += ntokens

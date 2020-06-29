@@ -109,7 +109,7 @@ class ImageDocTrainer(MassTrainer):
 
                     if ntokens == 0:  # Nothing to predict!
                         continue
-                    if self.fp16: targets = targets.to(predictions.device)
+                    if self.rank >= 0: targets = targets.to(predictions.device)
                     loss = self.criterion(predictions, targets).mean()
                     backward(loss, self.optimizer, self.fp16)
 
@@ -152,7 +152,7 @@ class ImageDocTrainer(MassTrainer):
                                         (self.optimizer,
                                          self.scheduler.last_epoch if self.scheduler is not None else step),
                                         fp)
-                            if self.fp16: distributed.barrier()
+                            if self.rank >= 0: distributed.barrier()
 
                     start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
             if i == shortest - 1:
@@ -161,12 +161,12 @@ class ImageDocTrainer(MassTrainer):
         print(self.rank, "->", "Total loss in this epoch: %f" % (total_loss / total_tokens))
         if self.rank == 0:
             model.save(saving_path + ".latest")
-        if self.fp16: distributed.barrier()
+        if self.rank >= 0: distributed.barrier()
 
         if mt_dev_iter is not None:
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
             print(self.rank, "->", "Pretraining BLEU:", bleu)
-        if self.fp16: distributed.barrier()
+        if self.rank >= 0: distributed.barrier()
 
         return step
 

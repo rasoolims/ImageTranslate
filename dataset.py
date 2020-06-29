@@ -81,7 +81,7 @@ class MTDataset(Dataset):
         paths = glob.glob(batch_pickle_dir + "*")
         for path in paths:
             part_num = int(path[path.rfind(".") + 1:])
-            if rank >= 0 and part_num % ngpu == rank:
+            if rank >= 0 and part_num % ngpu != rank:
                 continue
 
             with open(path, "rb") as fr:
@@ -193,7 +193,7 @@ class MassDataset(Dataset):
         self.examples_list = []
         for path in paths:
             part_num = int(path[path.rfind(".") + 1:])
-            if rank >= 0 and part_num % ngpu == rank:
+            if rank >= 0 and part_num % ngpu != rank:
                 continue
             self.examples_list.append(MassDataset.read_example_file(path))
         print(datetime.datetime.now(), "Done!")
@@ -284,7 +284,7 @@ class ImageDocDataset(Dataset):
         self.examples_list = []
         for path in paths:
             part_num = int(path[path.rfind(".") + 1:])
-            if rank >= 0 and part_num % ngpu == rank:
+            if rank >= 0 and part_num % ngpu != rank:
                 continue
             print(rank, "--> Reading", path)
             with open(path, "rb") as fp:

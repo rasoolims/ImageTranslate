@@ -83,7 +83,7 @@ class ImageDocTrainer(MassTrainer):
                                                          src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
                                                          pad_idx=model.text_processor.pad_token_id(),
                                                          src_mask=src_pad_mask, unpad_output=False, beam_width=1)
-                                if not self.fp16 and self.num_gpu > 1:
+                                if self.rank < 0 and self.num_gpu > 1:
                                     new_outputs = []
                                     for output in outputs:
                                         new_outputs += output
@@ -145,7 +145,7 @@ class ImageDocTrainer(MassTrainer):
                         if mt_dev_iter is not None and step % 5000 == 0:
                             bleu = self.eval_bleu(mt_dev_iter, saving_path)
                             print(self.rank, "->", "Pretraining BLEU:", bleu)
-                            if self.rank == 0 or not self.fp16:
+                            if self.rank <= 0:
                                 model.save(saving_path + ".latest")
                                 with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                                     pickle.dump(
@@ -172,7 +172,7 @@ class ImageDocTrainer(MassTrainer):
 
     @staticmethod
     def train(options):
-        if options.local_rank == 0 or not options.fp16:
+        if options.local_rank <= 0:
             if not os.path.exists(options.model_path):
                 os.makedirs(options.model_path)
 
@@ -190,7 +190,7 @@ class ImageDocTrainer(MassTrainer):
             decoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
             mt_model = ImageSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                     text_processor=lm.text_processor, checkpoint=options.checkpoint)
-            if options.local_rank>=0:
+            if options.local_rank >= 0:
                 if options.local_rank == 0:
                     mt_model.save(options.model_path)
                 distributed.barrier()
@@ -283,7 +283,7 @@ class ImageDocTrainer(MassTrainer):
                         lang_directions[lang1] = lang2
 
         mt_dev_loader = None
-        if options.mt_dev_path is not None and not (options.fp16 and options.local_rank != 0):
+        if options.mt_dev_path is not None:
             mt_dev_data = dataset.MTDataset(batch_pickle_dir=options.mt_dev_path,
                                             max_batch_capacity=options.total_capacity,
                                             max_batch=int(options.batch / (options.beam_width * 2)),
@@ -304,7 +304,7 @@ class ImageDocTrainer(MassTrainer):
                 ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
                 trainer.reference += ref
 
-        if options.local_rank>=0:
+        if options.local_rank >= 0:
             # Wait for others to reach this point.
             distributed.barrier()
 
@@ -315,12 +315,12 @@ class ImageDocTrainer(MassTrainer):
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step)
             train_epoch += 1
 
-        if options.local_rank>=0:
+        if options.local_rank >= 0:
             # Wait for others to reach this point.
             distributed.barrier()
 
         finetune_epoch = 0
-        if options.local_rank == 0 or not options.fp16:
+        if options.local_rank <= 0:
             mt_model.save(options.model_path + ".beam")
         if train_epoch > 0:
             # Resetting the optimizer for the purpose of finetuning.
@@ -345,5 +345,5 @@ if __name__ == "__main__":
     print(options)
     init_distributed(options)
     ImageDocTrainer.train(options=options)
-    if options.local_rank>=0: cleanup_distributed(options)
+    if options.local_rank >= 0: cleanup_distributed(options)
     print("Finished Training!")

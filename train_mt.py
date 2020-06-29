@@ -39,7 +39,7 @@ class MTTrainer:
         self.fp16 = fp16
         self.rank = -1
         self.num_gpu = torch.cuda.device_count()
-        if self.rank>=0:
+        if self.rank >= 0:
             self.rank = rank
             self.device = torch.device('cuda', rank)
         self.model = self.model.to(self.device)
@@ -250,7 +250,7 @@ class MTTrainer:
                                          first_tokens=tgt_inputs[:, 0],
                                          src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs,
                                          pad_idx=model.text_processor.pad_token_id())
-                if not self.fp16 and self.num_gpu > 1:
+                if self.rank < 0 and self.num_gpu > 1:
                     new_outputs = []
                     for output in outputs:
                         new_outputs += output
@@ -350,14 +350,14 @@ class MTTrainer:
             mt_model = AlbertSeq2Seq(config=lm.config, encoder=encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
                                      text_processor=lm.text_processor, checkpoint=options.checkpoint)
 
-            if options.local_rank>=0:
+            if options.local_rank >= 0:
                 if options.local_rank == 0:
                     mt_model.save(options.model_path)
                 distributed.barrier()
                 mt_model, lm = AlbertSeq2Seq.load(out_dir=options.model_path, tok_dir=options.tokenizer_path,
                                                   sep_decoder=options.sep_encoder)
 
-        if options.local_rank == 0 or not options.fp16:
+        if options.local_rank <= 0:
             mt_model.save(options.model_path)
 
         train_data = dataset.MTDataset(batch_pickle_dir=options.train_path,
@@ -405,7 +405,7 @@ class MTTrainer:
             ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
             trainer.reference += ref
 
-        if options.local_rank>=0:
+        if options.local_rank >= 0:
             # Wait for others to reach this point.
             distributed.barrier()
 
@@ -431,5 +431,5 @@ if __name__ == "__main__":
     print(options)
     init_distributed(options)
     MTTrainer.train(options=options)
-    if options.local_rank>=0: cleanup_distributed(options)
+    if options.local_rank >= 0: cleanup_distributed(options)
     print("Finished Training!")

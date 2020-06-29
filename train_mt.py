@@ -34,7 +34,7 @@ class MTTrainer:
         cudnn.enabled = True
         self.model = model
 
-        self.clip = clip`
+        self.clip = clip
         self.optimizer = optimizer
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

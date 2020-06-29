@@ -40,7 +40,7 @@ class MTTrainer:
         self.fp16 = fp16
         self.rank = -1
         self.num_gpu = torch.cuda.device_count()
-        if self.rank >= 0:
+        if rank >= 0:
             self.rank = rank
             cudnn.enabled = True
             self.device = torch.device('cuda', rank)

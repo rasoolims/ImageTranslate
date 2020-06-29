@@ -81,7 +81,8 @@ class AlbertSeq2Seq(nn.Module):
 
 
 class MassSeq2Seq(AlbertSeq2Seq):
-    def forward(self, src_inputs, src_pads, tgt_inputs, src_langs, tgt_langs=None, pad_idx: int = 1, tgt_positions=None,
+    def forward(self, src_inputs, src_pads, tgt_inputs, src_langs, tgt_langs=None, pad_idx: int = 1,
+                tgt_positions=None,
                 log_softmax: bool = False):
         """
         :param mask_pad_mask: # Since MASS also generates MASK tokens, we do not backpropagate them during training.
@@ -173,7 +174,7 @@ class AlbertDecoderAttention(nn.Module):
             klen = k.size(1)
             mask_reshape = (bs, 1, qlen, klen) if attn_mask.dim() == 3 else (bs, 1, 1, klen)
             attn_mask = (attn_mask == 0).view(mask_reshape).expand_as(attn_scores)
-            attn_scores.masked_fill_(attn_mask, -10000.0)
+            attn_scores.masked_fill_(attn_mask, -1000000)
 
         # Normalize the attention scores to probabilities.
         attention_probs = nn.Softmax(dim=-1)(attn_scores)

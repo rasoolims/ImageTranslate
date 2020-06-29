@@ -9,12 +9,12 @@ import torch.nn as nn
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
+from pytorch_lamb.pytorch_lamb import Lamb
 
 import dataset
 from lm import LM
 from option_parser import get_lm_option_parser
 from parallel import DataParallelModel, DataParallelCriterion
-from pytorch_lamb.pytorch_lamb import Lamb
 from textprocessor import TextProcessor
 from utils import build_optimizer, mask_text, unmask_text
 

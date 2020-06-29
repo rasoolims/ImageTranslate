@@ -1,22 +1,25 @@
 import copy
 import datetime
+import os
 import pickle
 import sys
 import time
-from typing import List
+from typing import Dict, List
 
-import torch.distributed as distributed
+import torch
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
+from torch.nn.utils.rnn import pad_sequence
 
 import dataset
 from albert_seq2seq import MassSeq2Seq
 from lm import LM
 from option_parser import get_mass_option_parser
 from seq_gen import get_outputs_until_eos
+from textprocessor import TextProcessor
 from train_mt import MTTrainer
-from utils import *
+from utils import build_optimizer, mass_mask, mass_unmask
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -46,7 +49,7 @@ class MassTrainer(MTTrainer):
                     continue
 
                 masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
-                if True:
+                try:
                     predictions = self.model(src_inputs=masked_info["src_text"],
                                              tgt_inputs=masked_info["to_recover"],
                                              tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
@@ -58,10 +61,8 @@ class MassTrainer(MTTrainer):
                     if ntokens == 0:  # Nothing to predict!
                         continue
 
-                    targets = masked_info["targets"]
-                    if self.rank >= 0: targets = targets.to(predictions.device)
-                    loss = self.criterion(predictions, targets).mean() * ntokens
-                    backward(loss, self.optimizer, self.fp16)
+                    loss = self.criterion(predictions, masked_info["targets"]).mean() * ntokens
+                    loss.backward()
 
                     loss = float(loss.data)
                     total_loss += loss
@@ -77,26 +78,23 @@ class MassTrainer(MTTrainer):
                         self.scheduler.step()
                     step += 1
 
-                # except RuntimeError as err:
-                #     torch.cuda.empty_cache()
-                #     print(self.rank, "->", "Error in processing", src_inputs.size(), src_inputs.size())
+                except RuntimeError as err:
+                    torch.cuda.empty_cache()
+                    print("Error in processing", src_inputs.size(), src_inputs.size())
                 mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start
-                    print(self.rank, "->", datetime.datetime.now(),
+                    print(datetime.datetime.now(),
                           "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
                               step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
                     if step % 500 == 0:
-                        if self.rank == 0:
-                            # Save every 1000 steps!
-                            model.save(saving_path + ".latest")
-                            with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                                pickle.dump(
-                                    (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
-                                    fp)
-                        if self.rank >= 0: distributed.barrier()
+                        # Save every 1000 steps!
+                        model.save(saving_path + ".latest")
+                        with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                            pickle.dump(
+                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
                     if step % 5000 == 0:
                         self.validate(dev_data_iter)
@@ -105,19 +103,15 @@ class MassTrainer(MTTrainer):
             if i == shortest - 1:
                 break  # Visited all elements in one data!
 
-        print(self.rank, "->", "Total loss in this epoch: %f" % (total_loss / total_tokens))
-        if self.rank == 0:
-            model.save(saving_path + ".latest")
-
-            with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
-        if self.rank >= 0: distributed.barrier()
+        print("Total loss in this epoch: %f" % (total_loss / total_tokens))
+        model.save(saving_path + ".latest")
+        with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+            pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
         self.validate(dev_data_iter)
         if mt_dev_iter is not None:
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
-            print(self.rank, "->", "Pretraining BLEU:", bleu)
-        if self.rank >= 0: distributed.barrier()
+            print("Pretraining BLEU:", bleu)
         return step
 
     def fine_tune(self, data_iter: List[data_utils.DataLoader], lang_directions: Dict[int, int], saving_path: str,
@@ -147,7 +141,7 @@ class MassTrainer(MTTrainer):
                 if src_inputs.size(0) < self.num_gpu:
                     continue
 
-                if True:
+                try:
                     model.eval()
                     with torch.no_grad():
                         # We do not backpropagate the data generator following the MASS paper.
@@ -156,14 +150,13 @@ class MassTrainer(MTTrainer):
                                                  src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
                                                  pad_idx=model.text_processor.pad_token_id(),
                                                  src_mask=src_pad_mask, unpad_output=False, beam_width=1)
-                        if self.rank < 0 and self.num_gpu > 1:
+                        if self.num_gpu > 1:
                             new_outputs = []
                             for output in outputs:
                                 new_outputs += output
                             outputs = new_outputs
 
-                        translations = pad_sequence(outputs, batch_first=True,
-                                                    padding_value=model.text_processor.pad_token_id())
+                        translations = pad_sequence(outputs, batch_first=True)
                         translation_pad_mask = (translations != model.text_processor.pad_token_id())
                     model.train()
 
@@ -182,9 +175,8 @@ class MassTrainer(MTTrainer):
                     if ntokens == 0:  # Nothing to predict!
                         continue
 
-                    if self.rank >= 0: targets = targets.to(predictions.device)
                     bt_loss = self.criterion(predictions, targets).mean()
-                    backward(bt_loss, self.optimizer, self.fp16)
+                    bt_loss.backward()
 
                     bt_loss = float(bt_loss.data) * ntokens
                     total_loss += bt_loss
@@ -201,46 +193,39 @@ class MassTrainer(MTTrainer):
                             self.scheduler.step()
                         step += 1
 
-                # except RuntimeError as err:
-                #     torch.cuda.empty_cache()
-                #     print(self.rank, "->", "Error in processing", src_inputs.size(), src_inputs.size())
+                except RuntimeError as err:
+                    torch.cuda.empty_cache()
+                    print("Error in processing", src_inputs.size(), src_inputs.size())
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start
-                    print(self.rank, "->", datetime.datetime.now(),
+                    print(datetime.datetime.now(),
                           "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
                               step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
                     if step % 5000 == 0:
-                        if self.rank == 0:
-                            # Save every 1000 steps!
-                            model.save(saving_path + ".beam.latest")
-                            with open(os.path.join(saving_path + ".beam.latest", "optim"), "wb") as fp:
-                                pickle.dump(
-                                    (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
-                                    fp)
-                        if self.rank >= 0: distributed.barrier()
+                        # Save every 1000 steps!
+                        model.save(saving_path + ".beam.latest")
+                        with open(os.path.join(saving_path + ".beam.latest", "optim"), "wb") as fp:
+                            pickle.dump(
+                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
                     if step % 5000 == 0 and dev_data_iter is not None:
                         bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
-                        print(self.rank, "->", "BLEU:", bleu)
-                    if self.rank >= 0: distributed.barrier()
+                        print("BLEU:", bleu)
 
                     start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
             if i == shortest - 1:
                 break
 
-        print(self.rank, "->", "Total loss in this epoch: %f" % (total_loss / total_tokens))
-        if self.rank == 0:
-            model.save(saving_path + ".beam.latest")
-            with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
-        if self.rank >= 0: distributed.barrier()
+        print("Total loss in this epoch: %f" % (total_loss / total_tokens))
+        model.save(saving_path + ".beam.latest")
+        with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+            pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
         if dev_data_iter is not None:
             bleu = self.eval_bleu(dev_data_iter, saving_path + ".beam")
-            print(self.rank, "->", "BLEU:", bleu)
-        if self.rank >= 0: distributed.barrier()
+            print("BLEU:", bleu)
         return step
 
     def validate(self, dev_data_iter):
@@ -255,7 +240,7 @@ class MassTrainer(MTTrainer):
                 src_pad_mask = batch["src_pad_mask"].squeeze(0)
                 pad_indices = batch["pad_idx"].squeeze(0)
 
-                if True:
+                try:
                     masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
                     predictions = self.model(src_inputs=masked_info["src_text"],
                                              tgt_inputs=masked_info["to_recover"],
@@ -268,14 +253,12 @@ class MassTrainer(MTTrainer):
                     if ntokens == 0:  # Nothing to predict!
                         continue
 
-                    targets = masked_info["targets"]
-                    if self.rank >= 0: targets = targets.to(predictions.device)
-                    loss = self.criterion(predictions, targets).mean().data * ntokens
+                    loss = self.criterion(predictions, masked_info["targets"]).mean().data * ntokens
                     total_dev_loss += float(loss)
                     total_dev_tokens += ntokens
-                # except RuntimeError:
-                #     torch.cuda.empty_cache()
-                #     print(self.rank, "->", "Error in processing", src_inputs.size(), src_inputs.size())
+                except RuntimeError:
+                    torch.cuda.empty_cache()
+                    print("Error in processing", src_inputs.size(), src_inputs.size())
                 mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
             dev_loss = total_dev_loss / total_dev_tokens
@@ -284,9 +267,8 @@ class MassTrainer(MTTrainer):
 
     @staticmethod
     def train(options):
-        if options.local_rank <= 0:
-            if not os.path.exists(options.model_path):
-                os.makedirs(options.model_path)
+        if not os.path.exists(options.model_path):
+            os.makedirs(options.model_path)
 
         if options.pretrained_path is not None:
             mt_model, lm = MassSeq2Seq.load(out_dir=options.pretrained_path, tok_dir=options.tokenizer_path,
@@ -302,14 +284,6 @@ class MassTrainer(MTTrainer):
             encoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
             mt_model = MassSeq2Seq(config=lm.config, encoder=encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
                                    text_processor=lm.text_processor, checkpoint=options.checkpoint)
-
-            if options.local_rank >= 0:
-                if options.local_rank == 0:
-                    mt_model.save(options.model_path)
-                distributed.barrier()
-                mt_model, lm = MassSeq2Seq.load(out_dir=options.model_path, tok_dir=options.tokenizer_path,
-                                                sep_decoder=options.sep_encoder)
-
         MTTrainer.config_dropout(mt_model, options.dropout)
 
         pin_memory = torch.cuda.is_available()
@@ -329,7 +303,7 @@ class MassTrainer(MTTrainer):
                 td = dataset.MassDataset(batch_pickle_dir=train_path,
                                          max_batch_capacity=options.total_capacity, max_batch=options.batch,
                                          pad_idx=mt_model.text_processor.pad_token_id(),
-                                         max_seq_len=options.max_seq_len, keep_examples=True, rank=options.local_rank)
+                                         max_seq_len=options.max_seq_len, keep_examples=True)
                 train_data.append(td)
                 dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)
                 train_loader.append(dl)
@@ -338,7 +312,7 @@ class MassTrainer(MTTrainer):
                                            max_batch_capacity=options.total_capacity,
                                            max_batch=options.batch,
                                            pad_idx=mt_model.text_processor.pad_token_id(),
-                                           max_seq_len=options.max_seq_len, rank=options.local_rank)
+                                           max_seq_len=options.max_seq_len)
             dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
         lang_directions = {}
@@ -350,8 +324,7 @@ class MassTrainer(MTTrainer):
                                          max_batch=int(options.batch / 2),
                                          pad_idx=mt_model.text_processor.pad_token_id(),
                                          max_seq_len=options.max_seq_len, keep_examples=False,
-                                         example_list=None if train_data is None else train_data[i].examples_list,
-                                         rank=options.local_rank)
+                                         example_list=None if train_data is None else train_data[i].examples_list)
                 finetune_data.append(fd)
                 fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory)
                 finetune_loader.append(fl)
@@ -374,15 +347,14 @@ class MassTrainer(MTTrainer):
                               warmup=options.warmup, step=options.step if options.step > 0 else options.finetune_step,
                               beam_width=options.beam_width, max_len_a=options.max_len_a, max_len_b=options.max_len_b,
                               len_penalty_ratio=options.len_penalty_ratio, last_epoch=last_epoch,
-                              nll_loss=options.nll_loss, fp16=options.fp16, rank=options.local_rank,
-                              opt_level=options.opt_level)
+                              nll_loss=options.nll_loss)
 
         mt_dev_loader = None
-        if options.mt_dev_path is not None and not (options.fp16 and options.local_rank != 0):
+        if options.mt_dev_path is not None:
             mt_dev_data = dataset.MTDataset(batch_pickle_dir=options.mt_dev_path,
                                             max_batch_capacity=options.total_capacity,
                                             max_batch=int(options.batch / (options.beam_width * 2)),
-                                            pad_idx=mt_model.text_processor.pad_token_id(), rank=options.local_rank)
+                                            pad_idx=mt_model.text_processor.pad_token_id())
             mt_dev_loader = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
             print("creating reference")
@@ -400,23 +372,15 @@ class MassTrainer(MTTrainer):
 
         step, train_epoch = last_epoch, 0
 
-        if options.local_rank >= 0:
-            # Wait for others to reach this point.
-            distributed.barrier()
-
         while options.step > 0 and step < options.step:
             train_epoch += 1
-            print(options.local_rank, "train epoch", train_epoch)
+            print("train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=train_loader, dev_data_iter=dev_loader,
                                        saving_path=options.model_path, mt_dev_iter=mt_dev_loader,
                                        step=step)
 
-        if options.local_rank >= 0:
-            # Wait for others to reach this point.
-            distributed.barrier()
         finetune_epoch = 0
-        if options.local_rank == 0 or not options.fp16:
-            mt_model.save(options.model_path + ".beam")
+        mt_model.save(options.model_path + ".beam")
         if train_epoch > 0:
             # Resetting the optimizer for the purpose of finetuning.
             model = mt_model.module if hasattr(mt_model, "module") else mt_model
@@ -428,7 +392,7 @@ class MassTrainer(MTTrainer):
                                                                           num_training_steps=options.finetune_step)
 
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
-            print(options.local_rank, "finetune epoch", finetune_epoch)
+            print("finetune epoch", finetune_epoch)
             step = trainer.fine_tune(data_iter=finetune_loader, lang_directions=lang_directions,
                                      saving_path=options.model_path, step=step, dev_data_iter=mt_dev_loader)
             finetune_epoch += 1
@@ -438,7 +402,5 @@ if __name__ == "__main__":
     parser = get_mass_option_parser()
     (options, args) = parser.parse_args()
     print(options)
-    init_distributed(options)
     MassTrainer.train(options=options)
-    if options.local_rank >= 0: cleanup_distributed(options)
     print("Finished Training!")

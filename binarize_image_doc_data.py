@@ -13,7 +13,7 @@ from textprocessor import TextProcessor
 
 
 def write(text_processor: TextProcessor, output_file: str, json_dir: str, root_img_dir, files_to_use: str = None,
-          max_sen_per_doc: int = 32, parts: int = 8):
+          max_sen_per_doc: int = 32):
     transform = transforms.Compose([  # [1]
         transforms.Resize(256),  # [2]
         transforms.CenterCrop(224),  # [3]
@@ -126,26 +126,8 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, root_i
         print(lang, len(lang_specific_images[lang]))
     print("*****")
 
-    lang_specific_images_list = [dict() for _ in range(parts)]
-    unique_images_list = [dict() for _ in range(parts)]
-    unique_docs_list = [dict() for _ in range(parts)]
-    for lang in lang_specific_images.keys():
-
-        for i, (k, v) in enumerate(lang_specific_images[lang].items()):
-            part_num = i % parts
-            if lang not in lang_specific_images_list[part_num]:
-                lang_specific_images_list[part_num][lang] = dict()
-
-            lang_specific_images_list[part_num][lang][k] = v
-            unique_images_list[part_num][k] = unique_images[k]
-            for item in v:
-                unique_docs_list[part_num][item[-1]] = unique_docs[item[-1]]
-
-    for part_num in range(parts):
-        print("Dumping part", part_num)
-        with open(output_file + "." + str(part_num), "wb") as fp:
-            marshal.dump(
-                (lang_specific_images_list[part_num], unique_images_list[part_num], unique_docs_list[part_num]), fp)
+    with open(output_file, "wb") as fp:
+        marshal.dump((lang_specific_images, unique_images, unique_docs), fp)
 
 
 def get_options():
@@ -158,7 +140,6 @@ def get_options():
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--max_sen", dest="max_sen",
                       help="Maximum number of sentences in one document. If more, will split", type=int, default=64)
-    parser.add_option("--parts", dest="parts", type=int, default=8)
     (options, args) = parser.parse_args()
     return options
 
@@ -173,6 +154,5 @@ if __name__ == "__main__":
           json_dir=options.data_path,
           root_img_dir=options.image_dir,
           files_to_use=options.files_to_use,
-          max_sen_per_doc=options.max_sen,
-          parts=options.parts)
+          max_sen_per_doc=options.max_sen)
     print("finished")

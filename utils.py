@@ -1,13 +1,12 @@
 import math
-import os
 import random
 from typing import Dict
 
 import torch
-from apex import amp
+import torch.optim as optim
+from pytorch_lamb.pytorch_lamb import Lamb
 from torch.nn.utils.rnn import pad_sequence
 
-from pytorch_lamb.pytorch_lamb import Lamb
 from textprocessor import TextProcessor
 
 
@@ -84,27 +83,7 @@ def mass_unmask(src_text, src_mask, masked_ids):
     src_text[src_mask] = masked_ids
 
 
-def init_distributed(options):
-    if options.local_rank >= 0:
-        os.environ['WORLD_SIZE'] = str(torch.cuda.device_count())
-        torch.distributed.init_process_group(backend='nccl', world_size=torch.cuda.device_count(),
-                                             rank=options.local_rank)
-
-
-def cleanup_distributed(options):
-    if options.fp16:
-        torch.distributed.destroy_process_group()
-
-
-def backward(loss, optimizer, fp16: bool = False):
-    if fp16:
-        with amp.scale_loss(loss, optimizer) as scaled_loss:
-            scaled_loss.backward()
-    else:
-        loss.backward()
-
-
-class AdamInverseSqrtWithWarmup(torch.optim.Adam):
+class AdamInverseSqrtWithWarmup(optim.Adam):
     """
     Decay the LR based on the inverse square root of the update number.
     We also support a warmup phase where we linearly increase the learning rate

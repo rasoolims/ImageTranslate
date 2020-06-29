@@ -40,7 +40,7 @@ class ImageDocTrainer(MassTrainer):
             for batch in batches:
                 self.optimizer.zero_grad()
                 is_img_batch = isinstance(batch, list) and "captions" in batch[0]
-                try:
+                if True:
                     if is_img_batch:  # Image data
                         if len(batch) < self.num_gpu:
                             continue
@@ -129,11 +129,11 @@ class ImageDocTrainer(MassTrainer):
                     if not is_img_batch and not fine_tune:
                         mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
-                except RuntimeError as err:
-                    print(self.rank, "->", "Error processing", is_img_batch)
-                    if is_img_batch:
-                        for b in batch:
-                            print(self.rank, "->", b["docs"].size(), b["images"].size())
+                # except RuntimeError as err:
+                #     print(self.rank, "->", "Error processing", is_img_batch)
+                #     if is_img_batch:
+                #         for b in batch:
+                #             print(self.rank, "->", b["docs"].size(), b["images"].size())
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start

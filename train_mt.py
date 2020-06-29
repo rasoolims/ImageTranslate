@@ -12,6 +12,7 @@ import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
 from torch.nn.parallel import DistributedDataParallel
+import torch.backends.cudnn as cudnn
 
 import dataset
 from albert_seq2seq import AlbertSeq2Seq
@@ -41,6 +42,7 @@ class MTTrainer:
         self.num_gpu = torch.cuda.device_count()
         if self.rank >= 0:
             self.rank = rank
+            cudnn.enabled = True
             self.device = torch.device('cuda', rank)
         self.model = self.model.to(self.device)
         self.self_translate = self_translate

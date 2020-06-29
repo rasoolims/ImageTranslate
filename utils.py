@@ -4,7 +4,6 @@ import random
 from typing import Dict
 
 import torch
-import torch.optim as optim
 from apex import amp
 from torch.nn.utils.rnn import pad_sequence
 
@@ -105,7 +104,7 @@ def backward(loss, optimizer, fp16: bool = False):
         loss.backward()
 
 
-class AdamInverseSqrtWithWarmup(optim.Adam):
+class AdamInverseSqrtWithWarmup(torch.optim.Adam):
     """
     Decay the LR based on the inverse square root of the update number.
     We also support a warmup phase where we linearly increase the learning rate

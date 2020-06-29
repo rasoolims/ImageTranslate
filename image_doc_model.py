@@ -18,7 +18,14 @@ class ImageSeq2Seq(MassSeq2Seq):
                                                     freeze=freeze_image)
         self.image_decoder = AlbertImageTransformer(AlbertTransformer(config))
 
-    def forward(self, batch, log_softmax: bool = False, **kwargs):
+    def forward(self, src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs, log_softmax: bool = False,
+                batch=None, **kwargs):
+        if batch is not None:
+            return self.img_forward(batch, log_softmax)
+        else:
+            return self.mass_forward(src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs, log_softmax)
+
+    def img_forward(self, batch, log_softmax: bool = False):
         if isinstance(batch, list):
             assert len(batch) == 1
             batch = batch[0]
@@ -59,6 +66,9 @@ class ImageSeq2Seq(MassSeq2Seq):
         if log_softmax:
             outputs = F.log_softmax(outputs, dim=-1)
         return outputs
+
+    def mass_forward(self, src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs, log_softmax: bool = False):
+        return super().forward(src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs, log_softmax)
 
     @staticmethod
     def load(out_dir: str, tok_dir: str, sep_decoder: bool):

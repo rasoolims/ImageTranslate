@@ -11,16 +11,13 @@ import torch.distributed as distributed
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
-from torch.nn.parallel import DistributedDataParallel
 from torch.nn.utils.rnn import pad_sequence
 from torchvision import transforms
 
 import dataset
-from albert_seq2seq import MassSeq2Seq
 from image_doc_model import ImageSeq2Seq
 from lm import LM
 from option_parser import get_img_options_parser
-from parallel import DataParallelModel
 from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mass import MassTrainer
@@ -30,23 +27,6 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 class ImageDocTrainer(MassTrainer):
-    def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
-                 step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
-                 len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0,
-                 nll_loss: bool = False):
-        super().__init__(model, mask_prob, clip, optimizer, warmup, step, beam_width, max_len_a, max_len_b,
-                         len_penalty_ratio, self_translate, last_epoch, nll_loss)
-
-        self.mass_model = MassSeq2Seq(config=model.config, encoder=model.encoder, decoder=model.decoder,
-                                      output_layer=model.output_layer,
-                                      text_processor=model.text_processor, checkpoint=model.checkpoint)
-        if self.fp16:
-            self.mass_model = DistributedDataParallel(self.mass_model, device_ids=[self.rank], output_device=self.rank,
-                                                      find_unused_parameters=True)
-            print(self.rank, "-> Init model with", self.rank)
-        elif self.num_gpu > 1:
-            self.mass_model = DataParallelModel(self.mass_model)
-
     def train_epoch(self, data_iter: data_utils.DataLoader, mass_data_iter: List[data_utils.DataLoader], step: int,
                     saving_path: str = None, mt_dev_iter: data_utils.DataLoader = None, fine_tune: bool = False,
                     lang_directions: dict = False, **kwargs):
@@ -83,12 +63,12 @@ class ImageDocTrainer(MassTrainer):
 
                         if not fine_tune:
                             masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
-                            predictions = self.mass_model(src_inputs=masked_info["src_text"],
-                                                          tgt_inputs=masked_info["to_recover"],
-                                                          tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
-                                                          pad_idx=model.text_processor.pad_token_id(),
-                                                          src_langs=batch["langs"].squeeze(0),
-                                                          log_softmax=True)
+                            predictions = self.model(src_inputs=masked_info["src_text"],
+                                                     tgt_inputs=masked_info["to_recover"],
+                                                     tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
+                                                     pad_idx=model.text_processor.pad_token_id(),
+                                                     src_langs=batch["langs"].squeeze(0),
+                                                     log_softmax=True)
                             targets = masked_info["targets"]
                             ntokens = targets.size(0)
                         else:
@@ -118,13 +98,13 @@ class ImageDocTrainer(MassTrainer):
                             model.train()
 
                             # Now use it for back-translation loss.
-                            predictions = self.mass_model(src_inputs=translations,
-                                                          tgt_inputs=src_inputs,
-                                                          src_pads=translation_pad_mask,
-                                                          pad_idx=model.text_processor.pad_token_id(),
-                                                          src_langs=dst_langs,
-                                                          tgt_langs=batch["langs"].squeeze(0),
-                                                          log_softmax=True)
+                            predictions = self.model(src_inputs=translations,
+                                                     tgt_inputs=src_inputs,
+                                                     src_pads=translation_pad_mask,
+                                                     pad_idx=model.text_processor.pad_token_id(),
+                                                     src_langs=dst_langs,
+                                                     tgt_langs=batch["langs"].squeeze(0),
+                                                     log_softmax=True)
                             src_targets = src_inputs[:, 1:].contiguous().view(-1)
                             src_mask_flat = src_pad_mask[:, 1:].contiguous().view(-1)
                             targets = src_targets[src_mask_flat]

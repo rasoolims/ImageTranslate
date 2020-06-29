@@ -43,6 +43,7 @@ class ImageDocTrainer(MassTrainer):
         if self.fp16:
             self.mass_model = DistributedDataParallel(self.mass_model, device_ids=[self.rank], output_device=self.rank,
                                                       find_unused_parameters=True)
+            print(self.rank, "-> Init model with", self.rank)
         elif self.num_gpu > 1:
             self.mass_model = DataParallelModel(self.mass_model)
 

@@ -29,7 +29,7 @@ class MTTrainer:
     def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
                  step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
                  len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0,
-                 nll_loss: bool = False, fp16: bool = False, rank: int = -1):
+                 nll_loss: bool = False, fp16: bool = False, rank: int = -1, opt_level:str="O1"):
         self.model = model
 
         self.clip = clip
@@ -60,7 +60,7 @@ class MTTrainer:
             self.criterion = SmoothedNLLLoss(ignore_index=model.text_processor.pad_token_id())
 
         if fp16:
-            self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O2")
+            self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level=opt_level)
             self.model = DistributedDataParallel(self.model, device_ids=[self.rank], output_device=self.rank,
                                                  find_unused_parameters=True)
         elif self.num_gpu > 1:
@@ -390,7 +390,7 @@ class MTTrainer:
                             max_len_a=options.max_len_a, max_len_b=options.max_len_b,
                             len_penalty_ratio=options.len_penalty_ratio, self_translate=options.pretrain,
                             last_epoch=last_epoch, nll_loss=options.nll_loss, fp16=options.fp16,
-                            rank=options.local_rank)
+                            rank=options.local_rank, opt_level=options.opt_level)
 
         print(options.local_rank, "creating reference")
         trainer.reference = []
@@ -406,7 +406,7 @@ class MTTrainer:
         if options.fp16:
             # Wait for others to reach this point.
             distributed.barrier()
-            
+
         step, train_epoch = 0, 1
         while step <= options.step:
             print(options.local_rank, "train epoch", train_epoch)

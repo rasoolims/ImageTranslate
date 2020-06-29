@@ -236,7 +236,8 @@ class ImageDocTrainer(MassTrainer):
                                   warmup=options.warmup, step=options.step,
                                   beam_width=options.beam_width, max_len_a=options.max_len_a,
                                   max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
-                                  last_epoch=last_epoch, rank=options.local_rank, fp16=options.fp16)
+                                  last_epoch=last_epoch, rank=options.local_rank, fp16=options.fp16,
+                                  opt_level=options.opt_level)
 
         mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
         mass_train_paths = options.mass_train_path.strip().split(",")
@@ -313,7 +314,6 @@ class ImageDocTrainer(MassTrainer):
             step = trainer.train_epoch(data_iter=train_loader, mass_data_iter=mass_train_loader,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step)
             train_epoch += 1
-
 
         if options.fp16:
             # Wait for others to reach this point.

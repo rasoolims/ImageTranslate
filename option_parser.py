@@ -55,6 +55,7 @@ def get_mt_option_parser():
     parser.add_option("--nll", action="store_true", dest="nll_loss", help="Use NLL loss instead of smoothed NLL loss",
                       default=False)
     parser.set_default("batch", 20000)
+    parser.add_option("--opt-level", dest="opt_evel", help="Apex OPT level O0, O1, O2, O3", type="str", default="O1")
     return parser
 
 

@@ -31,9 +31,10 @@ class MTTrainer:
                  step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
                  len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0,
                  nll_loss: bool = False, fp16: bool = False, rank: int = -1, opt_level: str = "O1"):
+        cudnn.enabled = True
         self.model = model
 
-        self.clip = clip
+        self.clip = clip`
         self.optimizer = optimizer
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -42,7 +43,6 @@ class MTTrainer:
         self.num_gpu = torch.cuda.device_count()
         if rank >= 0:
             self.rank = rank
-            cudnn.enabled = True
             self.device = torch.device('cuda', rank)
         self.model = self.model.to(self.device)
         self.self_translate = self_translate

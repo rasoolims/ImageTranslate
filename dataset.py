@@ -284,7 +284,7 @@ class ImageDocDataset(Dataset):
             part_num = int(path[path.rfind(".") + 1:])
             if rank >= 0 and part_num % len(paths) != rank:
                 continue
-
+            print(rank, "--> Reading", path)
             with open(path, "rb") as fp:
                 image_info_dict, unique_images, unique_docs = marshal.load(fp)
                 self.languages = list(image_info_dict.keys())

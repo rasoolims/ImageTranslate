@@ -293,8 +293,13 @@ class ImageDocDataset(Dataset):
                 for lang in self.languages:
                     b, im = self.build_lang_batch(image_info_dict[lang], max_doc_batch_capacity,
                                                   text_processor, unique_docs, unique_images, max_img_per_batch)
-                    self.batches[lang] = b
-                    self.images_paths[lang] = im
+                    if lang not in self.batches:
+                        self.batches[lang] = b
+                        self.images_paths[lang] = im
+                    else:
+                        self.batches[lang] += b
+                        self.images_paths[lang] += im
+
                     self.image_batches[lang] = {}
                     self.image_queue[lang] = []
                     del image_info_dict[lang]

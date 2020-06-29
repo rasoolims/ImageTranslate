@@ -291,7 +291,7 @@ class ImageDocTrainer(MassTrainer):
                                             rank=options.local_rank)
             mt_dev_loader = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
-            print("creating reference")
+            print(options.local_rank, "creating reference")
             trainer.reference = []
 
             generator = (

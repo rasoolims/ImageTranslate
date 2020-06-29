@@ -134,7 +134,7 @@ class MTDataset(Dataset):
                 pad_indices[r] = min(pad_indices[r], int(c))
             b["pad_idx"] = torch.LongTensor(pad_indices)
 
-        print("Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
+        print(rank, "-> Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
 
     def __len__(self):
         return len(self.batches)
@@ -290,8 +290,8 @@ class ImageDocDataset(Dataset):
                 del unique_images
                 del unique_docs
 
-        print("Loaded %d image batches!" % (len(self.batches)))
-        print("End", datetime.datetime.now())
+        print(rank, "-> Loaded %d image batches!" % (len(self.batches)))
+        print(rank, "-> End", datetime.datetime.now())
 
     def build_lang_batch(self, image_info_dict, max_doc_batch_capacity, text_processor, unique_docs, unique_images,
                          max_img_per_batch):

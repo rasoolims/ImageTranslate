@@ -73,6 +73,7 @@ class MTDataset(Dataset):
                 max_batch_capacity. We also need to make sure not to include those batches that has less than num_gpu
                 sentence pairs (it will crash in multi-gpu).
                 """
+        ngpu = torch.cuda.device_count()
         self.batches = []
         self.longest_batch = ([], 0)
         self.most_token_batch = ([], 0)
@@ -80,7 +81,7 @@ class MTDataset(Dataset):
         paths = glob.glob(batch_pickle_dir + "*")
         for path in paths:
             part_num = int(path[path.rfind(".") + 1:])
-            if rank >= 0 and part_num % len(paths) != rank:
+            if rank >= 0 and part_num % ngpu == rank:
                 continue
 
             with open(path, "rb") as fr:
@@ -187,12 +188,12 @@ class MassDataset(Dataset):
         sentence pairs (it will crash in multi-gpu).
         MASS refers to https://arxiv.org/pdf/1905.02450.pdf
         """
-
+        ngpu = torch.cuda.device_count()
         paths = glob.glob(batch_pickle_dir + "*")
         self.examples_list = []
         for path in paths:
             part_num = int(path[path.rfind(".") + 1:])
-            if rank >= 0 and part_num % len(paths) != rank:
+            if rank >= 0 and part_num % ngpu == rank:
                 continue
             self.examples_list.append(MassDataset.read_example_file(path))
         print(datetime.datetime.now(), "Done!")
@@ -276,13 +277,14 @@ class ImageDocDataset(Dataset):
         self.images_paths = {}
         self.image_batches = {}
         self.image_queue = {}  # For making sure that the images don't fill up memory!
+        ngpu = torch.cuda.device_count()
 
         print("Start", datetime.datetime.now())
         paths = glob.glob(data_bin_file + "*")
         self.examples_list = []
         for path in paths:
             part_num = int(path[path.rfind(".") + 1:])
-            if rank >= 0 and part_num % len(paths) != rank:
+            if rank >= 0 and part_num % ngpu == rank:
                 continue
             print(rank, "--> Reading", path)
             with open(path, "rb") as fp:

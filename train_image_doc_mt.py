@@ -65,7 +65,8 @@ class ImageDocTrainer(MassTrainer):
                             masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
                             predictions = self.model(src_inputs=masked_info["src_text"],
                                                      tgt_inputs=masked_info["to_recover"],
-                                                     tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
+                                                     tgt_positions=masked_info["positions"],
+                                                     src_pads=src_pad_mask,
                                                      pad_idx=model.text_processor.pad_token_id(),
                                                      src_langs=batch["langs"].squeeze(0),
                                                      log_softmax=True)

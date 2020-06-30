@@ -267,17 +267,14 @@ class ImageDocDataset(Dataset):
         print("Start", datetime.datetime.now())
         with open(data_bin_file, "rb") as fp:
             image_info_dict, unique_images, unique_docs = marshal.load(fp)
-            self.languages = ["shared", "separate"]
-            languages = list(image_info_dict.keys())
-            for lang in languages:
+            self.languages = list(image_info_dict.keys())
+            for lang in self.languages:
                 b, im = self.build_lang_batch(image_info_dict[lang], max_doc_batch_capacity,
                                               text_processor, unique_docs, unique_images, max_img_per_batch)
-
-                lng = "shared" if lang == "shared" else "separate"
-                self.batches[lng] = b
-                self.images_paths[lng] = im
-                self.image_batches[lng] = {}
-                self.image_queue[lng] = []
+                self.batches[lang] = b
+                self.images_paths[lang] = im
+                self.image_batches[lang] = {}
+                self.image_queue[lang] = []
                 del image_info_dict[lang]
 
             del image_info_dict

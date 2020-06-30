@@ -21,7 +21,7 @@ class ModifiedResnet(models.ResNet):
         grid_hidden = grid_hidden.permute((0, 2, 1))
         if self.dropout > 0:
             grid_hidden = F.dropout(grid_hidden, p=self.dropout)
-        grid_outputs = self.fc(grid_hidden)
+        grid_outputs = F.relu(self.fc(grid_hidden))
 
         location_indices = torch.tensor([i for i in range(49)])
         if torch.cuda.is_available():

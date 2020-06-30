@@ -23,12 +23,12 @@ class ModifiedResnet(models.ResNet):
             grid_hidden = F.dropout(grid_hidden, p=self.dropout)
         grid_outputs = self.fc(grid_hidden)
 
-        location_indices = torch.stack(batch_size * [torch.tensor([i for i in range(49)])])
+        location_indices = torch.tensor([i for i in range(49)])
         if torch.cuda.is_available():
             location_indices = location_indices.cuda(grid_outputs.get_device())
         location_embedding = self.location_embedding(location_indices)
 
-        out = grid_outputs + location_embedding
+        out = grid_outputs + location_embedding.unsqueeze(0)
         out_norm = self.layer_norm(out)
         if self.dropout > 0:
             out_norm = F.dropout(out_norm, p=self.dropout)

@@ -12,11 +12,13 @@ from textprocessor import TextProcessor
 
 class ImageSeq2Seq(MassSeq2Seq):
     def __init__(self, config: AlbertConfig, encoder: AlbertModel, decoder, output_layer: AlbertMLMHead,
-                 text_processor: TextProcessor, checkpoint: int = 5, freeze_image: bool = False):
+                 text_processor: TextProcessor, checkpoint: int = 5, freeze_image: bool = False,
+                 share_decoder: bool = False):
         super(ImageSeq2Seq, self).__init__(config, encoder, decoder, output_layer, text_processor, checkpoint)
         self.image_model: ModifiedResnet = init_net(embed_dim=config.embedding_size, dropout=config.hidden_dropout_prob,
                                                     freeze=freeze_image)
-        self.image_decoder = AlbertDecoderTransformer(AlbertTransformer(config))
+        self.image_decoder = self.decoder.decoder if share_decoder else AlbertDecoderTransformer(
+            AlbertTransformer(config))
 
     def forward(self, log_softmax: bool = False, src_inputs=None, tgt_inputs=None, src_pads=None, tgt_mask=None,
                 src_langs=None, tgt_langs=None, pad_idx=None, tgt_positions=None, batch=None, **kwargs):
@@ -52,7 +54,7 @@ class ImageSeq2Seq(MassSeq2Seq):
         doc_image_embeddings = image_embeddings[doc_idx]
 
         # Attend images to documents.
-        image_attended = self.image_decoder(encoder_states=doc_states, hidden_states=doc_image_embeddings, 
+        image_attended = self.image_decoder(encoder_states=doc_states, hidden_states=doc_image_embeddings,
                                             src_attn_mask=doc_mask)
 
         # Split back based on images
@@ -72,13 +74,14 @@ class ImageSeq2Seq(MassSeq2Seq):
         return outputs
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool):
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool, share_decoder: bool):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
             decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
             mt_model = ImageSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
-                                    text_processor=lm.text_processor, checkpoint=checkpoint)
+                                    text_processor=lm.text_processor, checkpoint=checkpoint,
+                                    share_decoder=share_decoder)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm

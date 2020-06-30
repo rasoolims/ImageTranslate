@@ -281,6 +281,7 @@ class ImageDocDataset(Dataset):
             del unique_images
             del unique_docs
 
+        self.shared_index = self.languages.index("shared") if "shared" in self.languages else -1
         print("Loaded %d image batches!" % (len(self.batches)))
         print("End", datetime.datetime.now())
 
@@ -354,12 +355,22 @@ class ImageDocDataset(Dataset):
         return images
 
     def __len__(self):
+        if self.shared_index >= 0:
+            return len(self.batches["shared"]) * 2
+
         # We downgrade the size to the smallest language-specifc batch. In our case, this is usually the shared language.
         return min([len(b) for _, b in self.batches.items()]) * len(self.batches)
 
     def __getitem__(self, i):
-        # From different languages in our data, we pick a random language.
-        r = self.languages[random.randint(0, len(self.batches) - 1)]
+        if self.shared_index >= 0:
+            # With 50% chance we choose the shared data first! Otherwise uniformly select.
+            if random.random() <= 0.5:
+                r = "shared"
+            else:
+                r = self.languages[random.randint(0, len(self.batches) - 1)]
+        else:
+            # From different languages in our data, we pick a random language.
+            r = self.languages[random.randint(0, len(self.batches) - 1)]
 
         # We ignore the item number and actually generate a random index.
         item = random.randint(0, len(self.batches[r]) - 1)

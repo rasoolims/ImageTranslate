@@ -6,7 +6,7 @@ def _image_config(vocab_size: int, pad_token_id: int, bos_token_id: int, eos_tok
         "attention_probs_dropout_prob": 0.1,
         "hidden_act": "gelu_new",
         "hidden_dropout_prob": 0.1,
-        "embedding_size": 256,
+        "embedding_size": 128,
         "hidden_size": 1024,
         "initializer_range": 0.02,
         "intermediate_size": 2048,

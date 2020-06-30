@@ -7,9 +7,9 @@ def _image_config(vocab_size: int, pad_token_id: int, bos_token_id: int, eos_tok
         "hidden_act": "gelu_new",
         "hidden_dropout_prob": 0.1,
         "embedding_size": 128,
-        "hidden_size": 2048,
+        "hidden_size": 1024,
         "initializer_range": 0.02,
-        "intermediate_size": 4096,
+        "intermediate_size": 2048,
         "max_position_embeddings": 512,
         "num_attention_heads": 8,  # smaller than usual
         "num_hidden_layers": 4,  # smaller than usual

@@ -6,7 +6,6 @@ from torchvision import models
 
 class ModifiedResnet(models.ResNet):
     def _forward_impl(self, x):
-        batch_size = x.size(0)
         input = x
         x = self.conv1(input)
         x = self.bn1(x)

@@ -14,9 +14,9 @@ class ImageSeq2Seq(MassSeq2Seq):
     def __init__(self, config: AlbertConfig, encoder: AlbertModel, decoder, output_layer: AlbertMLMHead,
                  text_processor: TextProcessor, checkpoint: int = 5, freeze_image: bool = False):
         super(ImageSeq2Seq, self).__init__(config, encoder, decoder, output_layer, text_processor, checkpoint)
-        self.image_model: ModifiedResnet = init_net(embed_dim=config.hidden_size, dropout=config.hidden_dropout_prob,
+        self.image_model: ModifiedResnet = init_net(embed_dim=config.embedding_size, dropout=config.hidden_dropout_prob,
                                                     freeze=freeze_image)
-        self.image_decoder = AlbertImageTransformer(AlbertTransformer(config))
+        self.image_decoder = AlbertDecoderTransformer(AlbertTransformer(config))
 
     def forward(self, batch, log_softmax: bool = False, **kwargs):
         if isinstance(batch, list):
@@ -42,7 +42,7 @@ class ImageSeq2Seq(MassSeq2Seq):
         doc_image_embeddings = image_embeddings[doc_idx]
 
         # Attend images to documents.
-        image_attended = self.image_decoder(doc_states, doc_image_embeddings, doc_mask)
+        image_attended = self.image_decoder(encoder_states=doc_states, hidden_states=doc_image_embeddings, src_attn_mask=doc_mask)
 
         # Split back based on images
         image_attended_split = torch.split(image_attended, doc_split)
@@ -72,23 +72,3 @@ class ImageSeq2Seq(MassSeq2Seq):
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm
 
-
-class AlbertImageTransformer(AlbertDecoderTransformer):
-    def __init__(self, albert_transformer: AlbertTransformer):
-        super(AlbertImageTransformer, self).__init__(albert_transformer)
-
-    def forward(self, encoder_states, image_embeddings, src_attn_mask, **kwargs):
-        hidden_states = image_embeddings
-        for i in range(self.config.num_hidden_layers):
-            # Index of the hidden group
-            group_idx = int(i / (self.config.num_hidden_layers / self.config.num_hidden_groups))
-
-            layer_group_output = self.albert_layer_groups[group_idx](
-                encoder_states,
-                hidden_states,
-                src_attn_mask=src_attn_mask,
-                tgt_attn_mask=None,
-            )
-            hidden_states = layer_group_output[0]
-
-        return hidden_states

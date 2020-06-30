@@ -12,7 +12,6 @@ import torch.nn as nn
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
-from pytorch_lamb.pytorch_lamb import Lamb
 
 import dataset
 from albert_seq2seq import AlbertSeq2Seq
@@ -20,6 +19,7 @@ from lm import LM
 from loss import SmoothedNLLLoss
 from option_parser import get_mt_option_parser
 from parallel import DataParallelModel, DataParallelCriterion
+from pytorch_lamb.pytorch_lamb import Lamb
 from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
 from utils import build_optimizer, mask_text, unmask_text

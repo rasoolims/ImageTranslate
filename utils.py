@@ -4,9 +4,9 @@ from typing import Dict
 
 import torch
 import torch.optim as optim
-from pytorch_lamb.pytorch_lamb import Lamb
 from torch.nn.utils.rnn import pad_sequence
 
+from pytorch_lamb.pytorch_lamb import Lamb
 from textprocessor import TextProcessor
 
 

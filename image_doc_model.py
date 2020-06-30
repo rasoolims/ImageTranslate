@@ -42,7 +42,8 @@ class ImageSeq2Seq(MassSeq2Seq):
         doc_image_embeddings = image_embeddings[doc_idx]
 
         # Attend images to documents.
-        image_attended = self.image_decoder(encoder_states=doc_states, hidden_states=doc_image_embeddings, src_attn_mask=doc_mask)
+        image_attended = self.image_decoder(encoder_states=doc_states, hidden_states=doc_image_embeddings,
+                                            src_attn_mask=doc_mask)
 
         # Split back based on images
         image_attended_split = torch.split(image_attended, doc_split)
@@ -71,4 +72,3 @@ class ImageSeq2Seq(MassSeq2Seq):
                                     text_processor=lm.text_processor, checkpoint=checkpoint)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm
-

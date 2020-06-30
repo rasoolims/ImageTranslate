@@ -77,4 +77,6 @@ def get_img_options_parser():
     parser.add_option("--img_capacity", dest="img_capacity", help="Batch capacity", type="int", default=50)
     parser.add_option("--max-image", dest="max_image", help="Maximum number of images in batch", type="int", default=32)
     parser.set_default("model_size", 6)
+    parser.add_option("--share-decoder", action="store_true", dest="share_decoder", help="Share image and text decoder",
+                      default=False)   
     return parser

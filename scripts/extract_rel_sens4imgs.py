@@ -4,7 +4,7 @@ import os
 import sys
 from itertools import chain
 
-sen_chooser = lambda i, s, sens, r, img: (img["img_path"], img["url"], sens[i]) if s > r else None
+sen_chooser = lambda i, s, sens, r, img: (img["img_path"], sens[i]) if s > r else None
 
 
 def extract_shared_sentences(v):
@@ -19,7 +19,7 @@ def extract_captions4imgs(image, sen_words, sens):
     shared_word_counts = list(map(lambda s: len(s & caption_words), sen_words))
     max_word_count = max(shared_word_counts)
     least_req_count = max(2, max_word_count - 2)
-    captions = [(image["img_path"], image["url"], caption)] + list(
+    captions = [(image["img_path"], caption)] + list(
         filter(lambda x: x != None,
                map(lambda i, s: sen_chooser(i, s, sens, least_req_count, image), range(len(sens)), shared_word_counts)))
     return captions

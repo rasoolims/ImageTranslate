@@ -15,7 +15,7 @@ from torchvision import transforms
 
 import dataset
 from albert_seq2seq import MassSeq2Seq
-from image_doc_model import ImageSeq2Seq
+from image_doc_model import ImageDocSeq2Seq
 from lm import LM
 from option_parser import get_img_options_parser
 from parallel import DataParallelModel
@@ -188,8 +188,8 @@ class ImageDocTrainer(MassTrainer):
         text_processor = TextProcessor(options.tokenizer_path)
 
         if options.pretrained_path is not None:
-            mt_model, lm = ImageSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path,
-                                             sep_decoder=options.sep_encoder, share_decoder=options.share_decoder)
+            mt_model, lm = ImageDocSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path,
+                                                sep_decoder=options.sep_encoder, share_decoder=options.share_decoder)
         else:
             if options.lm_path is None:
                 lm = LM(text_processor=text_processor, size=options.model_size)
@@ -197,9 +197,9 @@ class ImageDocTrainer(MassTrainer):
                 lm = LM.load(options.lm_path)
 
             decoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
-            mt_model = ImageSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
-                                    text_processor=lm.text_processor, checkpoint=options.checkpoint,
-                                    share_decoder=options.share_decoder)
+            mt_model = ImageDocSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
+                                       text_processor=lm.text_processor, checkpoint=options.checkpoint,
+                                       share_decoder=options.share_decoder)
 
         transform = transforms.Compose([  # [1]
             transforms.Resize(256),  # [2]

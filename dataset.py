@@ -297,7 +297,7 @@ class ImageDocDataset(Dataset):
                          max_img_per_batch):
         final_batches, final_image_paths = [], []
         tensorfier = lambda b: list(map(torch.LongTensor, b))
-        cur_image_batch, cur_doc_batch, cur_caption_batch, cur_lang_batch, doc_indices, doc_split_sizes = [], [], [], [], [], []
+        cur_image_batch, cur_doc_batch, cur_caption_batch, cur_lang_batch, cur_caption_lang_batch, doc_indices, doc_split_sizes = [], [], [], [], [], [], []
         cur_max_doc_cap = 0
         for image, caption_infos in image_info_dict.items():
             captions = [c[0] for c in caption_infos]
@@ -328,9 +328,10 @@ class ImageDocDataset(Dataset):
                         final_image_paths.append(cur_image_batch)
                         entry = {"docs": all_docs, "captions": all_captions,
                                  "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes,
-                                 "langs": torch.LongTensor(cur_lang_batch)}
+                                 "langs": torch.LongTensor(cur_lang_batch),
+                                 "caption_langs": torch.LongTensor(cur_caption_lang_batch)}
                         final_batches.append(entry)
-                        cur_image_batch, cur_doc_batch, cur_caption_batch, cur_lang_batch, doc_indices, doc_split_sizes = [], [], [], [], [], []
+                        cur_image_batch, cur_doc_batch, cur_caption_batch, cur_lang_batch, cur_caption_lang_batch, doc_indices, doc_split_sizes = [], [], [], [], [], [], []
                         cur_max_doc_cap = 0
                     else:
                         cur_max_doc_cap = max(cur_max_doc_cap, doc_len)
@@ -341,12 +342,14 @@ class ImageDocDataset(Dataset):
                         cur_caption_batch.append(torch.LongTensor(caption))
                         cur_doc_batch += docs
                         cur_lang_batch += [langs[d_i]] * len(docs)
+                        cur_caption_lang_batch.append(langs[c_i])
         if len(cur_image_batch) > 0:
             all_docs = pad_sequence(tensorfier(cur_doc_batch), batch_first=True, padding_value=self.pad_idx)
             all_captions = pad_sequence(tensorfier(cur_caption_batch), batch_first=True, padding_value=self.pad_idx)
             entry = {"docs": all_docs, "captions": all_captions, "images": cur_image_batch,
                      "doc_idx": torch.LongTensor(doc_indices), "doc_split": doc_split_sizes,
-                     "langs": torch.LongTensor(cur_lang_batch)}
+                     "langs": torch.LongTensor(cur_lang_batch),
+                     "caption_langs": torch.LongTensor(cur_caption_lang_batch)}
             final_batches.append(entry)
             final_image_paths.append(cur_image_batch)
         return final_batches, final_image_paths
@@ -396,8 +399,10 @@ class ImageDocDataset(Dataset):
         caption_mask = (batch["captions"] != self.pad_idx)
 
         return {"images": self.image_batches[r][item], "captions": batch["captions"], "docs": batch["docs"],
-                "doc_mask": doc_mask, "langs": batch["langs"],
+                "doc_mask": doc_mask, "langs": batch["langs"], "caption_langs": batch["caption_langs"],
                 "caption_mask": caption_mask, "doc_idx": batch["doc_idx"], "doc_split": batch["doc_split"]}
+
+
 
 
 class TextCollator(object):

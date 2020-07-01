@@ -9,7 +9,7 @@ import binarize_image_doc_data
 import create_batches
 from albert_seq2seq import AlbertSeq2Seq
 from dataset import TextDataset, ImageDocDataset
-from image_doc_model import ImageSeq2Seq
+from image_doc_model import ImageDocSeq2Seq
 from lm import LM
 from textprocessor import TextProcessor
 
@@ -127,7 +127,7 @@ class TestModel(unittest.TestCase):
             assert len(image_data) == 276
 
             lm = LM(text_processor=processor, size=4)
-            image_seq2seq = ImageSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
+            image_seq2seq = ImageDocSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
             output = image_seq2seq(image_data[4])
 
 

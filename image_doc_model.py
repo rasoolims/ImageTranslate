@@ -10,11 +10,11 @@ from lm import LM
 from textprocessor import TextProcessor
 
 
-class ImageSeq2Seq(MassSeq2Seq):
+class ImageDocSeq2Seq(MassSeq2Seq):
     def __init__(self, config: AlbertConfig, encoder: AlbertModel, decoder, output_layer: AlbertMLMHead,
                  text_processor: TextProcessor, checkpoint: int = 5, freeze_image: bool = False,
                  share_decoder: bool = False):
-        super(ImageSeq2Seq, self).__init__(config, encoder, decoder, output_layer, text_processor, checkpoint)
+        super(ImageDocSeq2Seq, self).__init__(config, encoder, decoder, output_layer, text_processor, checkpoint)
         self.image_model: ModifiedResnet = init_net(embed_dim=config.embedding_size, dropout=config.hidden_dropout_prob,
                                                     freeze=freeze_image)
         self.image_decoder = self.decoder.decoder if share_decoder else AlbertDecoderTransformer(
@@ -34,6 +34,7 @@ class ImageSeq2Seq(MassSeq2Seq):
         doc_idx = batch["doc_idx"].to(device)
         doc_split = batch["doc_split"]
         src_langs = batch["langs"].unsqueeze(-1).expand(-1, docs.size(-1))
+        caption_langs = batch["caption_langs"].unsqueeze(-1).expand(-1, captions.size(-1))
 
         "Take in and process masked src and target sequences."
         doc_states = self.encode(docs, doc_mask, src_langs)[0]
@@ -54,7 +55,8 @@ class ImageSeq2Seq(MassSeq2Seq):
         max_images_attended = torch.stack(max_list, 0)
         subseq_mask = future_mask(caption_mask[:, :-1]).to(device)
         decoder_output = self.decoder(encoder_states=max_images_attended, input_ids=captions[:, :-1],
-                                      input_ids_mask=caption_mask[:, :-1], tgt_attn_mask=subseq_mask)
+                                      input_ids_mask=caption_mask[:, :-1], tgt_attn_mask=subseq_mask,
+                                      token_type_ids=caption_langs[:, :-1])
         diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
         tgt_non_mask_flat = caption_mask[:, 1:].contiguous().view(-1)
         non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]
@@ -70,8 +72,9 @@ class ImageSeq2Seq(MassSeq2Seq):
             config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
             decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
-            mt_model = ImageSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
-                                    text_processor=lm.text_processor, checkpoint=checkpoint,
-                                    share_decoder=share_decoder)
+            mt_model = ImageDocSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
+                                       text_processor=lm.text_processor, checkpoint=checkpoint,
+                                       share_decoder=share_decoder)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm
+

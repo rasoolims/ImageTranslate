@@ -75,5 +75,7 @@ def get_img_options_parser():
     parser.add_option("--max-image", dest="max_image", help="Maximum number of images in batch", type="int", default=32)
     parser.add_option("--share-decoder", action="store_true", dest="share_decoder", help="Share image and text decoder",
                       default=False)
+    parser.add_option("--caption", action="store_true", dest="captioning",
+                      help="ImageCaptionSeq2Seq instead of doc model", default=False)
     parser.set_default("model_size", 6)
     return parser

@@ -403,6 +403,79 @@ class ImageDocDataset(Dataset):
                 "caption_mask": caption_mask, "doc_idx": batch["doc_idx"], "doc_split": batch["doc_split"]}
 
 
+class ImageCaptionDataset(Dataset):
+    def __init__(self, root_img_dir: str, data_bin_file: str, transform, max_capacity: int,
+                 text_processor: TextProcessor, max_img_per_batch: int):
+        self.transform = transform
+        self.pad_idx = text_processor.pad_token_id()
+        self.batches = []
+        self.root_img_dir = root_img_dir
+        max_capacity *= 1000000
+        self.image_cache = {}
+        self.image_batches = []
+        self.image_queue = []
+        num_gpu = torch.cuda.device_count()
+
+        print("Start", datetime.datetime.now())
+        cur_batch, cur_imgs = [], []
+        cur_max_len = 0
+        with open(data_bin_file, "rb") as fp:
+            self.unique_images, captions = marshal.load(fp)
+            lang_id = text_processor.id2token(captions[0][1][0])
+            self.lang = text_processor.languages[lang_id] if lang_id in text_processor.languages else 0
+            for caption_info in captions:
+                image_id, caption = caption_info
+                cur_batch.append(caption)
+                cur_imgs.append(image_id)
+                cur_max_len = max(cur_max_len, len(caption))
+                batch_capacity_size = 49 * (cur_max_len ** 2) * len(cur_batch)
+                if (len(cur_imgs) > max_img_per_batch or batch_capacity_size > max_capacity) and len(
+                        cur_batch[:-1]) >= num_gpu and len(cur_batch) > 1:
+                    batch_tensor = pad_sequence(list(map(lambda t: torch.LongTensor(t), cur_batch[:-1])),
+                                                batch_first=True, padding_value=self.pad_idx)
+                    self.batches.append((batch_tensor, batch_tensor != self.pad_idx))
+                    self.image_batches.append(cur_imgs[:-1])
+
+                    cur_batch = [cur_batch[-1]]
+                    cur_imgs = [cur_imgs[-1]]
+                    cur_max_len = len(cur_batch[0])
+
+            if len(cur_batch) > 0:
+                batch_tensor = pad_sequence(list(map(lambda t: torch.LongTensor(t), cur_batch)), batch_first=True,
+                                            padding_value=self.pad_idx)
+                self.batches.append((batch_tensor, batch_tensor != self.pad_idx))
+                self.image_batches.append(cur_imgs)
+
+        print("Loaded %d image batches!" % (len(self.batches)))
+        print("End", datetime.datetime.now())
+
+    def read_transform_images(self, cur_image_batch):
+        images = []
+        for image_path in cur_image_batch:
+            with Image.open(os.path.join(self.root_img_dir, image_path)) as im:
+                # make sure not to deal with rgba or grayscale images.
+                image = self.transform(im.convert("RGB"))
+                images.append(image)
+                im.close()
+        images = torch.stack(images)
+        return images
+
+    def __len__(self):
+        return len(self.batches)
+
+    def __getitem__(self, item):
+        batch, caption_mask = self.batches[item]
+        if item not in self.image_batches:
+            if len(self.image_cache) >= 60000:
+                k = self.image_queue.pop(0)
+                del self.image_cache[k]
+
+            self.image_cache[item] = self.read_transform_images(
+                list(map(lambda x: self.unique_images[x], self.image_batches[item])))
+            self.image_queue.append(item)
+
+        return {"images": self.image_cache[item], "captions": batch,
+                "langs": torch.LongTensor([self.lang] * len(batch)), "caption_mask": caption_mask}
 
 
 class TextCollator(object):

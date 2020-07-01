@@ -15,7 +15,7 @@ from torchvision import transforms
 
 import dataset
 from albert_seq2seq import MassSeq2Seq
-from image_doc_model import ImageDocSeq2Seq
+from image_doc_model import ImageDocSeq2Seq, ImageCaptionSeq2Seq
 from lm import LM
 from option_parser import get_img_options_parser
 from parallel import DataParallelModel
@@ -41,7 +41,7 @@ class ImageDocTrainer(MassTrainer):
         if self.num_gpu > 1:
             self.mass_model = DataParallelModel(self.mass_model)
 
-    def train_epoch(self, data_iter: data_utils.DataLoader, mass_data_iter: List[data_utils.DataLoader], step: int,
+    def train_epoch(self, data_iter, mass_data_iter: List[data_utils.DataLoader], step: int,
                     saving_path: str = None, mt_dev_iter: data_utils.DataLoader = None, fine_tune: bool = False,
                     lang_directions: dict = False, **kwargs):
         "Standard Training and Logging Function"
@@ -49,16 +49,21 @@ class ImageDocTrainer(MassTrainer):
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
         cur_loss = 0
         sentences = 0
-        shortest = min([len(l) for l in mass_data_iter] + [len(data_iter)])
+        if isinstance(data_iter, data_utils.DataLoader):
+            shortest = min([len(l) for l in mass_data_iter] + [len(data_iter)])
+            batch_zip = zip(data_iter, mass_data_iter[0], mass_data_iter[1])
+        else:
+            shortest = min([len(l) for l in mass_data_iter] + [len(l) for l in data_iter])
+            batch_zip = zip(data_iter[0], data_iter[1], mass_data_iter[0], mass_data_iter[1])
+
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
-
-        for i, batches in enumerate(zip(data_iter, mass_data_iter[0], mass_data_iter[1])):
+        for i, batches in enumerate(batch_zip):
             for batch in batches:
                 self.optimizer.zero_grad()
                 is_img_batch = isinstance(batch, list) and "captions" in batch[0]
-                try:
+                if True:
                     if is_img_batch:  # Image data
                         if len(batch) < self.num_gpu:
                             continue
@@ -67,7 +72,6 @@ class ImageDocTrainer(MassTrainer):
                         tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
                         targets = torch.cat([targets[i][tgt_mask_flat[i]] for i in range(len(batch))])
                         ntokens = targets.size(0)
-                        sentences += sum([int(b["docs"].size(0)) + int(b["captions"].size(0)) for b in batch])
                     else:  # MASS data
                         src_inputs = batch["src_texts"].squeeze(0)
                         src_pad_mask = batch["src_pad_mask"].squeeze(0)
@@ -123,6 +127,7 @@ class ImageDocTrainer(MassTrainer):
                             targets = src_targets[src_mask_flat]
                             ntokens = targets.size(0)
 
+                    sentences += len(batch)
                     if ntokens == 0:  # Nothing to predict!
                         continue
 
@@ -145,11 +150,8 @@ class ImageDocTrainer(MassTrainer):
                     if not is_img_batch and not fine_tune:
                         mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
-                except RuntimeError as err:
-                    print("Error processing", is_img_batch)
-                    if is_img_batch:
-                        for b in batch:
-                            print(b["docs"].size(), b["images"].size())
+                # except RuntimeError as err:
+                #     print("Error processing", is_img_batch)
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start
@@ -184,12 +186,12 @@ class ImageDocTrainer(MassTrainer):
     def train(options):
         if not os.path.exists(options.model_path):
             os.makedirs(options.model_path)
-
+        images_class = ImageCaptionSeq2Seq if options.captioning else ImageDocSeq2Seq
         text_processor = TextProcessor(options.tokenizer_path)
 
         if options.pretrained_path is not None:
-            mt_model, lm = ImageDocSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path,
-                                                sep_decoder=options.sep_encoder, share_decoder=options.share_decoder)
+            mt_model, lm = images_class.load(options.pretrained_path, tok_dir=options.tokenizer_path,
+                                             sep_decoder=options.sep_encoder, share_decoder=options.share_decoder)
         else:
             if options.lm_path is None:
                 lm = LM(text_processor=text_processor, size=options.model_size)
@@ -197,9 +199,9 @@ class ImageDocTrainer(MassTrainer):
                 lm = LM.load(options.lm_path)
 
             decoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
-            mt_model = ImageDocSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
-                                       text_processor=lm.text_processor, checkpoint=options.checkpoint,
-                                       share_decoder=options.share_decoder)
+            mt_model = images_class(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
+                                    text_processor=lm.text_processor, checkpoint=options.checkpoint,
+                                    share_decoder=options.share_decoder)
 
         transform = transforms.Compose([  # [1]
             transforms.Resize(256),  # [2]
@@ -212,22 +214,38 @@ class ImageDocTrainer(MassTrainer):
 
         print("Model initialization done!")
 
-        train_data = dataset.ImageDocDataset(root_img_dir=options.image_dir,
-                                             data_bin_file=options.train_path, transform=transform,
-                                             max_doc_batch_capacity=options.img_capacity,
-                                             text_processor=mt_model.text_processor,
-                                             max_img_per_batch=options.max_image)
-        print("Min length of training data", len(train_data))
-        print("Data length", [(l, len(b)) for l, b in train_data.batches.items()])
-
         pin_memory = torch.cuda.is_available()
 
         # We assume that the collator function returns a list with the size of number of gpus (in case of cpus,
         collator = dataset.ImageTextCollator()
         num_batches = max(1, torch.cuda.device_count())
 
-        train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=False, pin_memory=pin_memory,
-                                             collate_fn=collator)
+        if not options.captioning:
+            train_data = dataset.ImageDocDataset(root_img_dir=options.image_dir,
+                                                 data_bin_file=options.train_path, transform=transform,
+                                                 max_doc_batch_capacity=options.img_capacity,
+                                                 text_processor=mt_model.text_processor,
+                                                 max_img_per_batch=options.max_image)
+            print("Min length of training data", len(train_data))
+            print("Data length", [(l, len(b)) for l, b in train_data.batches.items()])
+
+            train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=False,
+                                                 pin_memory=pin_memory,
+                                                 collate_fn=collator)
+        else:
+            train_loader = []
+            train_paths = options.train_path.split(",")
+            for train_path in train_paths:
+                train_data = dataset.ImageCaptionDataset(root_img_dir=options.image_dir,
+                                                         data_bin_file=train_path, transform=transform,
+                                                         max_capacity=options.img_capacity,
+                                                         text_processor=mt_model.text_processor,
+                                                         max_img_per_batch=options.max_image)
+                print(train_path, "Length of training data", len(train_data))
+                tl = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=False,
+                                           pin_memory=pin_memory,
+                                           collate_fn=collator)
+                train_loader.append(tl)
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:

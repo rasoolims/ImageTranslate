@@ -188,6 +188,7 @@ class ImageDocTrainer(MassTrainer):
             os.makedirs(options.model_path)
         images_class = ImageCaptionSeq2Seq if options.captioning else ImageDocSeq2Seq
         text_processor = TextProcessor(options.tokenizer_path)
+        num_processors = max(torch.cuda.device_count(), 1)
 
         if options.pretrained_path is not None:
             mt_model, lm = images_class.load(options.pretrained_path, tok_dir=options.tokenizer_path,
@@ -265,7 +266,8 @@ class ImageDocTrainer(MassTrainer):
             mass_train_data, mass_train_loader = [], []
             for i, mass_train_path in enumerate(mass_train_paths):
                 td = dataset.MassDataset(batch_pickle_dir=mass_train_path,
-                                         max_batch_capacity=options.total_capacity, max_batch=options.batch,
+                                         max_batch_capacity=num_processors * options.total_capacity,
+                                         max_batch=num_processors * options.batch,
                                          pad_idx=mt_model.text_processor.pad_token_id(),
                                          max_seq_len=options.max_seq_len, keep_examples=True)
                 mass_train_data.append(td)
@@ -277,8 +279,8 @@ class ImageDocTrainer(MassTrainer):
             finetune_data, finetune_loader = [], []
             for i, mass_train_path in enumerate(mass_train_paths):
                 fd = dataset.MassDataset(batch_pickle_dir=mass_train_path,
-                                         max_batch_capacity=int(options.total_capacity / 2),
-                                         max_batch=int(options.batch / 2),
+                                         max_batch_capacity=int(num_processors * options.total_capacity / 2),
+                                         max_batch=int(num_processors * options.batch / 2),
                                          pad_idx=mt_model.text_processor.pad_token_id(),
                                          max_seq_len=options.max_seq_len, keep_examples=False,
                                          example_list=None if mass_train_data is None else mass_train_data[
@@ -304,8 +306,8 @@ class ImageDocTrainer(MassTrainer):
         mt_dev_loader = None
         if options.mt_dev_path is not None:
             mt_dev_data = dataset.MTDataset(batch_pickle_dir=options.mt_dev_path,
-                                            max_batch_capacity=options.total_capacity,
-                                            max_batch=int(options.batch / (options.beam_width * 2)),
+                                            max_batch_capacity=num_processors * options.total_capacity,
+                                            max_batch=int(num_processors * options.batch / (options.beam_width * 2)),
                                             pad_idx=mt_model.text_processor.pad_token_id())
             mt_dev_loader = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 

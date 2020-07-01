@@ -32,8 +32,9 @@ if __name__ == "__main__":
     assert json_file != output_file
     with open(json_file, "rb") as fp:
         doc_dicts = json.load(fp)
+        num_captions = sum(list(map(lambda v: len(v["images"]), doc_dicts)))
         captions = list(chain(*map(lambda v: extract_shared_sentences(v), doc_dicts)))
-        print(len(captions))
+        print(num_captions, len(captions))
         with open(output_file, "wb") as wfp:
             marshal.dump(captions, wfp)
         print("Done!")

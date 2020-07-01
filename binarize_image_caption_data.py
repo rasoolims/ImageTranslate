@@ -27,7 +27,7 @@ def write(text_processor: TextProcessor, output_file: str, input_file: str, root
         tok_captions = {}
         image_ids = {}
         for ci, c in enumerate(captions):
-            print(ci, "/", len(captions), "->", len(unique_images), end="\r")
+            print(ci, "/", len(captions), "->", len(tok_captions), len(unique_images), end="\r")
             try:
                 tok_sen = text_processor.tokenize_one_sentence(c[1])
                 if len(tok_sen) > max_len:

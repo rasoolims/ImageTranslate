@@ -56,7 +56,7 @@ def write(text_processor: TextProcessor, output_file: str, input_file: str, root
             except:
                 pass
 
-        print("Skipped long sentences:", skipped_long_sens)
+        print("Skipped long sentences:", skipped_long_sens, "from", len(captions))
         tok_captions_sorted = sorted(tok_captions.items(), key=lambda item: len(item[1]))
         caption_sorted = list(map(lambda e: (image_ids[e[0]], e[1]), tok_captions_sorted))
         print("Longest sentence", len(tok_captions_sorted[-1][1]))

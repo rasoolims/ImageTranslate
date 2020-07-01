@@ -56,9 +56,9 @@ def write(text_processor: TextProcessor, output_file: str, input_file: str, root
             except:
                 pass
 
+        print("Skipped long sentences:", skipped_long_sens)
         tok_captions_sorted = sorted(tok_captions.items(), key=lambda item: len(item[1]))
         caption_sorted = list(map(lambda e: (image_ids[e[0]], e[1]), tok_captions_sorted))
-        print("Skipped long sentences:", skipped_long_sens)
         print("Longest sentence", len(tok_captions_sorted[-1][1]))
         with open(output_file, "wb") as wfp:
             marshal.dump((unique_images, caption_sorted), wfp)

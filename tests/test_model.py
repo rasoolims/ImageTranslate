@@ -120,16 +120,15 @@ class TestModel(unittest.TestCase):
             processor.train_tokenizer([text_data_path], vocab_size=1000, to_save_dir=tmpdirname,
                                       languages={"<mzn>": 0, "<glk>": 1, "<en>": 2})
             binarize_image_doc_data.write(text_processor=processor, output_file=os.path.join(tmpdirname, "image.bin"),
-                                          json_dir=data_path, files_to_use="mzn,glk")
+                                          json_dir=data_path, files_to_use="mzn,glk", root_img_dir=path_dir_name)
             image_data = ImageDocDataset(os.getcwd(), os.path.join(tmpdirname, "image.bin"), transform,
-                                         max_doc_batch_capacity=1, text_processor=processor)
+                                         max_doc_batch_capacity=1, text_processor=processor, max_img_per_batch=100)
             assert len(image_data[4]) == 8
-            assert len(image_data) == 491
+            assert len(image_data) == 276
 
             lm = LM(text_processor=processor, size=4)
             image_seq2seq = ImageSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
-            output = image_seq2seq('cpu', image_data[4])
-            assert list(output.size()) == [32, processor.vocab_size()]
+            output = image_seq2seq(image_data[4])
 
 
 if __name__ == '__main__':

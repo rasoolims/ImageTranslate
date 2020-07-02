@@ -152,6 +152,9 @@ class ImageDocTrainer(MassTrainer):
 
                 except RuntimeError as err:
                     print("Error processing", is_img_batch)
+                    if isinstance(model, ImageCaptionSeq2Seq) and is_img_batch:
+                        for b in batch:
+                            print("->", len(b["images"]), b["captions"].size())
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start

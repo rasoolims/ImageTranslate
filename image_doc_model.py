@@ -27,13 +27,8 @@ class ModifiedResnet(models.ResNet):
         if self.dropout > 0:
             grid_hidden = F.dropout(grid_hidden, p=self.dropout)
         grid_outputs = F.relu(self.fc(grid_hidden))
-
-        location_indices = self.location_indices
-        if torch.cuda.is_available():
-            location_indices = self.location_indices.cuda(grid_outputs.get_device())
-        location_embedding = self.location_embedding(location_indices)
-
-        out = grid_outputs + location_embedding.unsqueeze(0)
+        location_embedding = self.location_embedding.weight.unsqueeze(0)
+        out = grid_outputs + location_embedding
         out_norm = self.layer_norm(out)
         if self.dropout > 0:
             out_norm = F.dropout(out_norm, p=self.dropout)
@@ -53,7 +48,6 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False):
     current_weight = model.state_dict()["fc.weight"]
     model.fc = torch.nn.Linear(in_features=current_weight.size()[1], out_features=embed_dim, bias=False)
     model.fc.train()
-    model.location_indices = torch.tensor(list(range(49)))
 
     # Learning embedding of each CNN region.
     model.location_embedding = nn.Embedding(49, embed_dim)

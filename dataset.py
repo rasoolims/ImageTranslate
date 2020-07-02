@@ -446,7 +446,7 @@ class ImageCaptionDataset(Dataset):
                 self.batches.append((batch_tensor, batch_tensor != self.pad_idx))
                 self.image_batches.append(cur_imgs)
 
-        print("Loaded %d image batches!" % (len(self.batches)))
+        print("Loaded %d image batches of %d unique images!" % (len(self.batches), len(self.unique_images)))
         print("End", datetime.datetime.now())
 
     def read_transform_images(self, cur_image_batch):

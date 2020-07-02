@@ -195,7 +195,8 @@ class ImageDocTrainer(MassTrainer):
 
         if options.pretrained_path is not None:
             mt_model, lm = images_class.load(options.pretrained_path, tok_dir=options.tokenizer_path,
-                                             sep_decoder=options.sep_encoder, share_decoder=options.share_decoder)
+                                             sep_decoder=options.sep_encoder, share_decoder=options.share_decoder,
+                                             resnet_depth=options.resnet_depth)
         else:
             if options.lm_path is None:
                 lm = LM(text_processor=text_processor, size=options.model_size)
@@ -205,7 +206,7 @@ class ImageDocTrainer(MassTrainer):
             decoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
             mt_model = images_class(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                     text_processor=lm.text_processor, checkpoint=options.checkpoint,
-                                    share_decoder=options.share_decoder)
+                                    share_decoder=options.share_decoder, resnet_depth=options.resnet_depth)
 
         transform = transforms.Compose([  # [1]
             transforms.Resize(256),  # [2]

@@ -35,8 +35,18 @@ class ModifiedResnet(models.ResNet):
         return out_norm
 
 
-def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False):
-    model = models.resnet18(pretrained=True)
+def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: int = 1):
+    if depth == 1:
+        model = models.resnet18(pretrained=True)
+    elif depth == 2:
+        model = models.resnet34(pretrained=True)
+    elif depth == 3:
+        model = models.resnet50(pretrained=True)
+    elif depth == 4:
+        model = models.resnet101(pretrained=True)
+    elif depth == 5:
+        model = models.resnet152(pretrained=True)
+
     model.__class__ = ModifiedResnet
     model.dropout = dropout
     model.layer_norm = torch.nn.LayerNorm(embed_dim, eps=1e-12)
@@ -59,10 +69,10 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False):
 class ImageCaptionSeq2Seq(MassSeq2Seq):
     def __init__(self, config: AlbertConfig, encoder: AlbertModel, decoder, output_layer: AlbertMLMHead,
                  text_processor: TextProcessor, checkpoint: int = 5, freeze_image: bool = False,
-                 share_decoder: bool = False):
+                 share_decoder: bool = False, resnet_depth: int = 1):
         super(ImageCaptionSeq2Seq, self).__init__(config, encoder, decoder, output_layer, text_processor, checkpoint)
         self.image_model: ModifiedResnet = init_net(embed_dim=config.embedding_size, dropout=config.hidden_dropout_prob,
-                                                    freeze=freeze_image)
+                                                    freeze=freeze_image, depth=resnet_depth)
         self.image_mapper = nn.Linear(config.embedding_size, config.hidden_size)
 
     def forward(self, batch, log_softmax: bool = False, **kwargs):
@@ -91,14 +101,14 @@ class ImageCaptionSeq2Seq(MassSeq2Seq):
         return outputs
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool, share_decoder: bool = False):
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool, share_decoder: bool = False, resent_depth: int = 1):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
             decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
             mt_model = ImageCaptionSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder,
-                                           output_layer=lm.masked_lm,
+                                           output_layer=lm.masked_lm, resnet_depth=resent_depth,
                                            text_processor=lm.text_processor, checkpoint=checkpoint)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm
@@ -107,10 +117,10 @@ class ImageCaptionSeq2Seq(MassSeq2Seq):
 class ImageDocSeq2Seq(MassSeq2Seq):
     def __init__(self, config: AlbertConfig, encoder: AlbertModel, decoder, output_layer: AlbertMLMHead,
                  text_processor: TextProcessor, checkpoint: int = 5, freeze_image: bool = False,
-                 share_decoder: bool = False):
+                 share_decoder: bool = False, resnet_depth: int = 1):
         super(ImageDocSeq2Seq, self).__init__(config, encoder, decoder, output_layer, text_processor, checkpoint)
         self.image_model: ModifiedResnet = init_net(embed_dim=config.embedding_size, dropout=config.hidden_dropout_prob,
-                                                    freeze=freeze_image)
+                                                    freeze=freeze_image, depth=resnet_depth)
         self.image_decoder = self.decoder.decoder if share_decoder else AlbertDecoderTransformer(
             AlbertTransformer(config))
 
@@ -160,7 +170,7 @@ class ImageDocSeq2Seq(MassSeq2Seq):
         return outputs
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool, share_decoder: bool):
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool, share_decoder: bool, resent_depth: int = 1):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
@@ -168,6 +178,6 @@ class ImageDocSeq2Seq(MassSeq2Seq):
             decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
             mt_model = ImageDocSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                        text_processor=lm.text_processor, checkpoint=checkpoint,
-                                       share_decoder=share_decoder)
+                                       share_decoder=share_decoder, resnet_depth=resent_depth)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm

@@ -31,8 +31,6 @@ def is_valid_img(root_img_dir, path):
 
 def write(text_processor: TextProcessor, output_file: str, input_file: str, root_img_dir, skip_check: bool = False,
           max_len: int = 256):
-    skipped_long_sens = 0
-    image_path_dict, unique_images = dict(), dict()
     with open(os.path.join(input_file), "rb") as fp:
         captions = marshal.load(fp)
 
@@ -47,7 +45,7 @@ def write(text_processor: TextProcessor, output_file: str, input_file: str, root
         path_ids = {i: k for k, i in enumerate(valid_images)}
 
         print(datetime.datetime.now(), "Getting file captions")
-        captid = lambda i, s: (s, path_ids[img_pths[i]]) if len(s) <= max_len and img_pths[i] in valid_images else None
+        captid = lambda i, s: (path_ids[img_pths[i]], s) if len(s) <= max_len and img_pths[i] in valid_images else None
         tok_captions = list(filter(lambda x: x != None, map(lambda i, s: captid(i, s), range(len(captions)), tok_sens)))
         print(datetime.datetime.now(), "Dumping...")
         with open(output_file, "wb") as wfp:

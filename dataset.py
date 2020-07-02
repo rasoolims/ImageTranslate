@@ -413,11 +413,12 @@ class ImageCaptionDataset(Dataset):
         max_capacity *= 1000000
         self.image_cache = {}
         self.image_batches = []
+        self.image_split_batches = []
         self.image_queue = []
         num_gpu = torch.cuda.device_count()
 
         print("Start", datetime.datetime.now())
-        cur_batch, cur_imgs = [], []
+        cur_batch, cur_imgs, cur_img_set = [], [], set()
         cur_max_len = 0
         with open(data_bin_file, "rb") as fp:
             self.unique_images, captions = marshal.load(fp)
@@ -427,24 +428,42 @@ class ImageCaptionDataset(Dataset):
                 image_id, caption = caption_info
                 cur_batch.append(caption)
                 cur_imgs.append(image_id)
+                cur_img_set.add(image_id)
                 cur_max_len = max(cur_max_len, len(caption))
                 batch_capacity_size = (49 ** 3 + (cur_max_len ** 3)) * len(cur_batch)
-                if (len(cur_imgs) > max_img_per_batch or batch_capacity_size > max_capacity) and len(
+                if (len(cur_img_set) > max_img_per_batch or batch_capacity_size > max_capacity) and len(
                         cur_batch[:-1]) >= num_gpu and len(cur_batch) > 1:
                     batch_tensor = pad_sequence(list(map(lambda t: torch.LongTensor(t), cur_batch[:-1])),
                                                 batch_first=True, padding_value=self.pad_idx)
                     self.batches.append((batch_tensor, batch_tensor != self.pad_idx))
-                    self.image_batches.append(cur_imgs[:-1])
 
+                    image_split, images_to_process = [0], [cur_imgs[0]]
+                    for im in range(1, len(cur_imgs[:-1])):
+                        if cur_imgs[im] == cur_imgs[im - 1]:
+                            image_split.append(image_split[-1])
+                        else:
+                            image_split.append(image_split[-1] + 1)
+                            images_to_process.append(cur_imgs[im])
+                    self.image_batches.append(images_to_process)
+                    self.image_split_batches.append(image_split)
                     cur_batch = [cur_batch[-1]]
                     cur_imgs = [cur_imgs[-1]]
+                    cur_img_set = set(cur_imgs)
                     cur_max_len = len(cur_batch[0])
 
             if len(cur_batch) > 0:
                 batch_tensor = pad_sequence(list(map(lambda t: torch.LongTensor(t), cur_batch)), batch_first=True,
                                             padding_value=self.pad_idx)
                 self.batches.append((batch_tensor, batch_tensor != self.pad_idx))
-                self.image_batches.append(cur_imgs)
+                image_split, images_to_process = [0], [cur_imgs[0]]
+                for im in range(1, len(cur_imgs)):
+                    if cur_imgs[im] == cur_imgs[im - 1]:
+                        image_split.append(image_split[-1])
+                    else:
+                        image_split.append(image_split[-1] + 1)
+                        images_to_process.append(cur_imgs[im])
+                self.image_batches.append(images_to_process)
+                self.image_split_batches.append(image_split)
 
         print("Loaded %d image batches of %d unique images!" % (len(self.batches), len(self.unique_images)))
         print("End", datetime.datetime.now())
@@ -461,15 +480,21 @@ class ImageCaptionDataset(Dataset):
                     k = self.image_queue.pop(0)
                     del self.image_cache[k]
                 image_path = self.unique_images[image_id]
-                with Image.open(os.path.join(self.root_img_dir, image_path)) as im:
-                    # make sure not to deal with rgba or grayscale images.
-                    image = self.transform(im.convert("RGB"))
+                try:
+                    with Image.open(os.path.join(self.root_img_dir, image_path)) as im:
+                        # make sure not to deal with rgba or grayscale images.
+                        image = self.transform(im.convert("RGB"))
+                        self.image_cache[image_id] = image
+                        im.close()
+                except:
+                    image = torch.zeros(3, 224, 224)
                     self.image_cache[image_id] = image
-                    im.close()
+                    print("--> Corrputed image", image_path)
                     self.image_queue.append(image_id)
+
             image_batch.append(self.image_cache[image_id])
 
-        return {"images": torch.stack(image_batch), "captions": batch,
+        return {"images": torch.stack(image_batch), "captions": batch, "split": self.image_split_batches[item],
                 "langs": torch.LongTensor([self.lang] * len(batch)), "caption_mask": caption_mask}
 
 

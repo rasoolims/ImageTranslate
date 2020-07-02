@@ -3,7 +3,6 @@ import marshal
 import os
 from optparse import OptionParser
 
-from PIL import Image
 from torchvision import transforms
 
 from textprocessor import TextProcessor
@@ -16,6 +15,7 @@ transform = transforms.Compose([  # [1]
         mean=[0.485, 0.456, 0.406],  # [6]
         std=[0.229, 0.224, 0.225]  # [7]
     )])
+
 
 def write(text_processor: TextProcessor, output_file: str, input_file: str, root_img_dir, skip_check: bool = False,
           max_len: int = 256):

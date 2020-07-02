@@ -30,7 +30,7 @@ class ImageCaptionSeq2Seq(MassSeq2Seq):
         caption_mask = batch["caption_mask"].to(device)
         langs = batch["langs"].unsqueeze(-1).expand(-1, captions.size(-1)).to(device)
 
-        image_embeddings = self.image_mapper(self.image_model(images))[batch["split"]]
+        image_embeddings = self.image_mapper(self.image_model(images))
 
         subseq_mask = future_mask(caption_mask[:, :-1]).to(device)
         decoder_output = self.decoder(encoder_states=image_embeddings, input_ids=captions[:, :-1],

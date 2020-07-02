@@ -2,12 +2,64 @@ import copy
 import pickle
 
 import torch.nn.functional as F
+from torchvision import models
 from transformers.modeling_albert import *
 
 from albert_seq2seq import MassSeq2Seq, future_mask, AlbertDecoderTransformer
-from image_model import init_net, ModifiedResnet
 from lm import LM
 from textprocessor import TextProcessor
+
+
+class ModifiedResnet(models.ResNet):
+    def _forward_impl(self, x):
+        input = x
+        x = self.conv1(input)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        grid_hidden = self.layer4(x)
+        grid_hidden = grid_hidden.view(grid_hidden.size(0), grid_hidden.size(1), -1)
+        grid_hidden = grid_hidden.permute((0, 2, 1))
+        if self.dropout > 0:
+            grid_hidden = F.dropout(grid_hidden, p=self.dropout)
+        grid_outputs = F.relu(self.fc(grid_hidden))
+
+        location_indices = self.location_indices
+        if torch.cuda.is_available():
+            location_indices = self.location_indices.cuda(grid_outputs.get_device())
+        location_embedding = self.location_embedding(location_indices)
+
+        out = grid_outputs + location_embedding.unsqueeze(0)
+        out_norm = self.layer_norm(out)
+        if self.dropout > 0:
+            out_norm = F.dropout(out_norm, p=self.dropout)
+        return out_norm
+
+
+def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False):
+    model = models.resnet18(pretrained=True)
+    model.__class__ = ModifiedResnet
+    model.dropout = dropout
+    model.layer_norm = torch.nn.LayerNorm(embed_dim, eps=1e-12)
+
+    if freeze:
+        for param in model.parameters():
+            param.requires_grad = False
+
+    current_weight = model.state_dict()["fc.weight"]
+    model.fc = torch.nn.Linear(in_features=current_weight.size()[1], out_features=embed_dim, bias=False)
+    model.fc.train()
+    model.location_indices = torch.tensor(list(range(49)))
+
+    # Learning embedding of each CNN region.
+    model.location_embedding = nn.Embedding(49, embed_dim)
+    model.location_embedding.train(True)
+
+    return model
 
 
 class ImageCaptionSeq2Seq(MassSeq2Seq):

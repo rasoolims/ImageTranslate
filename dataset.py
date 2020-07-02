@@ -449,17 +449,6 @@ class ImageCaptionDataset(Dataset):
         print("Loaded %d image batches of %d unique images!" % (len(self.batches), len(self.unique_images)))
         print("End", datetime.datetime.now())
 
-    def read_transform_images(self, cur_image_batch):
-        images = []
-        for image_path in cur_image_batch:
-            with Image.open(os.path.join(self.root_img_dir, image_path)) as im:
-                # make sure not to deal with rgba or grayscale images.
-                image = self.transform(im.convert("RGB"))
-                images.append(image)
-                im.close()
-        images = torch.stack(images)
-        return images
-
     def __len__(self):
         return len(self.batches)
 

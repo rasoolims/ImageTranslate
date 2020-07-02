@@ -465,16 +465,22 @@ class ImageCaptionDataset(Dataset):
 
     def __getitem__(self, item):
         batch, caption_mask = self.batches[item]
-        if item not in self.image_batches:
-            if len(self.image_cache) >= 60000:
-                k = self.image_queue.pop(0)
-                del self.image_cache[k]
+        image_batch = []
+        for image_id in self.image_batches[item]:
+            if image_id not in self.image_cache:
+                if len(self.image_cache) >= 60000:
+                    k = self.image_queue.pop(0)
+                    del self.image_cache[k]
+                image_path = self.unique_images[image_id]
+                with Image.open(os.path.join(self.root_img_dir, image_path)) as im:
+                    # make sure not to deal with rgba or grayscale images.
+                    image = self.transform(im.convert("RGB"))
+                    self.image_cache[image_id] = image
+                    im.close()
+                    self.image_queue.append(image_id)
+            image_batch.append(self.image_cache[image_id])
 
-            self.image_cache[item] = self.read_transform_images(
-                list(map(lambda x: self.unique_images[x], self.image_batches[item])))
-            self.image_queue.append(item)
-
-        return {"images": self.image_cache[item], "captions": batch,
+        return {"images": torch.stack(image_batch), "captions": batch,
                 "langs": torch.LongTensor([self.lang] * len(batch)), "caption_mask": caption_mask}
 
 

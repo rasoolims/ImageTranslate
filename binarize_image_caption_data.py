@@ -17,18 +17,6 @@ transform = transforms.Compose([  # [1]
         std=[0.229, 0.224, 0.225]  # [7]
     )])
 
-
-def is_valid_img(root_img_dir, path):
-    try:
-        with Image.open(os.path.join(root_img_dir, path)) as im:
-            # make sure not to deal with rgba or grayscale images.
-            _ = transform(im.convert("RGB"))
-            im.close()
-        return True
-    except:
-        return False
-
-
 def write(text_processor: TextProcessor, output_file: str, input_file: str, root_img_dir, skip_check: bool = False,
           max_len: int = 256):
     with open(os.path.join(input_file), "rb") as fp:
@@ -38,14 +26,12 @@ def write(text_processor: TextProcessor, output_file: str, input_file: str, root
         tok_sens = list(map(lambda c: text_processor.tokenize_one_sentence(c[1]), captions))
         print(datetime.datetime.now(), "Checking images")
         img_pths = list(map(lambda c: c[0], captions))
-        uniq_img_paths = set(img_pths)
-        valid_images = set(
-            filter(lambda x: x != None, map(lambda i: i if is_valid_img(root_img_dir, i) else None, uniq_img_paths)))
-        unique_images = {k: i for k, i in enumerate(valid_images)}
-        path_ids = {i: k for k, i in enumerate(valid_images)}
+        unique_pths = set(img_pths)
+        unique_images = {k: i for k, i in enumerate(unique_pths)}
+        path_ids = {i: k for k, i in enumerate(unique_pths)}
 
         print(datetime.datetime.now(), "Getting file captions")
-        captid = lambda i, s: (path_ids[img_pths[i]], s) if len(s) <= max_len and img_pths[i] in valid_images else None
+        captid = lambda i, s: (path_ids[img_pths[i]], s) if len(s) <= max_len and img_pths[i] in unique_pths else None
         tok_captions = list(filter(lambda x: x != None, map(lambda i, s: captid(i, s), range(len(captions)), tok_sens)))
         print(datetime.datetime.now(), "Dumping...")
         with open(output_file, "wb") as wfp:

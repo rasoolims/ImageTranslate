@@ -341,7 +341,7 @@ class ImageDocTrainer(MassTrainer):
                             lang_directions[lang1] = lang2
 
         mt_train_loader = None
-        if options.mt_dev_path is not None:
+        if options.mt_train_path is not None:
             mt_train_data = dataset.MTDataset(batch_pickle_dir=options.mt_train_path,
                                               max_batch_capacity=num_processors * options.total_capacity,
                                               max_batch=int(num_processors * options.batch),

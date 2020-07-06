@@ -178,7 +178,7 @@ class MTTrainer:
 
                 if step % 1000 == 0:
                     # Save every 1000 steps!
-                    model.save_checkpoint(saving_path)
+                    model.save(saving_path)
                     with open(os.path.join(saving_path, "optim"), "wb") as fp:
                         pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
                                     fp)

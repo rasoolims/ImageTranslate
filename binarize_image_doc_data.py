@@ -6,7 +6,6 @@ from collections import defaultdict
 from optparse import OptionParser
 
 import numpy as np
-from PIL import Image
 from torchvision import transforms
 
 from textprocessor import TextProcessor
@@ -64,25 +63,17 @@ def write(text_processor: TextProcessor, output_file: str, json_dir: str, root_i
                     for image in doc["images"]:
                         path = image["img_path"]
 
-                        try:
-                            if path not in image_path_dict:
-                                with Image.open(os.path.join(root_img_dir, path)) as im:
-                                    # make sure not to deal with rgba or grayscale images.
-                                    _ = transform(im.convert("RGB"))
-                                    im.close()
-                                image_id = len(unique_images)
-                                unique_images[image_id] = path
-                                image_path_dict[path] = image_id
-                            else:
-                                image_id = image_path_dict[path]
-                                unique_images[image_id] = path
+                        if path not in image_path_dict:
+                            image_id = len(unique_images)
+                            unique_images[image_id] = path
+                            image_path_dict[path] = image_id
+                        else:
+                            image_id = image_path_dict[path]
+                            unique_images[image_id] = path
 
-                            caption = text_processor.tokenize_one_line(image["caption"], ignore_middle_eos=True)
-                            image_info_dict[image_id].append((caption, lang, doc_id))
-                            max_caption_len = max(len(caption), max_caption_len)
-                        except Exception as err:
-                            print("Skipped", path)
-                            pass
+                        caption = text_processor.tokenize_one_line(image["caption"], ignore_middle_eos=True)
+                        image_info_dict[image_id].append((caption, lang, doc_id))
+                        max_caption_len = max(len(caption), max_caption_len)
 
                     print("***", d_num, len(image_info_dict), end="\r")
 

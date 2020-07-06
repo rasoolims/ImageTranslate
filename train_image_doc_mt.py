@@ -45,9 +45,9 @@ class ImageDocTrainer(MassTrainer):
             self.mass_model = DataParallelModel(self.mass_model)
             self.mt_model = DataParallelModel(self.mt_model)
 
-    def train_epoch(self, data_iter, step: int, saving_path: str = None,
+    def train_epoch(self, data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: data_utils.DataLoader = None,
-                    mt_train_iter: data_utils.DataLoader = None,
+                    mt_train_iter: List[data_utils.DataLoader] = None,
                     fine_tune: bool = False, lang_directions: dict = False, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
@@ -202,19 +202,22 @@ class ImageDocTrainer(MassTrainer):
 
     def get_batch_zip(self, data_iter, mass_data_iter, mt_train_iter):
         if mt_train_iter is None:
-            if isinstance(data_iter, data_utils.DataLoader):
-                shortest = min([len(l) for l in mass_data_iter] + [len(data_iter)])
-                batch_zip = zip(data_iter, mass_data_iter[0], mass_data_iter[1])
+            shortest = min([len(l) for l in mass_data_iter] + [len(l) for l in data_iter])
+            if len(data_iter) == 1:
+                batch_zip = zip(data_iter[0], mass_data_iter[0], mass_data_iter[1])
             else:
-                shortest = min([len(l) for l in mass_data_iter] + [len(l) for l in data_iter])
                 batch_zip = zip(data_iter[0], data_iter[1], mass_data_iter[0], mass_data_iter[1])
         else:
-            if isinstance(data_iter, data_utils.DataLoader):
-                shortest = min([len(l) for l in mass_data_iter] + [len(data_iter)] + [len(mt_train_iter)])
-                batch_zip = zip(data_iter, mt_train_iter, mass_data_iter[0], mass_data_iter[1])
+            shortest = min(
+                [len(l) for l in mass_data_iter] + [len(l) for l in data_iter] + [len(l) for l in mt_train_iter])
+            if len(data_iter) == 1:
+                batch_zip = zip(data_iter[0], mt_train_iter[0], mt_train_iter[1], mass_data_iter[0], mass_data_iter[1])
             else:
-                shortest = min([len(l) for l in mass_data_iter] + [len(l) for l in data_iter] + [len(mt_train_iter)])
-                batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter, mass_data_iter[0], mass_data_iter[1])
+                if len(mt_train_iter) == 1:
+                    batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter[0], mass_data_iter[0], mass_data_iter[1])
+                else:
+                    batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter[0], mt_train_iter[1], mass_data_iter[0],
+                                    mass_data_iter[1])
         return batch_zip, shortest
 
     @staticmethod
@@ -257,32 +260,21 @@ class ImageDocTrainer(MassTrainer):
         collator = dataset.ImageTextCollator()
         num_batches = max(1, torch.cuda.device_count())
 
-        if not options.captioning:
-            train_data = dataset.ImageDocDataset(root_img_dir=options.image_dir,
-                                                 data_bin_file=options.train_path, transform=transform,
-                                                 max_doc_batch_capacity=options.img_capacity,
-                                                 text_processor=mt_model.text_processor,
-                                                 max_img_per_batch=options.max_image)
-            print("Min length of training data", len(train_data))
-            print("Data length", [(l, len(b)) for l, b in train_data.batches.items()])
+        dataset_class = dataset.ImageCaptionDataset if options.captioning else dataset.ImageDocDataset
 
-            train_loader = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=False,
-                                                 pin_memory=pin_memory,
-                                                 collate_fn=collator)
-        else:
-            train_loader = []
-            train_paths = options.train_path.split(",")
-            for train_path in train_paths:
-                train_data = dataset.ImageCaptionDataset(root_img_dir=options.image_dir,
-                                                         data_bin_file=train_path, transform=transform,
-                                                         max_capacity=options.img_capacity,
-                                                         text_processor=mt_model.text_processor,
-                                                         max_img_per_batch=options.max_image)
-                print(train_path, "Length of training data", len(train_data))
-                tl = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True,
-                                           pin_memory=pin_memory,
-                                           collate_fn=collator)
-                train_loader.append(tl)
+        train_loader = []
+        train_paths = options.train_path.split(",")
+        for train_path in train_paths:
+            train_data = dataset_class(root_img_dir=options.image_dir,
+                                       data_bin_file=train_path, transform=transform,
+                                       max_capacity=options.img_capacity,
+                                       text_processor=mt_model.text_processor,
+                                       max_img_per_batch=options.max_image)
+            print(train_path, "Length of training data", len(train_data))
+            tl = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True,
+                                       pin_memory=pin_memory,
+                                       collate_fn=collator)
+            train_loader.append(tl)
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
@@ -342,32 +334,40 @@ class ImageDocTrainer(MassTrainer):
 
         mt_train_loader = None
         if options.mt_train_path is not None:
-            mt_train_data = dataset.MTDataset(batch_pickle_dir=options.mt_train_path,
-                                              max_batch_capacity=int(num_processors * options.total_capacity / 2.0),
-                                              max_batch=int(num_processors * options.batch / 2.0),
-                                              pad_idx=mt_model.text_processor.pad_token_id())
-            mt_train_loader = data_utils.DataLoader(mt_train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+            mt_train_loader = []
+            train_paths = options.mt_train_path.split(",")
+            for train_path in train_paths:
+                mt_train_data = dataset.MTDataset(batch_pickle_dir=train_path,
+                                                  max_batch_capacity=int(num_processors * options.total_capacity / 2.0),
+                                                  max_batch=int(num_processors * options.batch / 2.0),
+                                                  pad_idx=mt_model.text_processor.pad_token_id())
+                mtl = data_utils.DataLoader(mt_train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+                mt_train_loader.append(mtl)
 
         mt_dev_loader = None
         if options.mt_dev_path is not None:
-            mt_dev_data = dataset.MTDataset(batch_pickle_dir=options.mt_dev_path,
-                                            max_batch_capacity=num_processors * options.total_capacity,
-                                            max_batch=int(num_processors * options.batch / (options.beam_width * 2)),
-                                            pad_idx=mt_model.text_processor.pad_token_id())
-            mt_dev_loader = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
-
-            print("creating reference")
+            mt_dev_loader = []
+            dev_paths = options.mt_dev_path.split(",")
             trainer.reference = []
+            for dev_path in dev_paths:
+                mt_dev_data = dataset.MTDataset(batch_pickle_dir=dev_path,
+                                                max_batch_capacity=options.total_capacity,
+                                                max_batch=int(options.batch / (options.beam_width * 2)),
+                                                pad_idx=mt_model.text_processor.pad_token_id())
+                dl = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+                mt_dev_loader.append(dl)
 
-            generator = (
-                trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
-            )
+                print("creating reference")
 
-            for batch in mt_dev_loader:
-                tgt_inputs = batch["dst_texts"].squeeze()
-                refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
-                ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
-                trainer.reference += ref
+                generator = (
+                    trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
+                )
+
+                for batch in dl:
+                    tgt_inputs = batch["dst_texts"].squeeze()
+                    refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
+                    ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
+                    trainer.reference += ref
 
         step, train_epoch = 0, 1
         while options.step > 0 and step < options.step:

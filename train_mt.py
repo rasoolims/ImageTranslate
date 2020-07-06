@@ -4,7 +4,7 @@ import os
 import pickle
 import sys
 import time
-from typing import Optional
+from typing import List
 
 import sacrebleu
 import torch
@@ -69,8 +69,8 @@ class MTTrainer:
         self.reference = None
         self.best_bleu = -1.0
 
-    def train_epoch(self, data_iter: data_utils.DataLoader, dev_data_iter: data_utils.DataLoader, saving_path: str,
-                    step: int, monolingual_data_iter: Optional[data_utils.DataLoader] = None):
+    def train_epoch(self, data_iter: List[data_utils.DataLoader], dev_data_iter: List[data_utils.DataLoader],
+                    saving_path: str, step: int):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -78,66 +78,32 @@ class MTTrainer:
         sentences = 0
         model = self.model.module if hasattr(self.model, "module") else self.model
 
-        data_to_iter = data_iter if monolingual_data_iter is None else zip(data_iter, monolingual_data_iter)
-        for i, batched in enumerate(data_to_iter):
-            if self.optimizer is not None:
-                self.optimizer.zero_grad()
-            batch = batched if monolingual_data_iter is None else batched[0]
-            src_inputs = batch["src_texts"].squeeze(0)
-            src_mask = batch["src_pad_mask"].squeeze(0)
-            tgt_inputs = batch["dst_texts"].squeeze(0)
-            tgt_mask = batch["dst_pad_mask"].squeeze(0)
-            src_langs = batch["src_langs"].squeeze(0)
-            dst_langs = batch["dst_langs"].squeeze(0)
-            if src_inputs.size(0) < self.num_gpu:
-                continue
-
-            try:
-                if self.self_translate:
-                    mask, masked_ids, src_inputs = mask_text(mask_prob=self.mask_prob, pads=src_mask,
-                                                             texts=src_inputs,
-                                                             text_processor=model.text_processor,
-                                                             mask_eos=False)
-
-                predictions = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                         src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=dst_langs,
-                                         log_softmax=True)
-                targets = tgt_inputs[:, 1:].contiguous().view(-1)
-                tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
-                targets = targets[tgt_mask_flat]
-                ntokens = targets.size(0)
-
-                if ntokens == 0:  # Nothing to predict!
+        shortest = min([len(l) for l in data_iter])
+        data_to_iter = zip(data_iter[0], data_iter[1]) if len(data_iter) == 2 else zip(data_iter[0])
+        for i, batches in enumerate(data_to_iter):
+            for batch in batches:
+                if self.optimizer is not None:
+                    self.optimizer.zero_grad()
+                src_inputs = batch["src_texts"].squeeze(0)
+                src_mask = batch["src_pad_mask"].squeeze(0)
+                tgt_inputs = batch["dst_texts"].squeeze(0)
+                tgt_mask = batch["dst_pad_mask"].squeeze(0)
+                src_langs = batch["src_langs"].squeeze(0)
+                dst_langs = batch["dst_langs"].squeeze(0)
+                if src_inputs.size(0) < self.num_gpu:
                     continue
 
-                loss = self.criterion(predictions, targets).mean()
-                loss.backward()
-
-                loss = float(loss.data) * ntokens
-                total_loss += loss
-                cur_loss += loss
-                total_tokens += ntokens
-                tokens += ntokens
-                sentences += int(src_inputs.size(0))
-                if self.self_translate:
-                    LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
-
-                if monolingual_data_iter is not None:
-                    src_inputs = batched[1]["src_texts"].squeeze(0)
-                    src_mask = batched[1]["src_pad_mask"].squeeze(0)
-                    tgt_inputs = batched[1]["dst_texts"].squeeze(0)
-                    tgt_mask = batched[1]["dst_pad_mask"].squeeze(0)
-                    src_langs = batch["src_langs"].squeeze(0)
-                    dst_langs = batch["dst_langs"].squeeze(0)
-
-                    mask, masked_ids, src_inputs = mask_text(mask_prob=self.mask_prob, pads=src_mask,
-                                                             texts=src_inputs,
-                                                             text_processor=model.text_processor,
-                                                             mask_eos=False)
+                try:
+                    if self.self_translate:
+                        mask, masked_ids, src_inputs = mask_text(mask_prob=self.mask_prob, pads=src_mask,
+                                                                 texts=src_inputs,
+                                                                 text_processor=model.text_processor,
+                                                                 mask_eos=False)
 
                     predictions = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                              src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
-                                             tgt_langs=dst_langs, log_softmax=True)
+                                             tgt_langs=dst_langs,
+                                             log_softmax=True)
                     targets = tgt_inputs[:, 1:].contiguous().view(-1)
                     tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
                     targets = targets[tgt_mask_flat]
@@ -155,40 +121,45 @@ class MTTrainer:
                     total_tokens += ntokens
                     tokens += ntokens
                     sentences += int(src_inputs.size(0))
-                    unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
+                    if self.self_translate:
+                        LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
 
-                if self.optimizer is not None:
-                    # We accumulate the gradients for both tasks!
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
-                    self.optimizer.step()
-                    if self.scheduler is not None:
-                        self.scheduler.step()
-                    step += 1
+                    if self.optimizer is not None:
+                        # We accumulate the gradients for both tasks!
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
+                        self.optimizer.step()
+                        if self.scheduler is not None:
+                            self.scheduler.step()
+                        step += 1
 
 
-            except RuntimeError as err:
-                print("Error in processing", src_inputs.size(), tgt_inputs.size())
-                torch.cuda.empty_cache()
+                except RuntimeError as err:
+                    print("Error in processing", src_inputs.size(), tgt_inputs.size())
+                    torch.cuda.empty_cache()
 
-            if step % 50 == 0 and tokens > 0:
-                elapsed = time.time() - start
-                print(datetime.datetime.now(),
-                      "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
-                          step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
+                if step % 50 == 0 and tokens > 0:
+                    elapsed = time.time() - start
+                    print(datetime.datetime.now(),
+                          "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
+                              step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
 
-                if step % 1000 == 0:
-                    # Save every 1000 steps!
-                    model.save(saving_path)
-                    with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                        pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
-                                    fp)
+                    if step % 1000 == 0:
+                        # Save every 1000 steps!
+                        model.save(saving_path)
+                        with open(os.path.join(saving_path, "optim"), "wb") as fp:
+                            pickle.dump(
+                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step),
+                                fp)
 
-                if step % 500 == 0:
-                    self.validate(dev_data_iter)
-                    bleu = self.eval_bleu(dev_data_iter, saving_path)
-                    print("BLEU:", bleu)
+                    if step % 500 == 0:
+                        self.validate(dev_data_iter)
+                        bleu = self.eval_bleu(dev_data_iter, saving_path)
+                        print("BLEU:", bleu)
 
-                start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
+                    start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
+
+            if i == shortest:
+                break
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
         model.save(saving_path + ".latest")
@@ -212,36 +183,38 @@ class MTTrainer:
         )
 
         with torch.no_grad():
-            for batch in dev_data_iter:
-                src_inputs = batch["src_texts"].squeeze(0)
-                src_mask = batch["src_pad_mask"].squeeze(0)
-                tgt_inputs = batch["dst_texts"].squeeze(0)
-                src_langs = batch["src_langs"].squeeze(0)
-                dst_langs = batch["dst_langs"].squeeze(0)
-                src_pad_idx = batch["pad_idx"].squeeze(0)
+            for iter in dev_data_iter:
+                for batch in iter:
+                    src_inputs = batch["src_texts"].squeeze(0)
+                    src_mask = batch["src_pad_mask"].squeeze(0)
+                    tgt_inputs = batch["dst_texts"].squeeze(0)
+                    src_langs = batch["src_langs"].squeeze(0)
+                    dst_langs = batch["dst_langs"].squeeze(0)
+                    src_pad_idx = batch["pad_idx"].squeeze(0)
 
-                if self.self_translate:
-                    mask, masked_ids, src_inputs = mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
-                                                             text_processor=model.text_processor, mask_eos=False)
+                    if self.self_translate:
+                        mask, masked_ids, src_inputs = mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
+                                                                 text_processor=model.text_processor, mask_eos=False)
 
-                src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs)
-                src_text += [generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in src_ids]
+                    src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs)
+                    src_text += [generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in
+                                 src_ids]
 
-                outputs = self.generator(src_inputs=src_inputs, src_sizes=src_pad_idx,
-                                         first_tokens=tgt_inputs[:, 0],
-                                         src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs,
-                                         pad_idx=model.text_processor.pad_token_id())
-                if self.num_gpu > 1:
-                    new_outputs = []
+                    outputs = self.generator(src_inputs=src_inputs, src_sizes=src_pad_idx,
+                                             first_tokens=tgt_inputs[:, 0],
+                                             src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs,
+                                             pad_idx=model.text_processor.pad_token_id())
+                    if self.num_gpu > 1:
+                        new_outputs = []
+                        for output in outputs:
+                            new_outputs += output
+                        outputs = new_outputs
+
                     for output in outputs:
-                        new_outputs += output
-                    outputs = new_outputs
+                        mt_output.append(generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
 
-                for output in outputs:
-                    mt_output.append(generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
-
-                if self.self_translate:
-                    unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
+                    if self.self_translate:
+                        unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
 
             model.train()
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
@@ -265,47 +238,49 @@ class MTTrainer:
 
         return bleu.score
 
-    def validate(self, dev_data_iter):
+    def validate(self, dev_data_iters):
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
         model.eval()
         with torch.no_grad():
             total_dev_loss, total_dev_tokens = 0, 0
-            for batch in dev_data_iter:
-                src_inputs = batch["src_texts"].squeeze(0)
-                src_mask = batch["src_pad_mask"].squeeze(0)
-                tgt_inputs = batch["dst_texts"].squeeze(0)
-                tgt_mask = batch["dst_pad_mask"].squeeze(0)
-                src_langs = batch["src_langs"].squeeze(0)
-                dst_langs = batch["dst_langs"].squeeze(0)
+            for dev_data_iter in dev_data_iters:
+                for batch in dev_data_iter:
+                    src_inputs = batch["src_texts"].squeeze(0)
+                    src_mask = batch["src_pad_mask"].squeeze(0)
+                    tgt_inputs = batch["dst_texts"].squeeze(0)
+                    tgt_mask = batch["dst_pad_mask"].squeeze(0)
+                    src_langs = batch["src_langs"].squeeze(0)
+                    dst_langs = batch["dst_langs"].squeeze(0)
 
-                try:
-                    if self.self_translate:
-                        mask, masked_ids, src_inputs = mask_text(mask_prob=self.mask_prob, pads=src_mask,
-                                                                 texts=src_inputs,
-                                                                 text_processor=model.text_processor, mask_eos=False)
+                    try:
+                        if self.self_translate:
+                            mask, masked_ids, src_inputs = mask_text(mask_prob=self.mask_prob, pads=src_mask,
+                                                                     texts=src_inputs,
+                                                                     text_processor=model.text_processor,
+                                                                     mask_eos=False)
 
-                    predictions = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                             src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
-                                             tgt_langs=dst_langs, log_softmax=True)
+                        predictions = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                                                 src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
+                                                 tgt_langs=dst_langs, log_softmax=True)
 
-                    targets = tgt_inputs[:, 1:].contiguous().view(-1)
-                    tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
-                    targets = targets[tgt_mask_flat]
-                    ntokens = targets.size(0)
+                        targets = tgt_inputs[:, 1:].contiguous().view(-1)
+                        tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
+                        targets = targets[tgt_mask_flat]
+                        ntokens = targets.size(0)
 
-                    if ntokens == 0:  # Nothing to predict!
-                        continue
+                        if ntokens == 0:  # Nothing to predict!
+                            continue
 
-                    loss = self.criterion(predictions, targets).mean().data * ntokens
-                    total_dev_loss += float(loss)
-                    total_dev_tokens += ntokens
-                    if self.self_translate:
-                        unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
-                except RuntimeError:
-                    print("Error in processing", src_inputs.size(), tgt_inputs.size())
-                    torch.cuda.empty_cache()
+                        loss = self.criterion(predictions, targets).mean().data * ntokens
+                        total_dev_loss += float(loss)
+                        total_dev_tokens += ntokens
+                        if self.self_translate:
+                            unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
+                    except RuntimeError:
+                        print("Error in processing", src_inputs.size(), tgt_inputs.size())
+                        torch.cuda.empty_cache()
 
             dev_loss = total_dev_loss / total_dev_tokens
             print("Current dev loss", dev_loss)
@@ -320,7 +295,7 @@ class MTTrainer:
 
         if options.pretrained_path is not None:
             mt_model, lm = AlbertSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path,
-                                              sep_decoder=options.sep_encoder)
+                                              sep_decoder=options.sep_encoder, lang_dec=options.lang_decoder)
         else:
             if options.lm_path is None:
                 lm = LM(text_processor=text_processor, size=options.model_size)
@@ -329,28 +304,29 @@ class MTTrainer:
 
             encoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
             mt_model = AlbertSeq2Seq(config=lm.config, encoder=encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
-                                     text_processor=lm.text_processor, checkpoint=options.checkpoint)
+                                     text_processor=lm.text_processor, checkpoint=options.checkpoint,
+                                     lang_dec=options.lang_decoder)
 
         mt_model.save(options.model_path)
-
-        train_data = dataset.MTDataset(batch_pickle_dir=options.train_path,
-                                       max_batch_capacity=options.total_capacity, max_batch=options.batch,
-                                       pad_idx=mt_model.text_processor.pad_token_id())
-        dev_data = dataset.MTDataset(batch_pickle_dir=options.dev_path,
-                                     max_batch_capacity=options.total_capacity,
-                                     max_batch=int(options.batch / options.beam_width),
-                                     pad_idx=mt_model.text_processor.pad_token_id())
-        monolingual_data = None
-        if options.monolingual_path is not None:
-            monolingual_data = dataset.MTDataset(batch_pickle_dir=options.monolingual_path,
-                                                 max_batch_capacity=options.total_capacity, max_batch=options.batch,
-                                                 pad_idx=mt_model.text_processor.pad_token_id())
-
+        train_paths = options.train_path.strip().split(",")
         pin_memory = torch.cuda.is_available()
-        train_loader = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
-        monolingual_loader = data_utils.DataLoader(monolingual_data, batch_size=1, shuffle=True,
-                                                   pin_memory=pin_memory) if monolingual_data is not None else None
-        dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+        dev_paths = options.train_path.strip().split(",")
+        train_loader, dev_loader = [], []
+        for train_path in train_paths:
+            train_data = dataset.MTDataset(batch_pickle_dir=train_path,
+                                           max_batch_capacity=options.total_capacity, max_batch=options.batch,
+                                           pad_idx=mt_model.text_processor.pad_token_id())
+
+            tl = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+            train_loader.append(tl)
+
+        for dev_path in dev_paths:
+            dev_data = dataset.MTDataset(batch_pickle_dir=dev_path,
+                                         max_batch_capacity=options.total_capacity,
+                                         max_batch=int(options.batch / options.beam_width),
+                                         pad_idx=mt_model.text_processor.pad_token_id())
+            dl = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+            dev_loader.append(dl)
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
@@ -369,20 +345,18 @@ class MTTrainer:
         generator = (
             trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
         )
-        for batch in dev_loader:
-            tgt_inputs = batch["dst_texts"].squeeze()
-            refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
-            ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
-            trainer.reference += ref
-
-        print("Trying if largest batch fits into memory")
-        MTTrainer.memory_test(train_data, trainer)
+        for dl in dev_loader:
+            for batch in dl:
+                tgt_inputs = batch["dst_texts"].squeeze()
+                refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
+                ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
+                trainer.reference += ref
 
         step, train_epoch = 0, 1
         while step <= options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=train_loader, dev_data_iter=dev_loader,
-                                       monolingual_data_iter=monolingual_loader, saving_path=options.model_path,
+                                       saving_path=options.model_path,
                                        step=step)
             train_epoch += 1
 
@@ -390,56 +364,13 @@ class MTTrainer:
     def config_dropout(mt_model, dropout):
         mt_model.encoder.config.hidden_dropout_prob = dropout
         mt_model.encoder.config.attention_probs_dropout_prob = dropout
-        mt_model.decoder.config.hidden_dropout_prob = dropout
-        mt_model.decoder.config.attention_probs_dropout_prob = dropout
-
-    @staticmethod
-    def memory_test(train_data, trainer):
-        src_inputs = train_data.longest_batch[0]["src_texts"]
-        src_mask = train_data.longest_batch[0]["src_pad_mask"]
-        tgt_inputs = train_data.longest_batch[0]["dst_texts"]
-        tgt_mask = train_data.longest_batch[0]["dst_pad_mask"]
-        src_langs = train_data.longest_batch[0]["src_langs"]
-        dst_langs = train_data.longest_batch[0]["dst_langs"]
-        s, d, b = int(src_inputs.size(1)), int(tgt_inputs.size(1)), int(src_inputs.size(0))
-        print(src_inputs.size(), tgt_inputs.size(), b * d * (s ** 2 + d ** 2))
-        predictions = trainer.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                    src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=dst_langs,
-                                    log_softmax=True)
-        targets = tgt_inputs[:, 1:].contiguous().view(-1)
-        tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
-        targets = targets[tgt_mask_flat]
-
-        ntokens = targets.size(0)
-        if ntokens > 0:  # Nothing to predict!
-            loss = trainer.criterion(predictions, targets).mean()
-            loss.backward()
-        trainer.optimizer.zero_grad()
-        torch.cuda.empty_cache()
-
-        src_inputs = train_data.most_token_batch[0]["src_texts"]
-        src_mask = train_data.most_token_batch[0]["src_pad_mask"]
-        tgt_inputs = train_data.most_token_batch[0]["dst_texts"]
-        tgt_mask = train_data.most_token_batch[0]["dst_pad_mask"]
-        src_langs = train_data.most_token_batch[0]["src_langs"]
-        dst_langs = train_data.most_token_batch[0]["dst_langs"]
-        s, d, b = int(src_inputs.size(1)), int(tgt_inputs.size(1)), int(src_inputs.size(0))
-        print(src_inputs.size(), tgt_inputs.size(), b * (s + d))
-        predictions = trainer.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                    src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=dst_langs,
-                                    log_softmax=True)
-        targets = tgt_inputs[:, 1:].contiguous().view(-1)
-        tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
-        targets = targets[tgt_mask_flat]
-        ntokens = targets.size(0)
-        if ntokens > 0:  # Nothing to predict!
-            loss = trainer.criterion(predictions, targets).mean()
-            loss.backward()
-        trainer.optimizer.zero_grad()
-        trainer.optimizer.step()
-        if trainer.scheduler is not None:
-            trainer.scheduler.step()
-        torch.cuda.empty_cache()
+        if isinstance(mt_model.decoder, nn.ModuleList):
+            for i, dec in enumerate(mt_model.decoder):
+                dec.config.hidden_dropout_prob = dropout
+                dec.config.attention_probs_dropout_prob = dropout
+        else:
+            mt_model.decoder.config.hidden_dropout_prob = dropout
+            mt_model.decoder.config.attention_probs_dropout_prob = dropout
 
 
 if __name__ == "__main__":

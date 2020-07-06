@@ -36,9 +36,6 @@ def get_lm_option_parser():
 
 def get_mt_option_parser():
     parser = get_lm_option_parser()
-    parser.add_option("--mono", dest="monolingual_path",
-                      help="Path to the monolingual data pickle files for auxiliary BART training", metavar="FILE",
-                      default=None)
     parser.add_option("--capacity", dest="total_capacity", help="Batch capacity", type="int", default=150)
     parser.add_option("--lm", dest="lm_path", help="LM pretrained model", metavar="FILE", default=None)
     parser.add_option("--beam", dest="beam_width", help="Beam width", type="int", default=5)
@@ -50,6 +47,7 @@ def get_mt_option_parser():
     parser.add_option("--max_seq_len", dest="max_seq_len", help="Max sequence length", type="int", default=175)
     parser.add_option("--pretrain", action="store_true", dest="pretrain",
                       help="Use self to self translation similar to BART!", default=False)
+    parser.add_option("--ldec", action="store_true", dest="lang_decoder", help="Lang-specific decoder", default=False)
     parser.add_option("--nll", action="store_true", dest="nll_loss", help="Use NLL loss instead of smoothed NLL loss",
                       default=False)
     parser.set_default("batch", 20000)

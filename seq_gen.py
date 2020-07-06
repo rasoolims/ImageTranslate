@@ -56,6 +56,7 @@ class BeamDecoder(nn.Module):
         if beam_width is None:
             beam_width = self.beam_width
         device = self.seq2seq_model.encoder.embeddings.word_embeddings.weight.device
+        batch_lang = int(tgt_langs[0])
         batch_size = src_inputs.size(0)
         src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
         encoder_states = self.seq2seq_model.encode(src_inputs, src_mask, src_langs)[0]
@@ -100,9 +101,15 @@ class BeamDecoder(nn.Module):
             if i > 1:
                 dst_langs = torch.repeat_interleave(dst_langs, beam_width, 0)
             cur_src_mask = src_mask if i == 1 else torch.repeat_interleave(src_mask, beam_width, 0)
-            decoder_states = self.seq2seq_model.decoder(enc_states, cur_outputs, cur_outputs != pad_idx, cur_src_mask,
-                                                        output_mask, token_type_ids=dst_langs)
-            output = F.log_softmax(self.seq2seq_model.output_layer(decoder_states[:, -1, :]), dim=-1)
+
+            decoder = self.seq2seq_model.decoder if not self.seq2seq_model.lang_dec else self.seq2seq_model.decoder[
+                batch_lang]
+            output_layer = self.seq2seq_model.output_layer if not self.seq2seq_model.lang_dec else \
+                self.seq2seq_model.output_layer[batch_lang]
+
+            decoder_states = decoder(enc_states, cur_outputs, cur_outputs != pad_idx, cur_src_mask,
+                                     output_mask, token_type_ids=dst_langs)
+            output = F.log_softmax(output_layer(decoder_states[:, -1, :]), dim=-1)
             output[eos_mask] = 0  # Disregard those items with EOS in them!
             if i > 1:
                 output[reached_eos_limit.contiguous().view(-1)] = 0  # Disregard those items over size limt!

@@ -25,9 +25,9 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 class MassTrainer(MTTrainer):
-    def train_epoch(self, data_iter: List[data_utils.DataLoader], dev_data_iter: data_utils.DataLoader,
-                    saving_path: str,
-                    step: int, mt_dev_iter: data_utils.DataLoader = None, **kwargs):
+    def train_epoch(self, data_iter: List[data_utils.DataLoader], saving_path: str, step: int,
+                    dev_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: List[data_utils.DataLoader] = None,
+                    **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -115,7 +115,7 @@ class MassTrainer(MTTrainer):
         return step
 
     def fine_tune(self, data_iter: List[data_utils.DataLoader], lang_directions: Dict[int, int], saving_path: str,
-                  step: int, dev_data_iter: data_utils.DataLoader = None):
+                  step: int, dev_data_iter: List[data_utils.DataLoader] = None, ):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -228,38 +228,39 @@ class MassTrainer(MTTrainer):
             print("BLEU:", bleu)
         return step
 
-    def validate(self, dev_data_iter):
+    def validate(self, dev_data_iters):
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
         model.eval()
         with torch.no_grad():
             total_dev_loss, total_dev_tokens = 0, 0
-            for batch in dev_data_iter:
-                src_inputs = batch["src_texts"].squeeze(0)
-                src_pad_mask = batch["src_pad_mask"].squeeze(0)
-                pad_indices = batch["pad_idx"].squeeze(0)
+            for dev_data_iter in dev_data_iters:
+                for batch in dev_data_iter:
+                    src_inputs = batch["src_texts"].squeeze(0)
+                    src_pad_mask = batch["src_pad_mask"].squeeze(0)
+                    pad_indices = batch["pad_idx"].squeeze(0)
 
-                try:
-                    masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
-                    predictions = self.model(src_inputs=masked_info["src_text"],
-                                             tgt_inputs=masked_info["to_recover"],
-                                             tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
-                                             pad_idx=model.text_processor.pad_token_id(),
-                                             src_langs=batch["langs"].squeeze(0),
-                                             log_softmax=True)
-                    ntokens = masked_info["targets"].size(0)
+                    try:
+                        masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
+                        predictions = self.model(src_inputs=masked_info["src_text"],
+                                                 tgt_inputs=masked_info["to_recover"],
+                                                 tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
+                                                 pad_idx=model.text_processor.pad_token_id(),
+                                                 src_langs=batch["langs"].squeeze(0),
+                                                 log_softmax=True)
+                        ntokens = masked_info["targets"].size(0)
 
-                    if ntokens == 0:  # Nothing to predict!
-                        continue
+                        if ntokens == 0:  # Nothing to predict!
+                            continue
 
-                    loss = self.criterion(predictions, masked_info["targets"]).mean().data * ntokens
-                    total_dev_loss += float(loss)
-                    total_dev_tokens += ntokens
-                except RuntimeError:
-                    torch.cuda.empty_cache()
-                    print("Error in processing", src_inputs.size(), src_inputs.size())
-                mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
+                        loss = self.criterion(predictions, masked_info["targets"]).mean().data * ntokens
+                        total_dev_loss += float(loss)
+                        total_dev_tokens += ntokens
+                    except RuntimeError:
+                        torch.cuda.empty_cache()
+                        print("Error in processing", src_inputs.size(), src_inputs.size())
+                    mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
             dev_loss = total_dev_loss / total_dev_tokens
             print("Current dev loss", dev_loss)
@@ -272,7 +273,7 @@ class MassTrainer(MTTrainer):
 
         if options.pretrained_path is not None:
             mt_model, lm = MassSeq2Seq.load(out_dir=options.pretrained_path, tok_dir=options.tokenizer_path,
-                                            sep_decoder=options.sep_encoder)
+                                            sep_decoder=options.sep_encoder, lang_dec=options.lang_decoder)
             text_processor = mt_model.text_processor
         else:
             text_processor = TextProcessor(options.tokenizer_path)
@@ -283,7 +284,8 @@ class MassTrainer(MTTrainer):
 
             encoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
             mt_model = MassSeq2Seq(config=lm.config, encoder=encoder, decoder=lm.encoder, output_layer=lm.masked_lm,
-                                   text_processor=lm.text_processor, checkpoint=options.checkpoint)
+                                   text_processor=lm.text_processor, lang_dec=options.lang_decoder,
+                                   checkpoint=options.checkpoint)
         MTTrainer.config_dropout(mt_model, options.dropout)
 
         pin_memory = torch.cuda.is_available()
@@ -308,12 +310,17 @@ class MassTrainer(MTTrainer):
                 dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)
                 train_loader.append(dl)
 
-            dev_data = dataset.MassDataset(batch_pickle_dir=options.dev_path,
-                                           max_batch_capacity=options.total_capacity,
-                                           max_batch=options.batch,
-                                           pad_idx=mt_model.text_processor.pad_token_id(),
-                                           max_seq_len=options.max_seq_len)
-            dev_loader = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+            if options.dev_path is not None:
+                dev_paths = options.dev_path.strip().split(",")
+                dev_loader = list()
+                for dev_path in dev_paths:
+                    dev_data = dataset.MassDataset(batch_pickle_dir=dev_path,
+                                                   max_batch_capacity=options.total_capacity,
+                                                   max_batch=options.batch,
+                                                   pad_idx=mt_model.text_processor.pad_token_id(),
+                                                   max_seq_len=options.max_seq_len)
+                    dl = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+                    dev_loader.append(dl)
 
         lang_directions = {}
         if options.finetune_step > 0:
@@ -351,24 +358,28 @@ class MassTrainer(MTTrainer):
 
         mt_dev_loader = None
         if options.mt_dev_path is not None:
-            mt_dev_data = dataset.MTDataset(batch_pickle_dir=options.mt_dev_path,
-                                            max_batch_capacity=options.total_capacity,
-                                            max_batch=int(options.batch / (options.beam_width * 2)),
-                                            pad_idx=mt_model.text_processor.pad_token_id())
-            mt_dev_loader = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
-
-            print("creating reference")
+            mt_dev_loader = []
+            dev_paths = options.mt_dev_path.split(",")
             trainer.reference = []
+            for dev_path in dev_paths:
+                mt_dev_data = dataset.MTDataset(batch_pickle_dir=dev_path,
+                                                max_batch_capacity=options.total_capacity,
+                                                max_batch=int(options.batch / (options.beam_width * 2)),
+                                                pad_idx=mt_model.text_processor.pad_token_id())
+                dl = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+                mt_dev_loader.append(dl)
 
-            generator = (
-                trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
-            )
+                print("creating reference")
 
-            for batch in mt_dev_loader:
-                tgt_inputs = batch["dst_texts"].squeeze()
-                refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
-                ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
-                trainer.reference += ref
+                generator = (
+                    trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
+                )
+
+                for batch in dl:
+                    tgt_inputs = batch["dst_texts"].squeeze()
+                    refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
+                    ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
+                    trainer.reference += ref
 
         step, train_epoch = last_epoch, 0
 

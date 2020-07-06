@@ -16,17 +16,27 @@ def future_mask(tgt_mask):
 
 class AlbertSeq2Seq(nn.Module):
     def __init__(self, config: AlbertConfig, encoder, decoder, output_layer: AlbertMLMHead,
-                 text_processor: TextProcessor, checkpoint: int = 5):
+                 text_processor: TextProcessor, lang_dec: bool = False, checkpoint: int = 5):
         super(AlbertSeq2Seq, self).__init__()
         self.text_processor: TextProcessor = text_processor
         self.config: AlbertConfig = config
         self.encoder = encoder
         self.encoder.__class__ = AlbertEncoderModel
-        self.decoder: AlbertDecoderModel = AlbertDecoderModel(decoder) if isinstance(decoder, AlbertModel) else decoder
-        self.output_layer: AlbertMLMHead = output_layer
+        if not lang_dec:
+            self.output_layer: AlbertMLMHead = output_layer
+            self.decoder: AlbertDecoderModel = AlbertDecoderModel(decoder) if isinstance(decoder,
+                                                                                         AlbertModel) else decoder
+            self.decoder._tie_or_clone_weights(self.output_layer.decoder, self.decoder.embeddings.word_embeddings)
+        else:
+            dec = AlbertDecoderModel(decoder) if isinstance(decoder, AlbertModel) else decoder
+            self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
+            self.output_layer = nn.ModuleList([copy.deepcopy(output_layer) for _ in text_processor.languages])
+            for i, dec in enumerate(self.decoder):
+                dec._tie_or_clone_weights(self.output_layer[i].decoder, dec.embeddings.word_embeddings)
+
+        self.lang_dec = lang_dec
         self.checkpoint = checkpoint
         self.checkpoint_num = 0
-        self.decoder._tie_or_clone_weights(self.output_layer.decoder, self.decoder.embeddings.word_embeddings)
 
     def encode(self, src_inputs, src_mask, src_langs):
         device = self.encoder.embeddings.word_embeddings.weight.device
@@ -42,6 +52,8 @@ class AlbertSeq2Seq(nn.Module):
         src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
         encoder_states = self.encode(src_inputs, src_mask, src_langs)[0]
 
+        batch_lang = int(tgt_langs[0])
+
         tgt_langs = tgt_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
         if tgt_inputs.device != encoder_states.device:
             tgt_inputs = tgt_inputs.to(device)
@@ -49,12 +61,16 @@ class AlbertSeq2Seq(nn.Module):
         subseq_mask = future_mask(tgt_mask[:, :-1])
         if subseq_mask.device != tgt_inputs.device:
             subseq_mask = subseq_mask.to(device)
-        decoder_output = self.decoder(encoder_states, tgt_inputs[:, :-1], tgt_mask[:, :-1], src_mask, subseq_mask,
-                                      token_type_ids=tgt_langs[:, :-1])
+
+        decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
+        output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
+
+        decoder_output = decoder(encoder_states, tgt_inputs[:, :-1], tgt_mask[:, :-1], src_mask, subseq_mask,
+                                 token_type_ids=tgt_langs[:, :-1])
         diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
         tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
         non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]
-        outputs = self.output_layer(non_padded_outputs)
+        outputs = output_layer(non_padded_outputs)
         if log_softmax:
             outputs = F.log_softmax(outputs, dim=-1)
         return outputs
@@ -68,14 +84,14 @@ class AlbertSeq2Seq(nn.Module):
         torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool):
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool, lang_dec: bool):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
             decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
             mt_model = AlbertSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
-                                     text_processor=lm.text_processor, checkpoint=checkpoint)
+                                     text_processor=lm.text_processor, lang_dec=lang_dec, checkpoint=checkpoint)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm
 
@@ -98,29 +114,33 @@ class MassSeq2Seq(AlbertSeq2Seq):
                                    tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=tgt_langs, log_softmax=log_softmax)
 
         "Take in and process masked src and target sequences."
+        batch_lang = int(src_langs[0])
         src_langs_t = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
         encoder_states = self.encode(src_inputs, src_pads, src_langs_t)[0]
 
         tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
 
         subseq_mask = future_mask(tgt_mask[:, :-1])
-        decoder_output = self.decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
-                                      input_ids_mask=tgt_mask[:, :-1], src_attn_mask=src_pads,
-                                      tgt_attn_mask=subseq_mask,
-                                      position_ids=tgt_positions[:, :-1] if tgt_positions is not None else None,
-                                      token_type_ids=tgt_langs[:, :-1])
+        decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
+        output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
+
+        decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
+                                 input_ids_mask=tgt_mask[:, :-1], src_attn_mask=src_pads,
+                                 tgt_attn_mask=subseq_mask,
+                                 position_ids=tgt_positions[:, :-1] if tgt_positions is not None else None,
+                                 token_type_ids=tgt_langs[:, :-1])
         diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
 
         tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
         non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]
-        outputs = self.output_layer(non_padded_outputs)
+        outputs = output_layer(non_padded_outputs)
         if log_softmax:
             outputs = F.log_softmax(outputs, dim=-1)
         return outputs
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool):
-        mt_model, lm = AlbertSeq2Seq.load(out_dir, tok_dir, sep_decoder)
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool, lang_dec: bool):
+        mt_model, lm = AlbertSeq2Seq.load(out_dir, tok_dir, sep_decoder, lang_dec)
         mt_model.__class__ = MassSeq2Seq
         return mt_model, lm
 

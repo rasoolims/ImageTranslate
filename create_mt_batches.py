@@ -16,9 +16,9 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
         with open(src_txt_file, "r") as s_fp, open(dst_txt_file, "r") as d_fp:
             for src_line, dst_line in zip(s_fp, d_fp):
                 if len(src_line.strip()) == 0 or len(dst_line.strip()) == 0: continue
-                src_tok_line = text_processor.tokenize_one_sentence(src_line.strip())
+                src_tok_line = text_processor.tokenize_one_sentence(src_line.strip().replace(" </s> ", " "))
                 src_lang = text_processor.languages[text_processor.id2token(src_tok_line[0])]
-                dst_tok_line = text_processor.tokenize_one_sentence(dst_line.strip())
+                dst_tok_line = text_processor.tokenize_one_sentence(dst_line.strip().replace(" </s> ", " "))
                 dst_lang = text_processor.languages[text_processor.id2token(dst_tok_line[0])]
 
                 if min_len <= len(src_tok_line) <= max_len and min_len <= len(dst_tok_line) <= max_len:

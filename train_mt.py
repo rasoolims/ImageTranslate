@@ -437,7 +437,8 @@ class MTTrainer:
             loss.backward()
         trainer.optimizer.zero_grad()
         trainer.optimizer.step()
-        trainer.scheduler.step()
+        if trainer.scheduler is not None:
+            trainer.scheduler.step()
         torch.cuda.empty_cache()
 
 

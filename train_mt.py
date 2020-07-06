@@ -277,8 +277,8 @@ class MTTrainer:
                 src_mask = batch["src_pad_mask"].squeeze(0)
                 tgt_inputs = batch["dst_texts"].squeeze(0)
                 tgt_mask = batch["dst_pad_mask"].squeeze(0)
-                src_langs = batch["src_langs"]
-                dst_langs = batch["dst_langs"]
+                src_langs = batch["src_langs"].squeeze(0)
+                dst_langs = batch["dst_langs"].squeeze(0)
 
                 try:
                     if self.self_translate:

@@ -72,7 +72,7 @@ class MTDataset(Dataset):
                 power of source length, we need to make sure that each batch has similar length and it does not go over
                 max_batch_capacity. We also need to make sure not to include those batches that has less than num_gpu
                 sentence pairs (it will crash in multi-gpu).
-                """
+        """
         self.batches = []
         self.longest_batch = ([], 0)
         self.most_token_batch = ([], 0)

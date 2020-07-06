@@ -46,7 +46,7 @@ class ImageDocTrainer(MassTrainer):
             self.mt_model = DataParallelModel(self.mt_model)
 
     def train_epoch(self, data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
-                    mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: data_utils.DataLoader = None,
+                    mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: List[data_utils.DataLoader] = None,
                     mt_train_iter: List[data_utils.DataLoader] = None,
                     fine_tune: bool = False, lang_directions: dict = False, **kwargs):
         "Standard Training and Logging Function"

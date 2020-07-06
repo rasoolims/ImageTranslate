@@ -310,7 +310,7 @@ class MTTrainer:
         mt_model.save(options.model_path)
         train_paths = options.train_path.strip().split(",")
         pin_memory = torch.cuda.is_available()
-        dev_paths = options.train_path.strip().split(",")
+        dev_paths = options.dev_path.strip().split(",")
         train_loader, dev_loader = [], []
         for train_path in train_paths:
             train_data = dataset.MTDataset(batch_pickle_dir=train_path,

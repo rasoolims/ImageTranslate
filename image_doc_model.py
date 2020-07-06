@@ -101,14 +101,14 @@ class ImageCaptionSeq2Seq(MassSeq2Seq):
         return outputs
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool, share_decoder: bool = False, resent_depth: int = 1):
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool, share_decoder: bool = False, resnet_depth: int = 1):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
             decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
             mt_model = ImageCaptionSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder,
-                                           output_layer=lm.masked_lm, resnet_depth=resent_depth,
+                                           output_layer=lm.masked_lm, resnet_depth=resnet_depth,
                                            text_processor=lm.text_processor, checkpoint=checkpoint)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm
@@ -170,7 +170,7 @@ class ImageDocSeq2Seq(MassSeq2Seq):
         return outputs
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool, share_decoder: bool, resent_depth: int = 1):
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool, share_decoder: bool, resnet_depth: int = 1):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
@@ -178,6 +178,6 @@ class ImageDocSeq2Seq(MassSeq2Seq):
             decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
             mt_model = ImageDocSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                        text_processor=lm.text_processor, checkpoint=checkpoint,
-                                       share_decoder=share_decoder, resnet_depth=resent_depth)
+                                       share_decoder=share_decoder, resnet_depth=resnet_depth)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm

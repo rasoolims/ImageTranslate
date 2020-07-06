@@ -43,7 +43,7 @@ class ImageDocTrainer(MassTrainer):
                                       text_processor=model.text_processor, checkpoint=model.checkpoint)
         if self.num_gpu > 1:
             self.mass_model = DataParallelModel(self.mass_model)
-            self.mt_model = DataParallelModel(self.mass_model)
+            self.mt_model = DataParallelModel(self.mt_model)
 
     def train_epoch(self, data_iter, step: int, saving_path: str = None,
                     mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: data_utils.DataLoader = None,

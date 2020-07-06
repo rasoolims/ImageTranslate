@@ -62,11 +62,11 @@ class TextDataset(Dataset):
 
 class MTDataset(Dataset):
     def __init__(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
-                 pad_idx: int, max_seq_len: int = 512):
+                 pad_idx: int, max_seq_len: int = 175):
         self.build_batches(batch_pickle_dir, max_batch_capacity, max_batch, pad_idx, max_seq_len)
 
     def build_batches(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
-                      pad_idx: int, max_seq_len: int = 512):
+                      pad_idx: int, max_seq_len: int = 175):
         """
                 Since training is fully-batched and has memory/computational need for cubic power of target length, and quadratic
                 power of source length, we need to make sure that each batch has similar length and it does not go over

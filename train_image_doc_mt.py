@@ -41,20 +41,15 @@ class ImageDocTrainer(MassTrainer):
         if self.num_gpu > 1:
             self.mass_model = DataParallelModel(self.mass_model)
 
-    def train_epoch(self, data_iter, mass_data_iter: List[data_utils.DataLoader], step: int,
-                    saving_path: str = None, mt_dev_iter: data_utils.DataLoader = None, fine_tune: bool = False,
-                    lang_directions: dict = False, **kwargs):
+    def train_epoch(self, data_iter, step: int, saving_path: str = None,
+                    mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: data_utils.DataLoader = None,
+                    fine_tune: bool = False, lang_directions: dict = False, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
         cur_loss = 0
         sentences = 0
-        if isinstance(data_iter, data_utils.DataLoader):
-            shortest = min([len(l) for l in mass_data_iter] + [len(data_iter)])
-            batch_zip = zip(data_iter, mass_data_iter[0], mass_data_iter[1])
-        else:
-            shortest = min([len(l) for l in mass_data_iter] + [len(l) for l in data_iter])
-            batch_zip = zip(data_iter[0], data_iter[1], mass_data_iter[0], mass_data_iter[1])
+        batch_zip, shortest = self.get_batch_zip(data_iter, mass_data_iter)
 
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
@@ -185,6 +180,23 @@ class ImageDocTrainer(MassTrainer):
 
         return step
 
+    def get_batch_zip(self, data_iter, mass_data_iter):
+        if mass_data_iter is None:
+            if isinstance(data_iter, data_utils.DataLoader):
+                shortest = len(data_iter)
+                batch_zip = data_iter
+            else:
+                shortest = min([len(l) for l in data_iter])
+                batch_zip = zip(data_iter[0], data_iter[1])
+        else:
+            if isinstance(data_iter, data_utils.DataLoader):
+                shortest = min([len(l) for l in mass_data_iter] + [len(data_iter)])
+                batch_zip = zip(data_iter, mass_data_iter[0], mass_data_iter[1])
+            else:
+                shortest = min([len(l) for l in mass_data_iter] + [len(l) for l in data_iter])
+                batch_zip = zip(data_iter[0], data_iter[1], mass_data_iter[0], mass_data_iter[1])
+        return batch_zip, shortest
+
     @staticmethod
     def train(options):
         if not os.path.exists(options.model_path):
@@ -265,44 +277,41 @@ class ImageDocTrainer(MassTrainer):
                                   last_epoch=last_epoch)
 
         mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
-        mass_train_paths = options.mass_train_path.strip().split(",")
-        if options.step > 0 and last_epoch < options.step:
-            mass_train_data, mass_train_loader = [], []
-            for i, mass_train_path in enumerate(mass_train_paths):
-                td = dataset.MassDataset(batch_pickle_dir=mass_train_path,
-                                         max_batch_capacity=num_processors * options.total_capacity,
-                                         max_batch=num_processors * options.batch,
-                                         pad_idx=mt_model.text_processor.pad_token_id(),
-                                         max_seq_len=options.max_seq_len, keep_examples=True)
-                mass_train_data.append(td)
-                dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)
-                mass_train_loader.append(dl)
+        if options.mass_train_path is not None:
+            mass_train_paths = options.mass_train_path.strip().split(",")
+            if options.step > 0 and last_epoch < options.step:
+                mass_train_data, mass_train_loader = [], []
+                for i, mass_train_path in enumerate(mass_train_paths):
+                    td = dataset.MassDataset(batch_pickle_dir=mass_train_path,
+                                             max_batch_capacity=num_processors * options.total_capacity,
+                                             max_batch=num_processors * options.batch,
+                                             pad_idx=mt_model.text_processor.pad_token_id(),
+                                             max_seq_len=options.max_seq_len, keep_examples=True)
+                    mass_train_data.append(td)
+                    dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)
+                    mass_train_loader.append(dl)
 
-        lang_directions = {}
-        if options.finetune_step > 0:
-            finetune_data, finetune_loader = [], []
-            for i, mass_train_path in enumerate(mass_train_paths):
-                fd = dataset.MassDataset(batch_pickle_dir=mass_train_path,
-                                         max_batch_capacity=int(num_processors * options.total_capacity / 2),
-                                         max_batch=int(num_processors * options.batch / 2),
-                                         pad_idx=mt_model.text_processor.pad_token_id(),
-                                         max_seq_len=options.max_seq_len, keep_examples=False,
-                                         example_list=None if mass_train_data is None else mass_train_data[
-                                             i].examples_list)
-                finetune_data.append(fd)
-                fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory)
-                finetune_loader.append(fl)
+        if options.mass_train_path is not None:
+            if options.finetune_step > 0:
+                finetune_data, finetune_loader = [], []
+                for i, mass_train_path in enumerate(mass_train_paths):
+                    fd = dataset.MassDataset(batch_pickle_dir=mass_train_path,
+                                             max_batch_capacity=int(num_processors * options.total_capacity / 2),
+                                             max_batch=int(num_processors * options.batch / 2),
+                                             pad_idx=mt_model.text_processor.pad_token_id(),
+                                             max_seq_len=options.max_seq_len, keep_examples=False,
+                                             example_list=None if mass_train_data is None else mass_train_data[
+                                                 i].examples_list)
+                    finetune_data.append(fd)
+                    fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory)
+                    finetune_loader.append(fl)
 
-                if mass_train_data is not None:
-                    mass_train_data[i].examples_list = []
+                    if mass_train_data is not None:
+                        mass_train_data[i].examples_list = []
 
-            langs = set()
-            for fd in finetune_data:
-                for lang1 in fd.lang_ids:
-                    langs.add(lang1)
-
-            for lang1 in langs:
-                for lang2 in langs:
+            lang_directions = {}
+            for lang1 in text_processor.languages.values():
+                for lang2 in text_processor.languages.values():
                     if lang1 != lang2:
                         # Assuming that we only have two languages!
                         lang_directions[lang1] = lang2

@@ -259,7 +259,7 @@ class ImageDocTrainer(MassTrainer):
                                                          text_processor=mt_model.text_processor,
                                                          max_img_per_batch=options.max_image)
                 print(train_path, "Length of training data", len(train_data))
-                tl = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=False,
+                tl = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True,
                                            pin_memory=pin_memory,
                                            collate_fn=collator)
                 train_loader.append(tl)

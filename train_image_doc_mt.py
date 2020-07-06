@@ -48,7 +48,6 @@ class ImageDocTrainer(MassTrainer):
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
         cur_loss = 0
-        sentences = 0
         batch_zip, shortest = self.get_batch_zip(data_iter, mass_data_iter)
 
         model = (
@@ -65,7 +64,7 @@ class ImageDocTrainer(MassTrainer):
                         predictions = self.model(batch=batch, log_softmax=True)
                         targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
                         tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
-                        targets = torch.cat([targets[i][tgt_mask_flat[i]] for i in range(len(batch))])
+                        targets = torch.cat(list(map(lambda i: targets[i][tgt_mask_flat[i]], range(len(batch)))))
                         ntokens = targets.size(0)
                     else:  # MASS data
                         src_inputs = batch["src_texts"].squeeze(0)
@@ -122,7 +121,6 @@ class ImageDocTrainer(MassTrainer):
                             targets = src_targets[src_mask_flat]
                             ntokens = targets.size(0)
 
-                    sentences += len(batch)
                     if ntokens == 0:  # Nothing to predict!
                         continue
 
@@ -154,8 +152,7 @@ class ImageDocTrainer(MassTrainer):
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start
                     print(datetime.datetime.now(),
-                          "Epoch Step: %d Loss: %f Tokens per Sec: %f Sentences per Sec: %f" % (
-                              step, cur_loss / tokens, tokens / elapsed, sentences / elapsed))
+                          "Epoch Step: %d Loss: %f Tokens per Sec: %f " % (step, cur_loss / tokens, tokens / elapsed))
 
                     if step % 500 == 0:
                         if mt_dev_iter is not None and step % 5000 == 0:
@@ -167,7 +164,7 @@ class ImageDocTrainer(MassTrainer):
                             pickle.dump(
                                 (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
 
-                    start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
+                    start, tokens, cur_loss = time.time(), 0, 0
             if i == shortest - 1:
                 break
 

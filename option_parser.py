@@ -61,6 +61,9 @@ def get_mass_option_parser():
     parser.add_option("--dev_mt", dest="mt_dev_path",
                       help="Path to the MT dev data pickle files (SHOULD NOT BE USED IN UNSUPERVISED SETTING)",
                       metavar="FILE", default=None)
+    parser.add_option("--train_mt", dest="mt_train_path",
+                      help="Path to the MT train data pickle files (SHOULD NOT BE USED IN PURELY UNSUPERVISED SETTING)",
+                      metavar="FILE", default=None)
     parser.add_option("--fstep", dest="finetune_step", help="Number of finetuneing steps", type="int", default=125000)
     parser.set_default("mask_prob", 0.5)
     parser.set_default("model_size", 5)

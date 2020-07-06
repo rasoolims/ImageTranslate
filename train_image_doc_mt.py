@@ -14,7 +14,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torchvision import transforms
 
 import dataset
-from albert_seq2seq import MassSeq2Seq
+from albert_seq2seq import AlbertSeq2Seq, MassSeq2Seq
 from image_doc_model import ImageDocSeq2Seq, ImageCaptionSeq2Seq
 from lm import LM
 from option_parser import get_img_options_parser
@@ -38,17 +38,22 @@ class ImageDocTrainer(MassTrainer):
         self.mass_model = MassSeq2Seq(config=model.config, encoder=model.encoder, decoder=model.decoder,
                                       output_layer=model.output_layer,
                                       text_processor=model.text_processor, checkpoint=model.checkpoint)
+        self.mt_model = AlbertSeq2Seq(config=model.config, encoder=model.encoder, decoder=model.decoder,
+                                      output_layer=model.output_layer,
+                                      text_processor=model.text_processor, checkpoint=model.checkpoint)
         if self.num_gpu > 1:
             self.mass_model = DataParallelModel(self.mass_model)
+            self.mt_model = DataParallelModel(self.mass_model)
 
     def train_epoch(self, data_iter, step: int, saving_path: str = None,
                     mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: data_utils.DataLoader = None,
+                    mt_train_iter: data_utils.DataLoader = None,
                     fine_tune: bool = False, lang_directions: dict = False, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
         cur_loss = 0
-        batch_zip, shortest = self.get_batch_zip(data_iter, mass_data_iter)
+        batch_zip, shortest = self.get_batch_zip(data_iter, mass_data_iter, mt_train_iter)
 
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
@@ -57,6 +62,7 @@ class ImageDocTrainer(MassTrainer):
             for batch in batches:
                 self.optimizer.zero_grad()
                 is_img_batch = isinstance(batch, list) and "captions" in batch[0]
+                is_mass_batch = not is_img_batch and "dst_texts" not in batch
                 try:
                     if is_img_batch:  # Image data
                         if len(batch) < self.num_gpu:
@@ -65,6 +71,23 @@ class ImageDocTrainer(MassTrainer):
                         targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
                         tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
                         targets = torch.cat(list(map(lambda i: targets[i][tgt_mask_flat[i]], range(len(batch)))))
+                        ntokens = targets.size(0)
+                    elif not is_mass_batch:  # MT data
+                        src_inputs = batch["src_texts"].squeeze(0)
+                        src_mask = batch["src_pad_mask"].squeeze(0)
+                        tgt_inputs = batch["dst_texts"].squeeze(0)
+                        tgt_mask = batch["dst_pad_mask"].squeeze(0)
+                        src_langs = batch["src_langs"].squeeze(0)
+                        dst_langs = batch["dst_langs"].squeeze(0)
+                        if src_inputs.size(0) < self.num_gpu:
+                            continue
+                        predictions = self.mt_model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                                                    src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
+                                                    tgt_langs=dst_langs,
+                                                    log_softmax=True)
+                        targets = tgt_inputs[:, 1:].contiguous().view(-1)
+                        tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
+                        targets = targets[tgt_mask_flat]
                         ntokens = targets.size(0)
                     else:  # MASS data
                         src_inputs = batch["src_texts"].squeeze(0)
@@ -140,7 +163,7 @@ class ImageDocTrainer(MassTrainer):
                         self.scheduler.step()
                     step += 1
 
-                    if not is_img_batch and not fine_tune:
+                    if is_mass_batch and not fine_tune:
                         mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
 
                 except RuntimeError as err:
@@ -177,21 +200,21 @@ class ImageDocTrainer(MassTrainer):
 
         return step
 
-    def get_batch_zip(self, data_iter, mass_data_iter):
-        if mass_data_iter is None:
-            if isinstance(data_iter, data_utils.DataLoader):
-                shortest = len(data_iter)
-                batch_zip = data_iter
-            else:
-                shortest = min([len(l) for l in data_iter])
-                batch_zip = zip(data_iter[0], data_iter[1])
-        else:
+    def get_batch_zip(self, data_iter, mass_data_iter, mt_train_iter):
+        if mt_train_iter is None:
             if isinstance(data_iter, data_utils.DataLoader):
                 shortest = min([len(l) for l in mass_data_iter] + [len(data_iter)])
                 batch_zip = zip(data_iter, mass_data_iter[0], mass_data_iter[1])
             else:
                 shortest = min([len(l) for l in mass_data_iter] + [len(l) for l in data_iter])
                 batch_zip = zip(data_iter[0], data_iter[1], mass_data_iter[0], mass_data_iter[1])
+        else:
+            if isinstance(data_iter, data_utils.DataLoader):
+                shortest = min([len(l) for l in mass_data_iter] + [len(data_iter)] + [len(mt_train_iter)])
+                batch_zip = zip(data_iter, mt_train_iter, mass_data_iter[0], mass_data_iter[1])
+            else:
+                shortest = min([len(l) for l in mass_data_iter] + [len(l) for l in data_iter] + [len(mt_train_iter)])
+                batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter, mass_data_iter[0], mass_data_iter[1])
         return batch_zip, shortest
 
     @staticmethod
@@ -302,16 +325,28 @@ class ImageDocTrainer(MassTrainer):
                     finetune_data.append(fd)
                     fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory)
                     finetune_loader.append(fl)
-
                     if mass_train_data is not None:
                         mass_train_data[i].examples_list = []
 
-            lang_directions = {}
-            for lang1 in text_processor.languages.values():
-                for lang2 in text_processor.languages.values():
-                    if lang1 != lang2:
-                        # Assuming that we only have two languages!
-                        lang_directions[lang1] = lang2
+                langs = set()
+                for fd in finetune_data:
+                    for lang1 in fd.lang_ids:
+                        langs.add(lang1)
+
+                lang_directions = {}
+                for lang1 in langs:
+                    for lang2 in langs:
+                        if lang1 != lang2:
+                            # Assuming that we only have two languages!
+                            lang_directions[lang1] = lang2
+
+        mt_train_loader = None
+        if options.mt_dev_path is not None:
+            mt_train_data = dataset.MTDataset(batch_pickle_dir=options.mt_train_path,
+                                              max_batch_capacity=num_processors * options.total_capacity,
+                                              max_batch=int(num_processors * options.batch),
+                                              pad_idx=mt_model.text_processor.pad_token_id())
+            mt_train_loader = data_utils.DataLoader(mt_train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
 
         mt_dev_loader = None
         if options.mt_dev_path is not None:
@@ -338,6 +373,7 @@ class ImageDocTrainer(MassTrainer):
         while options.step > 0 and step < options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=train_loader, mass_data_iter=mass_train_loader,
+                                       mt_train_iter=mt_train_loader,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step)
             train_epoch += 1
 
@@ -355,6 +391,7 @@ class ImageDocTrainer(MassTrainer):
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
             print("finetune epoch", finetune_epoch)
             step = trainer.train_epoch(data_iter=train_loader, mass_data_iter=finetune_loader,
+                                       mt_train_iter=mt_train_loader,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
                                        fine_tune=True, lang_directions=lang_directions)
             finetune_epoch += 1

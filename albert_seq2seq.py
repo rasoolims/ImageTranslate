@@ -155,17 +155,16 @@ class AlbertDecoderAttention(nn.Module):
         self.attention_head_size = albert_attention.attention_head_size
         self.all_head_size = albert_attention.all_head_size
 
-        self.query = copy.deepcopy(albert_attention.query)
-        self.key = copy.deepcopy(albert_attention.key)
-        self.value = copy.deepcopy(albert_attention.value)
+        self.query = albert_attention.query
+        self.key = albert_attention.key
+        self.value = albert_attention.value
 
         self.src_attn_query = copy.deepcopy(albert_attention.query)
         self.src_attn_key = copy.deepcopy(albert_attention.key)
         self.src_attn_value = copy.deepcopy(albert_attention.value)
 
-        self.dense = copy.deepcopy(albert_attention.dense)
-        self.LayerNorm = copy.deepcopy(
-            albert_attention.LayerNorm)  # nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.dense = albert_attention.dense
+        self.LayerNorm = albert_attention.LayerNorm
         self.pruned_heads = set()
 
     def transpose_for_scores(self, x):

@@ -61,62 +61,60 @@ class TextDataset(Dataset):
 
 
 class MTDataset(Dataset):
-    def __init__(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
-                 pad_idx: int, max_seq_len: int = 175):
-        self.build_batches(batch_pickle_dir, max_batch_capacity, max_batch, pad_idx, max_seq_len)
+    def __init__(self, max_batch_capacity: int, max_batch: int,
+                 pad_idx: int, max_seq_len: int = 175, batch_pickle_dir: str = None,
+                 examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = None):
+        if examples is None:
+            self.build_batches(batch_pickle_dir, max_batch_capacity, max_batch, pad_idx, max_seq_len)
+        else:
+            num_gpu = torch.cuda.device_count()
+            self.batch_examples(examples, max_batch, max_batch_capacity, max_seq_len, num_gpu, pad_idx)
 
     def build_batches(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
                       pad_idx: int, max_seq_len: int = 175):
         """
-                Since training is fully-batched and has memory/computational need for cubic power of target length, and quadratic
-                power of source length, we need to make sure that each batch has similar length and it does not go over
-                max_batch_capacity. We also need to make sure not to include those batches that has less than num_gpu
-                sentence pairs (it will crash in multi-gpu).
+        Since training is fully-batched and has memory/computational need for cubic power of target length, and quadratic
+        power of source length, we need to make sure that each batch has similar length and it does not go over
+        max_batch_capacity. We also need to make sure not to include those batches that has less than num_gpu
+        sentence pairs (it will crash in multi-gpu).
         """
-        self.batches = []
-        self.longest_batch = ([], 0)
-        self.most_token_batch = ([], 0)
         num_gpu = torch.cuda.device_count()
         with open(batch_pickle_dir, "rb") as fr:
-            examples: List[Tuple[torch.tensor, torch.tensor]] = marshal.load(fr)
+            examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = marshal.load(fr)
+            self.batch_examples(examples, max_batch, max_batch_capacity, max_seq_len, num_gpu, pad_idx)
 
-            cur_src_batch, cur_dst_batch, cur_max_src_len, cur_max_dst_len = [], [], 0, 0
-            cur_src_langs, cur_dst_langs = [], []
-            for example in examples:
-                src = torch.LongTensor(example[0][:max_seq_len])  # trim if longer than expected!
-                dst = torch.LongTensor(example[1][:max_seq_len])  # trim if longer than expected!
-                cur_src_langs.append(example[2])
-                cur_dst_langs.append(example[3])
-                cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
-                cur_max_dst_len = max(cur_max_dst_len, int(dst.size(0)))
+    def batch_examples(self, examples, max_batch, max_batch_capacity, max_seq_len, num_gpu, pad_idx):
+        self.batches = []
+        cur_src_batch, cur_dst_batch, cur_max_src_len, cur_max_dst_len = [], [], 0, 0
+        cur_src_langs, cur_dst_langs = [], []
+        for example in examples:
+            src = torch.LongTensor(example[0][:max_seq_len])  # trim if longer than expected!
+            dst = torch.LongTensor(example[1][:max_seq_len])  # trim if longer than expected!
+            cur_src_langs.append(example[2])
+            cur_dst_langs.append(example[3])
+            cur_max_src_len = max(cur_max_src_len, int(src.size(0)))
+            cur_max_dst_len = max(cur_max_dst_len, int(dst.size(0)))
 
-                cur_src_batch.append(src)
-                cur_dst_batch.append(dst)
+            cur_src_batch.append(src)
+            cur_dst_batch.append(dst)
 
-                batch_capacity_size = (cur_max_src_len ** 2 + cur_max_dst_len ** 2) * len(
-                    cur_src_batch) * cur_max_dst_len
-                batch_size = (cur_max_src_len + cur_max_dst_len) * len(cur_src_batch)
+            batch_capacity_size = (cur_max_src_len ** 2 + cur_max_dst_len ** 2) * len(
+                cur_src_batch) * cur_max_dst_len
+            batch_size = (cur_max_src_len + cur_max_dst_len) * len(cur_src_batch)
 
-                if (batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000) and \
-                        len(cur_src_batch[:-1]) >= num_gpu and len(cur_src_batch) > 1:
-                    src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
-                    dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
-                    src_pad_mask = (src_batch != pad_idx)
-                    dst_pad_mask = (dst_batch != pad_idx)
-                    entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
-                             "dst_pad_mask": dst_pad_mask, "src_langs": torch.LongTensor(cur_src_langs[:-1]),
-                             "dst_langs": torch.LongTensor(cur_dst_langs[:-1])}
-                    b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
-                    this_batch_size = (s ** 2 + d ** 2) * b * d
-                    if this_batch_size > self.longest_batch[1]:
-                        self.longest_batch = (entry, this_batch_size)
-                    if b * (s + d) > self.most_token_batch[1]:
-                        self.most_token_batch = (entry, b * (s + d))
-                    self.batches.append(entry)
-                    cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
-                    cur_src_langs, cur_dst_langs = [cur_src_langs[-1]], [cur_dst_langs[-1]]
-                    cur_max_src_len, cur_max_dst_len = int(cur_src_batch[0].size(0)), int(cur_dst_batch[0].size(0))
-
+            if (batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000) and \
+                    len(cur_src_batch[:-1]) >= num_gpu and len(cur_src_batch) > 1:
+                src_batch = pad_sequence(cur_src_batch[:-1], batch_first=True, padding_value=pad_idx)
+                dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
+                src_pad_mask = (src_batch != pad_idx)
+                dst_pad_mask = (dst_batch != pad_idx)
+                entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
+                         "dst_pad_mask": dst_pad_mask, "src_langs": torch.LongTensor(cur_src_langs[:-1]),
+                         "dst_langs": torch.LongTensor(cur_dst_langs[:-1])}
+                self.batches.append(entry)
+                cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
+                cur_src_langs, cur_dst_langs = [cur_src_langs[-1]], [cur_dst_langs[-1]]
+                cur_max_src_len, cur_max_dst_len = int(cur_src_batch[0].size(0)), int(cur_dst_batch[0].size(0))
         if len(cur_src_batch) > 0 and len(cur_src_batch) >= num_gpu:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
             dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
@@ -125,14 +123,7 @@ class MTDataset(Dataset):
             entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                      "dst_pad_mask": dst_pad_mask, "src_langs": torch.LongTensor(cur_src_langs),
                      "dst_langs": torch.LongTensor(cur_dst_langs)}
-            b, s, d = int(src_batch.size(0)), int(src_batch.size(1)), int(dst_batch.size(1))
-            this_batch_size = (s ** 2 + d ** 2) * b * d
-            if this_batch_size > self.longest_batch[1]:
-                self.longest_batch = (entry, this_batch_size)
-            if b * (s + d) > self.most_token_batch[1]:
-                self.most_token_batch = (entry, b * (s + d))
             self.batches.append(entry)
-
         for b in self.batches:
             pads = b["src_pad_mask"]
             pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
@@ -140,12 +131,7 @@ class MTDataset(Dataset):
             for (r, c) in pindices:
                 pad_indices[r] = min(pad_indices[r], int(c))
             b["pad_idx"] = torch.LongTensor(pad_indices)
-
         print("Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
-        print("Longest batch size", self.longest_batch[0]["src_texts"].size(),
-              self.longest_batch[0]["dst_texts"].size())
-        print("Most token batch size", self.most_token_batch[0]["src_texts"].size(),
-              self.most_token_batch[0]["dst_texts"].size())
 
     def __len__(self):
         return len(self.batches)

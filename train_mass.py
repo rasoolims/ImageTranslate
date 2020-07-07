@@ -230,7 +230,7 @@ class MassTrainer(MTTrainer):
 
     def validate(self, dev_data_iters):
         if dev_data_iters is None:
-            return 
+            return
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )

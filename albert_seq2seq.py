@@ -92,7 +92,7 @@ class AlbertSeq2Seq(nn.Module):
             decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
             mt_model = AlbertSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                      text_processor=lm.text_processor, lang_dec=lang_dec, checkpoint=checkpoint)
-            mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
+            mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")), strict=False)
             return mt_model, lm
 
 

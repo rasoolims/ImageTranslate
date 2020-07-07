@@ -45,8 +45,6 @@ def get_mt_option_parser():
     parser.add_option("--len-penalty", dest="len_penalty_ratio", help="Length penalty", type="float", default=0.8)
     parser.add_option("--checkpoint", dest="checkpoint", help="Number of checkpoints to average", type="int", default=5)
     parser.add_option("--max_seq_len", dest="max_seq_len", help="Max sequence length", type="int", default=175)
-    parser.add_option("--pretrain", action="store_true", dest="pretrain",
-                      help="Use self to self translation similar to BART!", default=False)
     parser.add_option("--ldec", action="store_true", dest="lang_decoder", help="Lang-specific decoder", default=False)
     parser.add_option("--nll", action="store_true", dest="nll_loss", help="Use NLL loss instead of smoothed NLL loss",
                       default=False)

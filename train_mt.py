@@ -22,7 +22,7 @@ from parallel import DataParallelModel, DataParallelCriterion
 from pytorch_lamb.pytorch_lamb import Lamb
 from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
-from utils import build_optimizer, mask_text, unmask_text
+from utils import build_optimizer
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -30,8 +30,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class MTTrainer:
     def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
                  step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
-                 len_penalty_ratio: float = 0.8, self_translate: bool = False, last_epoch: int = 0,
-                 nll_loss: bool = False):
+                 len_penalty_ratio: float = 0.8, last_epoch: int = 0, nll_loss: bool = False):
         self.model = model
 
         self.clip = clip
@@ -39,7 +38,6 @@ class MTTrainer:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.model.to(self.device)
-        self.self_translate = self_translate
 
         if isinstance(self.optimizer, Lamb):
             self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
@@ -94,12 +92,6 @@ class MTTrainer:
                     continue
 
                 try:
-                    if self.self_translate:
-                        mask, masked_ids, src_inputs = mask_text(mask_prob=self.mask_prob, pads=src_mask,
-                                                                 texts=src_inputs,
-                                                                 text_processor=model.text_processor,
-                                                                 mask_eos=False)
-
                     predictions = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                              src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
                                              tgt_langs=dst_langs,
@@ -121,9 +113,6 @@ class MTTrainer:
                     total_tokens += ntokens
                     tokens += ntokens
                     sentences += int(src_inputs.size(0))
-                    if self.self_translate:
-                        LM.unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
-
                     if self.optimizer is not None:
                         # We accumulate the gradients for both tasks!
                         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
@@ -192,10 +181,6 @@ class MTTrainer:
                     dst_langs = batch["dst_langs"].squeeze(0)
                     src_pad_idx = batch["pad_idx"].squeeze(0)
 
-                    if self.self_translate:
-                        mask, masked_ids, src_inputs = mask_text(mask_prob=0.15, pads=src_mask, texts=src_inputs,
-                                                                 text_processor=model.text_processor, mask_eos=False)
-
                     src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs)
                     src_text += [generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in
                                  src_ids]
@@ -212,9 +197,6 @@ class MTTrainer:
 
                     for output in outputs:
                         mt_output.append(generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
-
-                    if self.self_translate:
-                        unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
 
             model.train()
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
@@ -255,12 +237,6 @@ class MTTrainer:
                     dst_langs = batch["dst_langs"].squeeze(0)
 
                     try:
-                        if self.self_translate:
-                            mask, masked_ids, src_inputs = mask_text(mask_prob=self.mask_prob, pads=src_mask,
-                                                                     texts=src_inputs,
-                                                                     text_processor=model.text_processor,
-                                                                     mask_eos=False)
-
                         predictions = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                                  src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
                                                  tgt_langs=dst_langs, log_softmax=True)
@@ -276,8 +252,6 @@ class MTTrainer:
                         loss = self.criterion(predictions, targets).mean().data * ntokens
                         total_dev_loss += float(loss)
                         total_dev_tokens += ntokens
-                        if self.self_translate:
-                            unmask_text(mask=mask, masked_ids=masked_ids, texts=src_inputs)
                     except RuntimeError:
                         print("Error in processing", src_inputs.size(), tgt_inputs.size())
                         torch.cuda.empty_cache()
@@ -337,7 +311,7 @@ class MTTrainer:
         trainer = MTTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                             warmup=options.warmup, step=options.step, beam_width=options.beam_width,
                             max_len_a=options.max_len_a, max_len_b=options.max_len_b,
-                            len_penalty_ratio=options.len_penalty_ratio, self_translate=options.pretrain,
+                            len_penalty_ratio=options.len_penalty_ratio,
                             last_epoch=last_epoch, nll_loss=options.nll_loss)
 
         print("creating reference")

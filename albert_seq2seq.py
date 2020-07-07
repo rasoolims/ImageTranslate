@@ -28,11 +28,15 @@ class AlbertSeq2Seq(nn.Module):
                                                                                          AlbertModel) else decoder
             self.decoder._tie_or_clone_weights(self.output_layer.decoder, self.decoder.embeddings.word_embeddings)
         else:
-            dec = AlbertDecoderModel(decoder) if isinstance(decoder, AlbertModel) else decoder
-            self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
-            self.output_layer = nn.ModuleList([copy.deepcopy(output_layer) for _ in text_processor.languages])
-            for i, dec in enumerate(self.decoder):
-                dec._tie_or_clone_weights(self.output_layer[i].decoder, dec.embeddings.word_embeddings)
+            if isinstance(decoder, nn.ModuleList):
+                self.decoder = decoder
+                self.output_layer = output_layer
+            else:
+                dec = AlbertDecoderModel(decoder) if isinstance(decoder, AlbertModel) else decoder
+                self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
+                self.output_layer = nn.ModuleList([copy.deepcopy(output_layer) for _ in text_processor.languages])
+                for i, dec in enumerate(self.decoder):
+                    dec._tie_or_clone_weights(self.output_layer[i].decoder, dec.embeddings.word_embeddings)
 
         self.lang_dec = lang_dec
         self.checkpoint = checkpoint

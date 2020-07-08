@@ -169,9 +169,6 @@ class MTTrainer:
             self.model.module if hasattr(self.model, "module") else self.model
         )
         model.eval()
-        generator = (
-            self.generator.module if hasattr(self.generator, "module") else self.generator
-        )
 
         with torch.no_grad():
             for iter in dev_data_iter:
@@ -185,7 +182,7 @@ class MTTrainer:
 
                     src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs,
                                                     remove_first_token=True)
-                    src_text += list(map(lambda src: model.text_processor.tokenizer.decode(src[1:].numpy()), src_ids))
+                    src_text += list(map(lambda src: model.text_processor.tokenizer.decode(src.numpy()), src_ids))
 
                     outputs = self.generator(src_inputs=src_inputs, src_sizes=src_pad_idx,
                                              first_tokens=tgt_inputs[:, 0],

@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
+from apex import amp
 
 import dataset
 from albert_seq2seq import AlbertSeq2Seq
@@ -22,7 +23,7 @@ from parallel import DataParallelModel, DataParallelCriterion
 from pytorch_lamb.pytorch_lamb import Lamb
 from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
-from utils import build_optimizer
+from utils import build_optimizer, backward
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -63,6 +64,11 @@ class MTTrainer:
                                      len_penalty_ratio=len_penalty_ratio)
         if self.num_gpu > 1:
             self.generator = DataParallelModel(self.generator)
+
+        self.fp16 = False
+        if self.num_gpu == 1:
+            self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O2")
+            self.fp16 = True
 
         self.reference = None
         self.best_bleu = -1.0
@@ -107,7 +113,7 @@ class MTTrainer:
                         continue
 
                     loss = self.criterion(predictions, targets).mean()
-                    loss.backward()
+                    backward(loss, self.optimizer, self.fp16)
 
                     loss = float(loss.data) * ntokens
                     total_loss += loss

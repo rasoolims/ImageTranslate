@@ -19,7 +19,7 @@ from option_parser import get_mass_option_parser
 from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mt import MTTrainer
-from utils import build_optimizer, mass_mask, mass_unmask
+from utils import build_optimizer, mass_mask, mass_unmask, backward
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -66,7 +66,7 @@ class MassTrainer(MTTrainer):
                         targets = targets.to(predictions.device)
 
                     loss = self.criterion(predictions, targets).mean() * ntokens
-                    loss.backward()
+                    backward(loss, self.optimizer, self.fp16)
 
                     loss = float(loss.data)
                     total_loss += loss
@@ -185,7 +185,7 @@ class MassTrainer(MTTrainer):
                         targets = targets.to(predictions.device)
 
                     bt_loss = self.criterion(predictions, targets).mean()
-                    bt_loss.backward()
+                    backward(bt_loss, self.optimizer, self.fp16)
 
                     bt_loss = float(bt_loss.data) * ntokens
                     total_loss += bt_loss

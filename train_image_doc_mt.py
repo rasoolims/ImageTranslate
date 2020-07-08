@@ -22,7 +22,7 @@ from parallel import DataParallelModel
 from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mass import MassTrainer
-from utils import build_optimizer, mass_mask, mass_unmask
+from utils import build_optimizer, mass_mask, mass_unmask, backward
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -150,7 +150,7 @@ class ImageDocTrainer(MassTrainer):
                         targets = targets.to(predictions.device)
 
                     loss = self.criterion(predictions, targets).mean()
-                    loss.backward()
+                    backward(loss, self.optimizer, self.fp16)
 
                     loss = float(loss.data) * ntokens
                     total_loss += loss

@@ -4,6 +4,7 @@ from typing import Dict
 
 import torch
 import torch.optim as optim
+from apex import amp
 from torch.nn.utils.rnn import pad_sequence
 
 from pytorch_lamb.pytorch_lamb import Lamb
@@ -81,6 +82,14 @@ def mass_mask(mask_prob, pad_indices, src_text, text_processor: TextProcessor) -
 
 def mass_unmask(src_text, src_mask, masked_ids):
     src_text[src_mask] = masked_ids
+
+
+def backward(loss, optimizer, fp16: bool = False):
+    if fp16:
+        with amp.scale_loss(loss, optimizer) as scaled_loss:
+            scaled_loss.backward()
+    else:
+        loss.backward()
 
 
 class AdamInverseSqrtWithWarmup(optim.Adam):

@@ -113,7 +113,6 @@ class MassSeq2Seq(AlbertSeq2Seq):
         """
         device = self.encoder.embeddings.word_embeddings.weight.device
         tgt_inputs = tgt_inputs.to(device)
-        tgt_positions = tgt_positions.to(device)
         tgt_mask = tgt_inputs != pad_idx
 
         if tgt_langs is not None:
@@ -127,6 +126,7 @@ class MassSeq2Seq(AlbertSeq2Seq):
         encoder_states = self.encode(src_inputs, src_pads, src_langs_t)[0]
 
         tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
+        tgt_positions = tgt_positions.to(device)
         tgt_mask = tgt_mask.to(device)
         src_pads = src_pads.to(device)
 

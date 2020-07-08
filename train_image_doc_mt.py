@@ -146,6 +146,8 @@ class ImageDocTrainer(MassTrainer):
 
                     if ntokens == 0:  # Nothing to predict!
                         continue
+                    if self.num_gpu == 1:
+                        targets = targets.to(predictions.device)
 
                     loss = self.criterion(predictions, targets).mean()
                     loss.backward()

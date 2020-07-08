@@ -61,7 +61,11 @@ class MassTrainer(MTTrainer):
                     if ntokens == 0:  # Nothing to predict!
                         continue
 
-                    loss = self.criterion(predictions, masked_info["targets"]).mean() * ntokens
+                    targets = masked_info["targets"]
+                    if self.num_gpu == 1:
+                        targets = targets.to(predictions.device)
+
+                    loss = self.criterion(predictions, targets).mean() * ntokens
                     loss.backward()
 
                     loss = float(loss.data)
@@ -174,6 +178,8 @@ class MassTrainer(MTTrainer):
 
                     if ntokens == 0:  # Nothing to predict!
                         continue
+                    if self.num_gpu == 1:
+                        targets = targets.to(predictions.device)
 
                     bt_loss = self.criterion(predictions, targets).mean()
                     bt_loss.backward()
@@ -253,10 +259,13 @@ class MassTrainer(MTTrainer):
                                                  log_softmax=True)
                         ntokens = masked_info["targets"].size(0)
 
-                        if ntokens == 0:  # Nothing to predict!
+                        if ntokens == 0:  # Nothing to predi`ct!
                             continue
+                        targets = masked_info["targets"]
+                        if self.num_gpu == 1:
+                            targets = targets.to(predictions.device)
 
-                        loss = self.criterion(predictions, masked_info["targets"]).mean().data * ntokens
+                        loss = self.criterion(predictions, targets).mean().data * ntokens
                         total_dev_loss += float(loss)
                         total_dev_tokens += ntokens
                     except RuntimeError:

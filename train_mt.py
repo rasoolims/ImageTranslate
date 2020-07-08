@@ -100,6 +100,8 @@ class MTTrainer:
                     tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
                     targets = targets[tgt_mask_flat]
                     ntokens = targets.size(0)
+                    if self.num_gpu == 1:
+                        targets = targets.to(predictions.device)
 
                     if ntokens == 0:  # Nothing to predict!
                         continue
@@ -243,6 +245,8 @@ class MTTrainer:
                         targets = tgt_inputs[:, 1:].contiguous().view(-1)
                         tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
                         targets = targets[tgt_mask_flat]
+                        if self.num_gpu == 1:
+                            targets = targets.to(predictions.device)
                         ntokens = targets.size(0)
 
                         if ntokens == 0:  # Nothing to predict!

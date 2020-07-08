@@ -51,7 +51,7 @@ def translate_batch(batch, generator, text_processor, verbose=False):
         for output in outputs:
             new_outputs += output
         outputs = new_outputs
-    mt_output = list(map(lambda x:text_processor.tokenizer.decode(x[1:].numpy()), outputs))
+    mt_output = list(map(lambda x: text_processor.tokenizer.decode(x[1:].numpy()), outputs))
     return mt_output, src_text
 
 

@@ -181,7 +181,8 @@ class MTTrainer:
                     dst_langs = batch["dst_langs"].squeeze(0)
                     src_pad_idx = batch["pad_idx"].squeeze(0)
 
-                    src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs, remove_first_token=True)
+                    src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs,
+                                                    remove_first_token=True)
                     src_text += list(map(lambda src: model.text_processor.tokenizer.decode(src[1:].numpy()), src_ids))
 
                     outputs = self.generator(src_inputs=src_inputs, src_sizes=src_pad_idx,
@@ -194,7 +195,7 @@ class MTTrainer:
                             new_outputs += output
                         outputs = new_outputs
 
-                    mt_output += list(map(lambda x:model.text_processor.tokenizer.decode(x[1:].numpy()), outputs))
+                    mt_output += list(map(lambda x: model.text_processor.tokenizer.decode(x[1:].numpy()), outputs))
 
             model.train()
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
@@ -284,9 +285,11 @@ class MTTrainer:
         pin_memory = torch.cuda.is_available()
         dev_paths = options.dev_path.strip().split(",")
         train_loader, dev_loader = [], []
+        num_processors = max(torch.cuda.device_count(), 1)
         for train_path in train_paths:
             train_data = dataset.MTDataset(batch_pickle_dir=train_path,
-                                           max_batch_capacity=options.total_capacity, max_batch=options.batch,
+                                           max_batch_capacity=num_processors * options.total_capacity,
+                                           max_batch=num_processors * options.batch,
                                            pad_idx=mt_model.text_processor.pad_token_id())
 
             tl = data_utils.DataLoader(train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
@@ -294,8 +297,8 @@ class MTTrainer:
 
         for dev_path in dev_paths:
             dev_data = dataset.MTDataset(batch_pickle_dir=dev_path,
-                                         max_batch_capacity=options.total_capacity,
-                                         max_batch=int(options.batch / options.beam_width),
+                                         max_batch_capacity=num_processors * options.total_capacity,
+                                         max_batch=num_processors * int(options.batch / options.beam_width),
                                          pad_idx=mt_model.text_processor.pad_token_id())
             dl = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
             dev_loader.append(dl)

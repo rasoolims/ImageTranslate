@@ -290,6 +290,7 @@ class MassTrainer(MTTrainer):
                                    checkpoint=options.checkpoint)
         MTTrainer.config_dropout(mt_model, options.dropout)
 
+        num_processors = max(torch.cuda.device_count(), 1)
         pin_memory = torch.cuda.is_available()
 
         if options.continue_train:
@@ -305,7 +306,8 @@ class MassTrainer(MTTrainer):
             train_data, train_loader = [], []
             for i, train_path in enumerate(train_paths):
                 td = dataset.MassDataset(batch_pickle_dir=train_path,
-                                         max_batch_capacity=options.total_capacity, max_batch=options.batch,
+                                         max_batch_capacity=num_processors * options.total_capacity,
+                                         max_batch=num_processors * options.batch,
                                          pad_idx=mt_model.text_processor.pad_token_id(),
                                          max_seq_len=options.max_seq_len, keep_examples=True)
                 train_data.append(td)
@@ -317,8 +319,8 @@ class MassTrainer(MTTrainer):
                 dev_loader = list()
                 for dev_path in dev_paths:
                     dev_data = dataset.MassDataset(batch_pickle_dir=dev_path,
-                                                   max_batch_capacity=options.total_capacity,
-                                                   max_batch=options.batch,
+                                                   max_batch_capacity=num_processors * options.total_capacity,
+                                                   max_batch=num_processors * options.batch,
                                                    pad_idx=mt_model.text_processor.pad_token_id(),
                                                    max_seq_len=options.max_seq_len)
                     dl = data_utils.DataLoader(dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
@@ -329,8 +331,8 @@ class MassTrainer(MTTrainer):
             finetune_data, finetune_loader = [], []
             for i, train_path in enumerate(train_paths):
                 fd = dataset.MassDataset(batch_pickle_dir=train_path,
-                                         max_batch_capacity=int(options.total_capacity / 2),
-                                         max_batch=int(options.batch / 2),
+                                         max_batch_capacity=num_processors * int(options.total_capacity / 2),
+                                         max_batch=num_processors * int(options.batch / 2),
                                          pad_idx=mt_model.text_processor.pad_token_id(),
                                          max_seq_len=options.max_seq_len, keep_examples=False,
                                          example_list=None if train_data is None else train_data[i].examples_list)
@@ -365,8 +367,9 @@ class MassTrainer(MTTrainer):
             trainer.reference = []
             for dev_path in dev_paths:
                 mt_dev_data = dataset.MTDataset(batch_pickle_dir=dev_path,
-                                                max_batch_capacity=options.total_capacity,
-                                                max_batch=int(options.batch / (options.beam_width * 2)),
+                                                max_batch_capacity=num_processors * options.total_capacity,
+                                                max_batch=num_processors * int(
+                                                    options.batch / (options.beam_width * 2)),
                                                 pad_idx=mt_model.text_processor.pad_token_id())
                 dl = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
                 mt_dev_loader.append(dl)

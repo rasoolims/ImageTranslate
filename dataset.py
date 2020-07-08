@@ -363,6 +363,7 @@ class ImageDocDataset(Dataset):
                     image = self.transform(im.convert("RGB"))
                     im.close()
             except:
+                print("Corrupted image", image_path)
                 image = torch.zeros(3, 224, 224)
             images.append(image)
         images = torch.stack(images)
@@ -470,6 +471,7 @@ class ImageCaptionDataset(Dataset):
                         image = self.transform(im.convert("RGB"))
                         im.close()
                 except:
+                    print("Corrupted image", image_path)
                     image = torch.zeros(3, 224, 224)
                 self.image_cache[image_id] = image
                 self.image_queue.append(image_id)

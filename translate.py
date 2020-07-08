@@ -46,7 +46,8 @@ def translate_batch(batch, generator, text_processor):
         outputs = new_outputs
     mt_output = []
     for output in outputs:
-        mt_output.append(generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
+        sen = generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy())
+        mt_output.append(" ".join(sen.split(" ")[1:]))
     return mt_output
 
 

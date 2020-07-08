@@ -241,7 +241,8 @@ class ImageDocTrainer(MassTrainer):
             decoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
             mt_model = images_class(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                     text_processor=lm.text_processor, checkpoint=options.checkpoint,
-                                    share_decoder=options.share_decoder, resnet_depth=options.resnet_depth, lang_dec=options.lang_decoder)
+                                    share_decoder=options.share_decoder, resnet_depth=options.resnet_depth,
+                                    lang_dec=options.lang_decoder)
 
         transform = transforms.Compose([  # [1]
             transforms.Resize(256),  # [2]

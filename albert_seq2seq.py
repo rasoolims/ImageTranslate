@@ -61,6 +61,8 @@ class AlbertSeq2Seq(nn.Module):
         tgt_langs = tgt_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
         if tgt_inputs.device != encoder_states.device:
             tgt_inputs = tgt_inputs.to(device)
+            tgt_mask = tgt_mask.to(device)
+            src_mask = src_mask.to(device)
 
         subseq_mask = future_mask(tgt_mask[:, :-1])
         if subseq_mask.device != tgt_inputs.device:
@@ -125,6 +127,8 @@ class MassSeq2Seq(AlbertSeq2Seq):
         encoder_states = self.encode(src_inputs, src_pads, src_langs_t)[0]
 
         tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
+        tgt_mask = tgt_mask.to(device)
+        src_pads = src_pads.to(device)
 
         subseq_mask = future_mask(tgt_mask[:, :-1])
         decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]

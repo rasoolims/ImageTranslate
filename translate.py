@@ -95,6 +95,6 @@ if __name__ == "__main__":
             for batch in test_loader:
                 mt_output = translate_batch(batch, generator, text_processor)
                 sen_count += len(mt_output)
-                print(sen_count, end="\r")
+                print("Translated", sen_count, "sentences", end="\r")
                 writer.write("\n".join(mt_output))
     print("Done!")

@@ -90,13 +90,15 @@ class AlbertSeq2Seq(nn.Module):
     @staticmethod
     def load(out_dir: str, tok_dir: str, sep_decoder: bool, lang_dec: bool):
         text_processor = TextProcessor(tok_model_path=tok_dir)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
             decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
             mt_model = AlbertSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                      text_processor=lm.text_processor, lang_dec=lang_dec, checkpoint=checkpoint)
-            mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")), strict=False)
+            mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
+                                     strict=False)
             return mt_model, lm
 
 

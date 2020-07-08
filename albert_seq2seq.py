@@ -106,14 +106,14 @@ class AlbertSeq2Seq(nn.Module):
 
 class MassSeq2Seq(AlbertSeq2Seq):
     def forward(self, src_inputs, src_pads, tgt_inputs, src_langs, tgt_langs=None, pad_idx: int = 1,
-                tgt_positions=None,
-                log_softmax: bool = False):
+                tgt_positions=None, log_softmax: bool = False):
         """
         :param mask_pad_mask: # Since MASS also generates MASK tokens, we do not backpropagate them during training.
         :return:
         """
         device = self.encoder.embeddings.word_embeddings.weight.device
         tgt_inputs = tgt_inputs.to(device)
+        tgt_positions = tgt_positions.to(device)
         tgt_mask = tgt_inputs != pad_idx
 
         if tgt_langs is not None:

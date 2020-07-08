@@ -102,6 +102,9 @@ class MassTrainer(MTTrainer):
 
                     if step % 5000 == 0:
                         self.validate(dev_data_iter)
+                        if mt_dev_iter is not None:
+                            bleu = self.eval_bleu(mt_dev_iter, saving_path)
+                            print("Pretraining BLEU:", bleu)
 
                     start, tokens, cur_loss, sentences = time.time(), 0, 0, 0
             if i == shortest - 1:

@@ -14,11 +14,9 @@ from torch.nn.utils.rnn import pad_sequence
 from torchvision import transforms
 
 import dataset
-from albert_seq2seq import AlbertSeq2Seq, MassSeq2Seq
 from image_doc_model import ImageDocSeq2Seq, ImageCaptionSeq2Seq
 from lm import LM
 from option_parser import get_img_options_parser
-from parallel import DataParallelModel
 from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_mass import MassTrainer
@@ -65,8 +63,8 @@ class ImageDocTrainer(MassTrainer):
                         if src_inputs.size(0) < self.num_gpu:
                             continue
                         predictions = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                                    src_pads=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
-                                                    tgt_langs=dst_langs, log_softmax=True)
+                                                 src_pads=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
+                                                 tgt_langs=dst_langs, log_softmax=True)
                         targets = tgt_inputs[:, 1:].contiguous().view(-1)
                         tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
                         targets = targets[tgt_mask_flat]
@@ -81,11 +79,11 @@ class ImageDocTrainer(MassTrainer):
                         if not fine_tune:
                             masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
                             predictions = self.model(src_inputs=masked_info["src_text"],
-                                                          tgt_inputs=masked_info["to_recover"],
-                                                          tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
-                                                          pad_idx=model.text_processor.pad_token_id(),
-                                                          src_langs=batch["langs"].squeeze(0),
-                                                          log_softmax=True)
+                                                     tgt_inputs=masked_info["to_recover"],
+                                                     tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
+                                                     pad_idx=model.text_processor.pad_token_id(),
+                                                     src_langs=batch["langs"].squeeze(0),
+                                                     log_softmax=True)
                             targets = masked_info["targets"]
                             ntokens = targets.size(0)
                         else:
@@ -115,12 +113,12 @@ class ImageDocTrainer(MassTrainer):
 
                             # Now use it for back-translation loss.
                             predictions = self.model(src_inputs=translations,
-                                                          tgt_inputs=src_inputs,
-                                                          src_pads=translation_pad_mask,
-                                                          pad_idx=model.text_processor.pad_token_id(),
-                                                          src_langs=dst_langs,
-                                                          tgt_langs=batch["langs"].squeeze(0),
-                                                          log_softmax=True)
+                                                     tgt_inputs=src_inputs,
+                                                     src_pads=translation_pad_mask,
+                                                     pad_idx=model.text_processor.pad_token_id(),
+                                                     src_langs=dst_langs,
+                                                     tgt_langs=batch["langs"].squeeze(0),
+                                                     log_softmax=True)
                             src_targets = src_inputs[:, 1:].contiguous().view(-1)
                             src_mask_flat = src_pad_mask[:, 1:].contiguous().view(-1)
                             targets = src_targets[src_mask_flat]

@@ -76,7 +76,8 @@ class ImageCaptionSeq2Seq(MassSeq2Seq):
                                                     freeze=freeze_image, depth=resnet_depth)
         self.image_mapper = nn.Linear(config.embedding_size, config.hidden_size)
 
-    def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 1, tgt_positions=None,
+    def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 1,
+                tgt_positions=None,
                 batch=None, log_softmax: bool = False, **kwargs):
         if isinstance(batch, list):
             assert len(batch) == 1
@@ -136,7 +137,8 @@ class ImageDocSeq2Seq(MassSeq2Seq):
         self.image_decoder = self.decoder.decoder if share_decoder else AlbertDecoderTransformer(
             AlbertTransformer(config))
 
-    def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 1, tgt_positions=None,
+    def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 1,
+                tgt_positions=None,
                 batch=None, log_softmax: bool = False, **kwargs):
         if isinstance(batch, list):
             assert len(batch) == 1

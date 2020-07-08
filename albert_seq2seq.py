@@ -203,7 +203,7 @@ class AlbertDecoderAttention(nn.Module):
             klen = k.size(1)
             mask_reshape = (bs, 1, qlen, klen) if attn_mask.dim() == 3 else (bs, 1, 1, klen)
             attn_mask = (attn_mask == 0).view(mask_reshape).expand_as(attn_scores)
-            attn_scores.masked_fill_(attn_mask, -1000000)
+            attn_scores.masked_fill_(attn_mask, -10000.0)
 
         # Normalize the attention scores to probabilities.
         attention_probs = nn.Softmax(dim=-1)(attn_scores)

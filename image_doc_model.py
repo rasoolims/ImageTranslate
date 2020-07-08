@@ -76,10 +76,16 @@ class ImageCaptionSeq2Seq(MassSeq2Seq):
                                                     freeze=freeze_image, depth=resnet_depth)
         self.image_mapper = nn.Linear(config.embedding_size, config.hidden_size)
 
-    def forward(self, batch, log_softmax: bool = False, **kwargs):
+    def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 1, tgt_positions=None,
+                batch=None, log_softmax: bool = False, **kwargs):
         if isinstance(batch, list):
             assert len(batch) == 1
             batch = batch[0]
+
+        if batch is None:
+            return super().forward(src_inputs=src_inputs, src_pads=src_pads, tgt_inputs=tgt_inputs, src_langs=src_langs,
+                                   tgt_langs=tgt_langs, pad_idx=pad_idx, tgt_positions=tgt_positions,
+                                   log_softmax=log_softmax)
 
         device = self.encoder.embeddings.word_embeddings.weight.device
         images = batch["images"].to(device)
@@ -130,10 +136,16 @@ class ImageDocSeq2Seq(MassSeq2Seq):
         self.image_decoder = self.decoder.decoder if share_decoder else AlbertDecoderTransformer(
             AlbertTransformer(config))
 
-    def forward(self, batch, log_softmax: bool = False, **kwargs):
+    def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 1, tgt_positions=None,
+                batch=None, log_softmax: bool = False, **kwargs):
         if isinstance(batch, list):
             assert len(batch) == 1
             batch = batch[0]
+
+        if batch is None:
+            return super().forward(src_inputs=src_inputs, src_pads=src_pads, tgt_inputs=tgt_inputs, src_langs=src_langs,
+                                   tgt_langs=tgt_langs, pad_idx=pad_idx, tgt_positions=tgt_positions,
+                                   log_softmax=log_softmax)
 
         device = self.encoder.embeddings.word_embeddings.weight.device
         images = batch["images"].to(device)

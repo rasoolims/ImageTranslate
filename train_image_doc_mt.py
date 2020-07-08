@@ -28,23 +28,6 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 class ImageDocTrainer(MassTrainer):
-    def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
-                 step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
-                 len_penalty_ratio: float = 0.8, last_epoch: int = 0,
-                 nll_loss: bool = False, fp16: bool = False):
-        super().__init__(model, mask_prob, clip, optimizer, warmup, step, beam_width, max_len_a, max_len_b,
-                         len_penalty_ratio, last_epoch, nll_loss, fp16)
-
-        self.mass_model = MassSeq2Seq(config=model.config, encoder=model.encoder, decoder=model.decoder,
-                                      output_layer=model.output_layer, lang_dec=model.lang_dec,
-                                      text_processor=model.text_processor, checkpoint=model.checkpoint)
-        self.mt_model = AlbertSeq2Seq(config=model.config, encoder=model.encoder, decoder=model.decoder,
-                                      output_layer=model.output_layer, lang_dec=model.lang_dec,
-                                      text_processor=model.text_processor, checkpoint=model.checkpoint)
-        if self.num_gpu > 1:
-            self.mass_model = DataParallelModel(self.mass_model)
-            self.mt_model = DataParallelModel(self.mt_model)
-
     def train_epoch(self, data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: List[data_utils.DataLoader] = None,
                     mt_train_iter: List[data_utils.DataLoader] = None,
@@ -81,10 +64,9 @@ class ImageDocTrainer(MassTrainer):
                         dst_langs = batch["dst_langs"].squeeze(0)
                         if src_inputs.size(0) < self.num_gpu:
                             continue
-                        predictions = self.mt_model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
-                                                    src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
-                                                    tgt_langs=dst_langs,
-                                                    log_softmax=True)
+                        predictions = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                                                    src_pads=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
+                                                    tgt_langs=dst_langs, log_softmax=True)
                         targets = tgt_inputs[:, 1:].contiguous().view(-1)
                         tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
                         targets = targets[tgt_mask_flat]
@@ -98,7 +80,7 @@ class ImageDocTrainer(MassTrainer):
 
                         if not fine_tune:
                             masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
-                            predictions = self.mass_model(src_inputs=masked_info["src_text"],
+                            predictions = self.model(src_inputs=masked_info["src_text"],
                                                           tgt_inputs=masked_info["to_recover"],
                                                           tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
                                                           pad_idx=model.text_processor.pad_token_id(),
@@ -132,7 +114,7 @@ class ImageDocTrainer(MassTrainer):
                             model.train()
 
                             # Now use it for back-translation loss.
-                            predictions = self.mass_model(src_inputs=translations,
+                            predictions = self.model(src_inputs=translations,
                                                           tgt_inputs=src_inputs,
                                                           src_pads=translation_pad_mask,
                                                           pad_idx=model.text_processor.pad_token_id(),

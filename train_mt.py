@@ -181,7 +181,7 @@ class MTTrainer:
                     dst_langs = batch["dst_langs"].squeeze(0)
                     src_pad_idx = batch["pad_idx"].squeeze(0)
 
-                    src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs)
+                    src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs, remove_first_token=True)
                     src_text += list(map(lambda src: model.text_processor.tokenizer.decode(src[1:].numpy()), src_ids))
 
                     outputs = self.generator(src_inputs=src_inputs, src_sizes=src_pad_idx,
@@ -194,8 +194,7 @@ class MTTrainer:
                             new_outputs += output
                         outputs = new_outputs
 
-                    for output in outputs:
-                        mt_output.append(generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy()))
+                    mt_output += list(map(lambda x:model.text_processor.tokenizer.decode(x[1:].numpy()), outputs))
 
             model.train()
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
@@ -321,7 +320,7 @@ class MTTrainer:
         for dl in dev_loader:
             for batch in dl:
                 tgt_inputs = batch["dst_texts"].squeeze()
-                refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
+                refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs, remove_first_token=True)
                 ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
                 trainer.reference += ref
 

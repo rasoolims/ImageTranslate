@@ -366,7 +366,7 @@ class ImageDocTrainer(MassTrainer):
 
                 for batch in dl:
                     tgt_inputs = batch["dst_texts"].squeeze()
-                    refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs)
+                    refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs, remove_first_token=True)
                     ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
                     trainer.reference += ref
 

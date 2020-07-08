@@ -39,8 +39,8 @@ def translate_batch(batch, generator, text_processor, verbose=False):
     src_pad_idx = batch["pad_idx"].squeeze(0)
     src_text = None
     if verbose:
-        src_ids = get_outputs_until_eos(text_processor.sep_token_id(), src_inputs)
-        src_text = list(map(lambda src: text_processor.tokenizer.decode(src[1:].numpy()), src_ids))
+        src_ids = get_outputs_until_eos(text_processor.sep_token_id(), src_inputs, remove_first_token=True)
+        src_text = list(map(lambda src: text_processor.tokenizer.decode(src.numpy()), src_ids))
 
     outputs = generator(src_inputs=src_inputs, src_sizes=src_pad_idx,
                         first_tokens=tgt_inputs[:, 0],
@@ -51,10 +51,7 @@ def translate_batch(batch, generator, text_processor, verbose=False):
         for output in outputs:
             new_outputs += output
         outputs = new_outputs
-    mt_output = []
-    for output in outputs:
-        sen = text_processor.tokenizer.decode(output.numpy())
-        mt_output.append(" ".join(sen.split(" ")[1:]))
+    mt_output = list(map(lambda x:text_processor.tokenizer.decode(x[1:].numpy()), outputs))
     return mt_output, src_text
 
 

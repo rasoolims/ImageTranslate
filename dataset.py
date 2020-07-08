@@ -304,7 +304,7 @@ class ImageDocDataset(Dataset):
                     docs = unique_docs[doc]
                     doc_len = len(docs) * (len(docs[0]) ** 2)  # based on transformer's memory consumption!
                     batch_size = (49 ** 3 + max(doc_len, cur_max_doc_cap[caption_lang]) ** 3) * (
-                                len(cur_image_batch[caption_lang]) + 1)
+                            len(cur_image_batch[caption_lang]) + 1)
 
                     if cur_max_doc_cap[caption_lang] > 0 and (batch_size > max_capacity
                                                               or len(

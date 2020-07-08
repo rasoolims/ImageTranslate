@@ -31,9 +31,9 @@ class ImageDocTrainer(MassTrainer):
     def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
                  step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
                  len_penalty_ratio: float = 0.8, last_epoch: int = 0,
-                 nll_loss: bool = False):
+                 nll_loss: bool = False, fp16: bool = False):
         super().__init__(model, mask_prob, clip, optimizer, warmup, step, beam_width, max_len_a, max_len_b,
-                         len_penalty_ratio, last_epoch, nll_loss)
+                         len_penalty_ratio, last_epoch, nll_loss, fp16)
 
         self.mass_model = MassSeq2Seq(config=model.config, encoder=model.encoder, decoder=model.decoder,
                                       output_layer=model.output_layer, lang_dec=model.lang_dec,
@@ -289,7 +289,7 @@ class ImageDocTrainer(MassTrainer):
                                   warmup=options.warmup, step=options.step,
                                   beam_width=options.beam_width, max_len_a=options.max_len_a,
                                   max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
-                                  last_epoch=last_epoch)
+                                  last_epoch=last_epoch, fp16=options.fp16)
 
         mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
         if options.mass_train_path is not None:

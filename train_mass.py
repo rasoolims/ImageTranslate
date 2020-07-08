@@ -370,7 +370,7 @@ class MassTrainer(MTTrainer):
                               warmup=options.warmup, step=options.step if options.step > 0 else options.finetune_step,
                               beam_width=options.beam_width, max_len_a=options.max_len_a, max_len_b=options.max_len_b,
                               len_penalty_ratio=options.len_penalty_ratio, last_epoch=last_epoch,
-                              nll_loss=options.nll_loss)
+                              nll_loss=options.nll_loss, fp16=options.fp16)
 
         mt_dev_loader = None
         if options.mt_dev_path is not None:

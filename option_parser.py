@@ -48,6 +48,7 @@ def get_mt_option_parser():
     parser.add_option("--ldec", action="store_true", dest="lang_decoder", help="Lang-specific decoder", default=False)
     parser.add_option("--nll", action="store_true", dest="nll_loss", help="Use NLL loss instead of smoothed NLL loss",
                       default=False)
+    parser.add_option("--fp16", action="store_true", dest="fp16", default=False)
     parser.set_default("batch", 20000)
     return parser
 

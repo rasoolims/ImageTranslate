@@ -31,7 +31,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class MTTrainer:
     def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
                  step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
-                 len_penalty_ratio: float = 0.8, last_epoch: int = 0, nll_loss: bool = False):
+                 len_penalty_ratio: float = 0.8, last_epoch: int = 0, nll_loss: bool = False, fp16: bool = False):
         self.model = model
 
         self.clip = clip
@@ -66,7 +66,7 @@ class MTTrainer:
             self.generator = DataParallelModel(self.generator)
 
         self.fp16 = False
-        if self.num_gpu == 1:
+        if self.num_gpu == 1 and fp16:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O2")
             self.fp16 = True
 
@@ -319,7 +319,7 @@ class MTTrainer:
         trainer = MTTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                             warmup=options.warmup, step=options.step, beam_width=options.beam_width,
                             max_len_a=options.max_len_a, max_len_b=options.max_len_b,
-                            len_penalty_ratio=options.len_penalty_ratio,
+                            len_penalty_ratio=options.len_penalty_ratio, fp16=options.fp16,
                             last_epoch=last_epoch, nll_loss=options.nll_loss)
 
         print("creating reference")

@@ -89,8 +89,12 @@ if __name__ == "__main__":
     (options, args) = parser.parse_args()
     generator, text_processor = build_model(options)
     test_loader = build_data_loader(options, text_processor)
+    sen_count = 0
     with open(options.output_path, "w") as writer:
         with torch.no_grad():
             for batch in test_loader:
                 mt_output = translate_batch(batch, generator, text_processor)
+                sen_count += len(mt_output)
+                print(sen_count, end="\r")
                 writer.write("\n".join(mt_output))
+    print("Done!")

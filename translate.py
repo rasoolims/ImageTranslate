@@ -7,7 +7,7 @@ import torch.utils.data as data_utils
 import dataset
 from albert_seq2seq import AlbertSeq2Seq
 from parallel import DataParallelModel
-from seq_gen import BeamDecoder
+from seq_gen import BeamDecoder, get_outputs_until_eos
 
 
 def get_lm_option_parser():
@@ -19,6 +19,7 @@ def get_lm_option_parser():
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--cache_size", dest="cache_size", help="Number of blocks in cache", type="int", default=300)
     parser.add_option("--model", dest="model_path", metavar="FILE", default=None)
+    parser.add_option("--verbose", action="store_true", dest="verbose", help="Include input!", default=False)
     parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Disjoint encoder/decoder", default=False)
     parser.add_option("--ldec", action="store_true", dest="lang_decoder", help="Lang-specific decoder", default=False)
     parser.add_option("--beam", dest="beam_width", type="int", default=4)
@@ -29,13 +30,18 @@ def get_lm_option_parser():
     return parser
 
 
-def translate_batch(batch, generator, text_processor):
+def translate_batch(batch, generator, text_processor, verbose=False):
     src_inputs = batch["src_texts"].squeeze(0)
     src_mask = batch["src_pad_mask"].squeeze(0)
     tgt_inputs = batch["dst_texts"].squeeze(0)
     src_langs = batch["src_langs"].squeeze(0)
     dst_langs = batch["dst_langs"].squeeze(0)
     src_pad_idx = batch["pad_idx"].squeeze(0)
+    src_text = None
+    if verbose:
+        src_ids = get_outputs_until_eos(text_processor.sep_token_id(), src_inputs)
+        src_text = list(map(lambda src: text_processor.tokenizer.decode(src[1:].numpy()), src_ids))
+
     outputs = generator(src_inputs=src_inputs, src_sizes=src_pad_idx,
                         first_tokens=tgt_inputs[:, 0],
                         src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs,
@@ -47,9 +53,9 @@ def translate_batch(batch, generator, text_processor):
         outputs = new_outputs
     mt_output = []
     for output in outputs:
-        sen = generator.seq2seq_model.text_processor.tokenizer.decode(output.numpy())
+        sen = text_processor.tokenizer.decode(output.numpy())
         mt_output.append(" ".join(sen.split(" ")[1:]))
-    return mt_output
+    return mt_output, src_text
 
 
 def build_data_loader(options, text_processor):
@@ -94,9 +100,14 @@ if __name__ == "__main__":
     with open(options.output_path, "w") as writer:
         with torch.no_grad():
             for batch in test_loader:
-                mt_output = translate_batch(batch, generator, text_processor)
+                mt_output, src_text = translate_batch(batch, generator, text_processor, options.verbose)
                 sen_count += len(mt_output)
                 print(datetime.datetime.now(), "Translated", sen_count, "sentences", end="\r")
-                writer.write("\n".join(mt_output))
+                if not options.verbose:
+                    writer.write("\n".join(mt_output))
+                else:
+                    writer.write("\n".join([y + "\n" + x + "\n****" for x, y in zip(mt_output, src_text)]))
                 writer.write("\n")
+
+    print(datetime.datetime.now(), "Translated", sen_count, "sentences")
     print(datetime.datetime.now(), "Done!")

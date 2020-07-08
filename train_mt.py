@@ -182,8 +182,7 @@ class MTTrainer:
                     src_pad_idx = batch["pad_idx"].squeeze(0)
 
                     src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs)
-                    src_text += [generator.seq2seq_model.text_processor.tokenizer.decode(src.numpy()) for src in
-                                 src_ids]
+                    src_text += list(map(lambda src: model.text_processor.tokenizer.decode(src[1:].numpy()), src_ids))
 
                     outputs = self.generator(src_inputs=src_inputs, src_sizes=src_pad_idx,
                                              first_tokens=tgt_inputs[:, 0],

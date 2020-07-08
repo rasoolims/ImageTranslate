@@ -1,3 +1,4 @@
+import datetime
 from optparse import OptionParser
 
 import torch
@@ -52,7 +53,7 @@ def translate_batch(batch, generator, text_processor):
 
 
 def build_data_loader(options, text_processor):
-    print("Binarizing test data")
+    print(datetime.datetime.now(), "Binarizing test data")
     lang = "<" + options.target_lang + ">"
     target_lang = text_processor.languages[lang]
     fixed_output = [text_processor.token_id(lang)]
@@ -63,7 +64,7 @@ def build_data_loader(options, text_processor):
             src_tok_line = text_processor.tokenize_one_sentence(src_line.strip().replace(" </s> ", " "))
             src_lang = text_processor.languages[text_processor.id2token(src_tok_line[0])]
             examples.append((src_tok_line, fixed_output, src_lang, target_lang))
-    print("Loaded %f examples", (len(examples)))
+    print(datetime.datetime.now(), "Loaded %f examples", (len(examples)))
     test_data = dataset.MTDataset(examples=examples,
                                   max_batch_capacity=options.total_capacity, max_batch=options.batch,
                                   pad_idx=text_processor.pad_token_id(), max_seq_len=10000)
@@ -95,6 +96,6 @@ if __name__ == "__main__":
             for batch in test_loader:
                 mt_output = translate_batch(batch, generator, text_processor)
                 sen_count += len(mt_output)
-                print("Translated", sen_count, "sentences", end="\r")
+                print(datetime.datetime.now(), "Translated", sen_count, "sentences", end="\r")
                 writer.write("\n".join(mt_output))
-    print("Done!")
+    print(datetime.datetime.now(), "Done!")

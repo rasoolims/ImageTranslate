@@ -98,4 +98,5 @@ if __name__ == "__main__":
                 sen_count += len(mt_output)
                 print(datetime.datetime.now(), "Translated", sen_count, "sentences", end="\r")
                 writer.write("\n".join(mt_output))
+                writer.write("\n")
     print(datetime.datetime.now(), "Done!")

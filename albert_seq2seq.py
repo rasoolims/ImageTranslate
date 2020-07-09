@@ -61,6 +61,7 @@ class AlbertSeq2Seq(nn.Module):
         if tgt_inputs.device != device:
             tgt_inputs = tgt_inputs.to(device)
             tgt_mask = tgt_mask.to(device)
+        if src_mask.device != device:
             src_mask = src_mask.to(device)
 
         encoder_states = self.encode(src_inputs, src_mask, src_langs)[0]

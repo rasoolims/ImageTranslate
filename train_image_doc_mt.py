@@ -184,22 +184,42 @@ class ImageDocTrainer(MassTrainer):
 
     def get_batch_zip(self, data_iter, mass_data_iter, mt_train_iter):
         if mt_train_iter is None:
-            shortest = min([len(l) for l in mass_data_iter] + [len(l) for l in data_iter])
-            if len(data_iter) == 1:
-                batch_zip = zip(data_iter[0], mass_data_iter[0], mass_data_iter[1])
-            else:
-                batch_zip = zip(data_iter[0], data_iter[1], mass_data_iter[0], mass_data_iter[1])
-        else:
-            shortest = min(
-                [len(l) for l in mass_data_iter] + [len(l) for l in data_iter] + [len(l) for l in mt_train_iter])
-            if len(data_iter) == 1:
-                batch_zip = zip(data_iter[0], mt_train_iter[0], mt_train_iter[1], mass_data_iter[0], mass_data_iter[1])
-            else:
-                if len(mt_train_iter) == 1:
-                    batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter[0], mass_data_iter[0], mass_data_iter[1])
+            if mass_data_iter is None:
+                shortest = min([len(l) for l in data_iter])
+                if len(data_iter) == 1:
+                    batch_zip = data_iter[0]
                 else:
-                    batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter[0], mt_train_iter[1], mass_data_iter[0],
+                    batch_zip = zip(data_iter[0], data_iter[1])
+            else:
+                shortest = min([len(l) for l in mass_data_iter] + [len(l) for l in data_iter])
+                if len(data_iter) == 1:
+                    batch_zip = zip(data_iter[0], mass_data_iter[0], mass_data_iter[1])
+                else:
+                    batch_zip = zip(data_iter[0], data_iter[1], mass_data_iter[0], mass_data_iter[1])
+        else:
+            if mass_data_iter is None:
+                shortest = min([len(l) for l in data_iter] + [len(l) for l in mt_train_iter])
+                if len(data_iter) == 1:
+                    batch_zip = zip(data_iter[0], mt_train_iter[0], mt_train_iter[1])
+                else:
+                    if len(mt_train_iter) == 1:
+                        batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter[0])
+                    else:
+                        batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter[0], mt_train_iter[1])
+            else:
+                shortest = min(
+                    [len(l) for l in mass_data_iter] + [len(l) for l in data_iter] + [len(l) for l in mt_train_iter])
+                if len(data_iter) == 1:
+                    batch_zip = zip(data_iter[0], mt_train_iter[0], mt_train_iter[1], mass_data_iter[0],
                                     mass_data_iter[1])
+                else:
+                    if len(mt_train_iter) == 1:
+                        batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter[0], mass_data_iter[0],
+                                        mass_data_iter[1])
+                    else:
+                        batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter[0], mt_train_iter[1],
+                                        mass_data_iter[0],
+                                        mass_data_iter[1])
         return batch_zip, shortest
 
     @staticmethod

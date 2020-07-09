@@ -8,7 +8,9 @@ sen_chooser = lambda i, s, sens, r, img: (img["img_path"], sens[i]) if s > r els
 
 
 def extract_shared_sentences(v):
-    sens = list(map(lambda s: s.strip() + " </s>", v["content"].split("</s>")))
+    content_spl = v["content"].strip().split(" ")
+    lang_id, content = content_spl[0] + " ", " ".join(content_spl[1:])
+    sens = list(map(lambda s: lang_id + s.strip() + " </s>", content.split("</s>")))
     sen_words = list(map(lambda s: set(s.split()[1:-1]), sens))
     return list(chain(*map(lambda image: extract_captions4imgs(image, sen_words, sens), v["images"])))
 

@@ -16,11 +16,11 @@ output = open(options.output, "r").read().strip().split("\n")
 gold = [open(options.gold, "r").read().strip().split("\n")]
 
 print("Cased BLEU")
-bleu = sacrebleu.corpus_bleu(output, gold)
+bleu = sacrebleu.corpus_bleu(output, gold, tokenize="intl")
 print(bleu)
 print(bleu.score)
 
 print("Lowercased BLEU")
-bleu = sacrebleu.corpus_bleu(output, gold, lowercase=True)
+bleu = sacrebleu.corpus_bleu(output, gold, lowercase=True, tokenize="intl")
 print(bleu)
 print(bleu.score)

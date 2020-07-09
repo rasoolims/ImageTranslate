@@ -44,9 +44,10 @@ class AlbertSeq2Seq(nn.Module):
 
     def encode(self, src_inputs, src_mask, src_langs):
         device = self.encoder.embeddings.word_embeddings.weight.device
-        src_inputs = src_inputs.to(device)
-        src_mask = src_mask.to(device)
-        src_langs = src_langs.to(device)
+        if src_inputs.device != device:
+            src_inputs = src_inputs.to(device)
+            src_mask = src_mask.to(device)
+            src_langs = src_langs.to(device)
         encoder_states = self.encoder(src_inputs, attention_mask=src_mask, token_type_ids=src_langs)
         return encoder_states
 
@@ -54,15 +55,16 @@ class AlbertSeq2Seq(nn.Module):
         "Take in and process masked src and target sequences."
         device = self.encoder.embeddings.word_embeddings.weight.device
         src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
-        encoder_states = self.encode(src_inputs, src_mask, src_langs)[0]
-
-        batch_lang = int(tgt_langs[0])
-
         tgt_langs = tgt_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
-        if tgt_inputs.device != encoder_states.device:
+        src_inputs = src_inputs.to(device)
+        src_langs = src_langs.to(device)
+        if tgt_inputs.device != device:
             tgt_inputs = tgt_inputs.to(device)
             tgt_mask = tgt_mask.to(device)
             src_mask = src_mask.to(device)
+
+        encoder_states = self.encode(src_inputs, src_mask, src_langs)[0]
+        batch_lang = int(tgt_langs[0])
 
         subseq_mask = future_mask(tgt_mask[:, :-1])
         if subseq_mask.device != tgt_inputs.device:
@@ -121,14 +123,15 @@ class MassSeq2Seq(AlbertSeq2Seq):
                                    tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=tgt_langs, log_softmax=log_softmax)
 
         "Take in and process masked src and target sequences."
-        batch_lang = int(src_langs[0])
+        src_pads = src_pads.to(device)
+        src_inputs = src_inputs.to(device)
         src_langs_t = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
+        src_langs_t = src_langs_t.to(device)
+        batch_lang = int(src_langs[0])
         encoder_states = self.encode(src_inputs, src_pads, src_langs_t)[0]
 
         tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
         tgt_positions = tgt_positions.to(device)
-        tgt_mask = tgt_mask.to(device)
-        src_pads = src_pads.to(device)
 
         subseq_mask = future_mask(tgt_mask[:, :-1])
         decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]

@@ -54,6 +54,7 @@ class AlbertSeq2Seq(nn.Module):
     def forward(self, src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs, log_softmax: bool = False):
         "Take in and process masked src and target sequences."
         device = self.encoder.embeddings.word_embeddings.weight.device
+        batch_lang = int(tgt_langs[0])
         src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
         tgt_langs = tgt_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
         src_inputs = src_inputs.to(device)
@@ -65,7 +66,6 @@ class AlbertSeq2Seq(nn.Module):
             src_mask = src_mask.to(device)
 
         encoder_states = self.encode(src_inputs, src_mask, src_langs)[0]
-        batch_lang = int(tgt_langs[0])
 
         subseq_mask = future_mask(tgt_mask[:, :-1])
         if subseq_mask.device != tgt_inputs.device:

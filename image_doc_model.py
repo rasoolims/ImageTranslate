@@ -157,7 +157,7 @@ class ImageDocSeq2Seq(MassSeq2Seq):
         caption_mask = batch["caption_mask"].to(device)
         doc_idx = batch["doc_idx"].to(device)
         doc_split = batch["doc_split"]
-        src_langs = batch["langs"].unsqueeze(-1).expand(-1, docs.size(-1))
+        src_langs = batch["langs"].unsqueeze(-1).expand(-1, docs.size(-1)).to(device)
         batch_lang = int(batch["caption_langs"][0])
         caption_langs = batch["caption_langs"].unsqueeze(-1).expand(-1, captions.size(-1)).to(device)
 

@@ -15,6 +15,12 @@ def get_lm_option_parser():
 output = open(options.output, "r").read().strip().split("\n")
 gold = [open(options.gold, "r").read().strip().split("\n")]
 
+print("Cased BLEU")
 bleu = sacrebleu.corpus_bleu(output, gold)
+print(bleu)
+print(bleu.score)
+
+print("Lowercased BLEU")
+bleu = sacrebleu.corpus_bleu(output, gold, lowercase=True)
 print(bleu)
 print(bleu.score)

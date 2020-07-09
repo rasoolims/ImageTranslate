@@ -20,6 +20,7 @@ for i, c in enumerate(content):
     else:
         pass
 
-open(src_path, "w").write("\n".join(src))
-open(gold_path, "w").write("\n".join(gold))
-open(translation_path, "w").write("\n".join(translation))
+print(len(src), len(gold), len(translation))
+open(src_path, "w").write("\n".join(src) + "\n")
+open(gold_path, "w").write("\n".join(gold) + "\n")
+open(translation_path, "w").write("\n".join(translation) + "\n")

@@ -126,13 +126,14 @@ class AdamInverseSqrtWithWarmup(optim.Adam):
         self.decay_factor = warmup_end_lr * warmup_updates ** 0.5
         for param_group in self.param_groups:
             param_group['num_updates'] = 0
+        self.max_lr = lr
 
     def get_lr_for_step(self, num_updates):
         # update learning rate
         if num_updates < self.warmup_updates:
             return self.warmup_init_lr + num_updates * self.lr_step
         else:
-            return self.decay_factor * (num_updates ** -0.5)
+            return max(self.warmup_init_lr, min(self.max_lr, self.decay_factor * (num_updates ** -0.5)))
 
     def step(self, closure=None):
         super().step(closure)

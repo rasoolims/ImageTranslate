@@ -203,7 +203,7 @@ class MTTrainer:
                     mt_output += list(map(lambda x: model.text_processor.tokenizer.decode(x[1:].numpy()), outputs))
 
             model.train()
-        bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]])
+        bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]], lowercase=True, tokenize="intl")
 
         with open(os.path.join(saving_path, "bleu.output"), "w") as writer:
             writer.write("\n".join(

@@ -443,7 +443,7 @@ class ImageDocTrainer(MassTrainer):
 
         finetune_epoch = 0
         mt_model.save(options.model_path + ".beam")
-        if train_epoch > 0:
+        if train_epoch > 1:
             # Resetting the optimizer for the purpose of finetuning.
             model = mt_model.module if hasattr(mt_model, "module") else mt_model
             trainer.optimizer = build_optimizer(model, options.learning_rate, options.weight_decay,

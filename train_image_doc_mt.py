@@ -14,7 +14,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torchvision import transforms
 
 import dataset
-from image_doc_model import ImageDocSeq2Seq, ImageCaptionSeq2Seq
+from image_doc_model import ImageDocSeq2Seq, ImageCaptionSeq2Seq, ImageMassSeq2Seq
 from lm import LM
 from option_parser import get_img_options_parser
 from seq_gen import get_outputs_until_eos
@@ -43,15 +43,112 @@ class ImageDocTrainer(MassTrainer):
             for batch in batches:
                 self.optimizer.zero_grad()
                 is_img_batch = isinstance(batch, list) and "captions" in batch[0]
+                is_img_caption_mass = is_img_batch and isinstance(model, ImageMassSeq2Seq)
                 is_mass_batch = not is_img_batch and "dst_texts" not in batch
-                try:
-                    if is_img_batch:  # Image data
+                if True:
+                    if is_img_batch and not is_img_caption_mass:  # Image data
                         if len(batch) < self.num_gpu:
                             continue
                         predictions = self.model(batch=batch, log_softmax=True)
                         targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
                         tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
                         targets = torch.cat(list(map(lambda i: targets[i][tgt_mask_flat[i]], range(len(batch)))))
+                        ntokens = targets.size(0)
+                    elif fine_tune and (is_img_caption_mass or is_mass_batch):
+                        id2lid = lambda r: model.text_processor.languages[
+                            model.text_processor.id2token(lang_directions[int(r)])]
+                        if is_mass_batch:
+                            src_inputs = batch["src_texts"].squeeze(0)
+                            src_pad_mask = batch["src_pad_mask"].squeeze(0)
+                            pad_indices = batch["pad_idx"].squeeze(0)
+                            target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
+                            dst_langs = torch.LongTensor([id2lid(l) for l in src_inputs[:, 0]])
+                        else:
+                            src_inputs = [b["captions"] for b in batch]
+                            src_pad_mask = [b["caption_mask"] for b in batch]
+                            pad_indices = [b["pad_idx"] for b in batch]
+                            target_langs = [torch.LongTensor([lang_directions[int(l)] for l in src[:, 0]]) for src in
+                                            src_inputs]
+                            dst_langs = [torch.LongTensor([id2lid(l) for l in src[:, 0]]) for src in src_inputs]
+                        if len(src_inputs) < self.num_gpu:
+                            continue
+
+                        if is_mass_batch:
+                            langs = batch["langs"].squeeze(0)
+                        else:
+                            langs = [b["langs"] for b in batch]
+
+                        model.eval()
+                        with torch.no_grad():
+                            # We do not backpropagate the data generator following the MASS paper.
+                            images = None
+                            if is_img_caption_mass:
+                                images = [b["images"] for b in batch]
+                            outputs = self.generator(src_inputs=src_inputs,
+                                                     src_sizes=pad_indices,
+                                                     first_tokens=target_langs,
+                                                     src_langs=langs, tgt_langs=dst_langs,
+                                                     pad_idx=model.text_processor.pad_token_id(),
+                                                     src_mask=src_pad_mask, unpad_output=False, beam_width=1,
+                                                     images=images)
+                            if self.num_gpu > 1:
+                                if is_mass_batch:
+                                    new_outputs = []
+                                    for output in outputs:
+                                        new_outputs += output
+                                    outputs = new_outputs
+
+                            if is_mass_batch or self.num_gpu <= 1:
+                                translations = pad_sequence(outputs, batch_first=True,
+                                                            padding_value=model.text_processor.pad_token_id())
+                                translation_pad_mask = (translations != model.text_processor.pad_token_id())
+                            else:
+                                translations = [pad_sequence(output, batch_first=True,
+                                                             padding_value=model.text_processor.pad_token_id()) for
+                                                output in outputs]
+                                translation_pad_mask = [t != model.text_processor.pad_token_id() for t in translations]
+                        model.train()
+
+                        if is_mass_batch:
+                            langs = batch["langs"].squeeze(0)
+                        else:
+                            langs = torch.cat([b["langs"] for b in batch])
+                        # Now use it for back-translation loss.
+                        predictions = self.model(src_inputs=translations,
+                                                 tgt_inputs=src_inputs,
+                                                 src_pads=translation_pad_mask,
+                                                 pad_idx=model.text_processor.pad_token_id(),
+                                                 src_langs=dst_langs,
+                                                 tgt_langs=langs,
+                                                 log_softmax=True)
+                        if is_mass_batch:
+                            src_targets = src_inputs[:, 1:].contiguous().view(-1)
+                            src_mask_flat = src_pad_mask[:, 1:].contiguous().view(-1)
+                        else:
+                            src_targets = torch.cat(list(map(lambda s: s[:, 1:], src_inputs)))
+                            src_mask_flat = torch.cat(list(map(lambda s: s[:, 1:], src_pad_mask)))
+                        targets = src_targets[src_mask_flat]
+
+                        ntokens = targets.size(0)
+                    elif is_img_caption_mass:
+                        src_inputs = [b["captions"] for b in batch]
+                        src_pad_mask = [b["caption_mask"] for b in batch]
+                        pad_indices = [b["pad_idx"] for b in batch]
+                        langs = [b["langs"] for b in batch]
+                        if len(batch) < self.num_gpu:
+                            continue
+
+                        masked_info = list(
+                            map(lambda pi, si: mass_mask(self.mask_prob, pi, si, model.text_processor), pad_indices,
+                                src_inputs))
+                        predictions = self.model(src_inputs=list(map(lambda m: m["src_text"], masked_info)),
+                                                 tgt_inputs=list(map(lambda m: m["to_recover"], masked_info)),
+                                                 tgt_positions=list(map(lambda m: m["positions"], masked_info)),
+                                                 src_pads=src_pad_mask,
+                                                 pad_idx=model.text_processor.pad_token_id(),
+                                                 src_langs=langs, batch=batch,
+                                                 log_softmax=True)
+                        targets = torch.cat(list(map(lambda m: m["targets"], masked_info)))
                         ntokens = targets.size(0)
                     elif not is_mass_batch:  # MT data
                         src_inputs = batch["src_texts"].squeeze(0)
@@ -76,53 +173,15 @@ class ImageDocTrainer(MassTrainer):
                         if src_inputs.size(0) < self.num_gpu:
                             continue
 
-                        if not fine_tune:
-                            masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
-                            predictions = self.model(src_inputs=masked_info["src_text"],
-                                                     tgt_inputs=masked_info["to_recover"],
-                                                     tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
-                                                     pad_idx=model.text_processor.pad_token_id(),
-                                                     src_langs=batch["langs"].squeeze(0),
-                                                     log_softmax=True)
-                            targets = masked_info["targets"]
-                            ntokens = targets.size(0)
-                        else:
-                            target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
-                            dst_langs = torch.LongTensor(
-                                [model.text_processor.languages[model.text_processor.id2token(lang_directions[int(l)])]
-                                 for l in src_inputs[:, 0]])
-
-                            model.eval()
-                            with torch.no_grad():
-                                # We do not backpropagate the data generator following the MASS paper.
-                                outputs = self.generator(src_inputs=src_inputs,
-                                                         src_sizes=pad_indices,
-                                                         first_tokens=target_langs,
-                                                         src_langs=batch["langs"].squeeze(0), tgt_langs=dst_langs,
-                                                         pad_idx=model.text_processor.pad_token_id(),
-                                                         src_mask=src_pad_mask, unpad_output=False, beam_width=1)
-                                if self.num_gpu > 1:
-                                    new_outputs = []
-                                    for output in outputs:
-                                        new_outputs += output
-                                    outputs = new_outputs
-
-                                translations = pad_sequence(outputs, batch_first=True)
-                                translation_pad_mask = (translations != model.text_processor.pad_token_id())
-                            model.train()
-
-                            # Now use it for back-translation loss.
-                            predictions = self.model(src_inputs=translations,
-                                                     tgt_inputs=src_inputs,
-                                                     src_pads=translation_pad_mask,
-                                                     pad_idx=model.text_processor.pad_token_id(),
-                                                     src_langs=dst_langs,
-                                                     tgt_langs=batch["langs"].squeeze(0),
-                                                     log_softmax=True)
-                            src_targets = src_inputs[:, 1:].contiguous().view(-1)
-                            src_mask_flat = src_pad_mask[:, 1:].contiguous().view(-1)
-                            targets = src_targets[src_mask_flat]
-                            ntokens = targets.size(0)
+                        masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
+                        predictions = self.model(src_inputs=masked_info["src_text"],
+                                                 tgt_inputs=masked_info["to_recover"],
+                                                 tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
+                                                 pad_idx=model.text_processor.pad_token_id(),
+                                                 src_langs=batch["langs"].squeeze(0),
+                                                 log_softmax=True)
+                        targets = masked_info["targets"]
+                        ntokens = targets.size(0)
 
                     if ntokens == 0:  # Nothing to predict!
                         continue
@@ -147,8 +206,10 @@ class ImageDocTrainer(MassTrainer):
 
                     if is_mass_batch and not fine_tune:
                         mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
+                    if is_img_caption_mass and not fine_tune:
+                        map(lambda m: mass_unmask(m["src_text"], m["src_mask"], m["mask_idx"]), masked_info)
 
-                except RuntimeError as err:
+                else:
                     print("Error processing", is_img_batch)
                     if isinstance(model, ImageCaptionSeq2Seq) and is_img_batch:
                         for b in batch:
@@ -226,7 +287,11 @@ class ImageDocTrainer(MassTrainer):
     def train(options):
         if not os.path.exists(options.model_path):
             os.makedirs(options.model_path)
-        images_class = ImageCaptionSeq2Seq if options.captioning else ImageDocSeq2Seq
+
+        # One mode is possible for captioning
+        assert not (options.captioning and options.caption_mass)
+
+        images_class = ImageCaptionSeq2Seq if options.captioning else ImageMassSeq2Seq if options.caption_mass else ImageDocSeq2Seq
         text_processor = TextProcessor(options.tokenizer_path)
         num_processors = max(torch.cuda.device_count(), 1)
 
@@ -244,7 +309,7 @@ class ImageDocTrainer(MassTrainer):
             mt_model = images_class(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
                                     text_processor=lm.text_processor, checkpoint=options.checkpoint,
                                     share_decoder=options.share_decoder, resnet_depth=options.resnet_depth,
-                                    lang_dec=options.lang_decoder)
+                                    lang_dec=options.lang_decoder, num_cross_layers=options.cross_depth)
 
         transform = transforms.Compose([  # [1]
             transforms.Resize(256),  # [2]
@@ -263,10 +328,11 @@ class ImageDocTrainer(MassTrainer):
         collator = dataset.ImageTextCollator()
         num_batches = max(1, torch.cuda.device_count())
 
-        dataset_class = dataset.ImageCaptionDataset if options.captioning else dataset.ImageDocDataset
+        dataset_class = dataset.ImageCaptionDataset if options.caption_mass or options.captioning else dataset.ImageDocDataset
 
         train_loader = []
         train_paths = options.train_path.split(",")
+        langs = set()
         for train_path in train_paths:
             train_data = dataset_class(root_img_dir=options.image_dir,
                                        data_bin_file=train_path, transform=transform,
@@ -278,6 +344,9 @@ class ImageDocTrainer(MassTrainer):
                                        pin_memory=pin_memory,
                                        collate_fn=collator)
             train_loader.append(tl)
+
+            for lang1 in train_data.lang_ids:
+                langs.add(lang1)
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
@@ -322,18 +391,9 @@ class ImageDocTrainer(MassTrainer):
                     finetune_loader.append(fl)
                     if mass_train_data is not None:
                         mass_train_data[i].examples_list = []
-
-                langs = set()
                 for fd in finetune_data:
                     for lang1 in fd.lang_ids:
                         langs.add(lang1)
-
-                lang_directions = {}
-                for lang1 in langs:
-                    for lang2 in langs:
-                        if lang1 != lang2:
-                            # Assuming that we only have two languages!
-                            lang_directions[lang1] = lang2
 
         mt_train_loader = None
         if options.mt_train_path is not None:
@@ -391,6 +451,12 @@ class ImageDocTrainer(MassTrainer):
                                                                       num_warmup_steps=options.warmup,
                                                                       num_training_steps=options.finetune_step)
 
+        lang_directions = {}
+        for lang1 in langs:
+            for lang2 in langs:
+                if lang1 != lang2:
+                    # Assuming that we only have two languages!
+                    lang_directions[lang1] = lang2
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
             print("finetune epoch", finetune_epoch)
             step = trainer.train_epoch(data_iter=train_loader, mass_data_iter=finetune_loader,

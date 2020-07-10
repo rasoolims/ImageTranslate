@@ -77,7 +77,10 @@ def get_img_options_parser():
                       default=False)
     parser.add_option("--caption", action="store_true", dest="captioning",
                       help="ImageCaptionSeq2Seq instead of doc model", default=False)
+    parser.add_option("--caption-mass", action="store_true", dest="caption_mass",
+                      help="ImageMASSSeq2Seq instead of doc model", default=False)
     parser.set_default("model_size", 6)
     parser.add_option("--img-depth", dest="resnet_depth", help="1 (18), 2 (34), 3 (50), 4 (101), 5 (152)", type="int",
                       default=1)
+    parser.add_option("--cross-depth", dest="cross_depth", help="Batch capacity", type="int", default=2)
     return parser

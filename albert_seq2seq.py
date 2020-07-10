@@ -42,7 +42,7 @@ class AlbertSeq2Seq(nn.Module):
         self.checkpoint = checkpoint
         self.checkpoint_num = 0
 
-    def encode(self, src_inputs, src_mask, src_langs):
+    def encode(self, src_inputs, src_mask, src_langs, images=None):
         device = self.encoder.embeddings.word_embeddings.weight.device
         if src_inputs.device != device:
             src_inputs = src_inputs.to(device)
@@ -115,6 +115,16 @@ class MassSeq2Seq(AlbertSeq2Seq):
         :return:
         """
         device = self.encoder.embeddings.word_embeddings.weight.device
+        if isinstance(tgt_inputs, list):
+            assert len(tgt_inputs) == 1
+            tgt_inputs = tgt_inputs[0]
+            src_langs = src_langs[0]
+        if isinstance(src_inputs, list):
+            src_inputs = src_inputs[0]
+            src_pads = src_pads[0]
+        if isinstance(tgt_positions, list):
+            tgt_positions = tgt_positions[0]
+
         tgt_inputs = tgt_inputs.to(device)
         tgt_mask = tgt_inputs != pad_idx
 

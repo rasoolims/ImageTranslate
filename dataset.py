@@ -250,6 +250,7 @@ class ImageDocDataset(Dataset):
         self.images_paths = {}
         self.image_batches = {}
         self.image_queue = {}  # For making sure that the images don't fill up memory!
+        self.lang_ids = set()
 
         print("Start", datetime.datetime.now())
         with open(data_bin_file, "rb") as fp:
@@ -300,6 +301,8 @@ class ImageDocDataset(Dataset):
                     if c_i != d_i and langs[c_i] == langs[d_i]:
                         # Skip different docs with same language.
                         continue
+                    self.lang_ids.add(langs[c_i])
+                    self.lang_ids.add(langs[d_i])
                     caption_lang = langs[c_i]
                     docs = unique_docs[doc]
                     doc_len = len(docs) * (len(docs[0]) ** 2)  # based on transformer's memory consumption!
@@ -417,6 +420,7 @@ class ImageCaptionDataset(Dataset):
         max_capacity *= 1000000
         self.image_cache = {}
         self.image_batches = []
+        self.lang_ids = set()
         self.image_queue = []
         num_gpu = torch.cuda.device_count()
 
@@ -426,6 +430,7 @@ class ImageCaptionDataset(Dataset):
         with open(data_bin_file, "rb") as fp:
             self.unique_images, captions = marshal.load(fp)
             lang_id = text_processor.id2token(captions[0][1][0])
+            self.lang_ids.add(int(captions[0][1][0]))
             self.lang = text_processor.languages[lang_id] if lang_id in text_processor.languages else 0
             for caption_info in captions:
                 image_id, caption = caption_info
@@ -437,7 +442,13 @@ class ImageCaptionDataset(Dataset):
                         cur_batch[:-1]) >= num_gpu and len(cur_batch) > 1:
                     batch_tensor = pad_sequence(list(map(lambda t: torch.LongTensor(t), cur_batch[:-1])),
                                                 batch_first=True, padding_value=self.pad_idx)
-                    self.batches.append((batch_tensor, batch_tensor != self.pad_idx))
+                    pads = batch_tensor != self.pad_idx
+                    pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
+                    pindices = torch.nonzero(~pads)
+                    for (r, c) in pindices:
+                        pad_indices[r] = min(pad_indices[r], int(c))
+
+                    self.batches.append((batch_tensor, pads, torch.LongTensor(pad_indices)))
                     self.image_batches.append(cur_imgs[:-1])
 
                     cur_batch = [cur_batch[-1]]
@@ -447,7 +458,13 @@ class ImageCaptionDataset(Dataset):
             if len(cur_batch) > 0:
                 batch_tensor = pad_sequence(list(map(lambda t: torch.LongTensor(t), cur_batch)), batch_first=True,
                                             padding_value=self.pad_idx)
-                self.batches.append((batch_tensor, batch_tensor != self.pad_idx))
+                pads = batch_tensor != self.pad_idx
+                pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
+                pindices = torch.nonzero(~pads)
+                for (r, c) in pindices:
+                    pad_indices[r] = min(pad_indices[r], int(c))
+
+                self.batches.append((batch_tensor, pads, torch.LongTensor(pad_indices)))
                 self.image_batches.append(cur_imgs)
 
         print("Loaded %d image batches of %d unique images!" % (len(self.batches), len(self.unique_images)))
@@ -457,7 +474,7 @@ class ImageCaptionDataset(Dataset):
         return len(self.batches)
 
     def __getitem__(self, item):
-        batch, caption_mask = self.batches[item]
+        batch, caption_mask, pad_indices = self.batches[item]
         image_batch = []
         for image_id in self.image_batches[item]:
             if image_id not in self.image_cache:
@@ -477,7 +494,7 @@ class ImageCaptionDataset(Dataset):
                 self.image_queue.append(image_id)
             image_batch.append(self.image_cache[image_id])
 
-        return {"images": torch.stack(image_batch), "captions": batch,
+        return {"images": torch.stack(image_batch), "captions": batch, "pad_idx": pad_indices,
                 "langs": torch.LongTensor([self.lang] * len(batch)), "caption_mask": caption_mask}
 
 

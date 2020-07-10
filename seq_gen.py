@@ -44,7 +44,7 @@ class BeamDecoder(nn.Module):
         return length_penalty.unsqueeze(-1)
 
     def forward(self, src_inputs, src_sizes, first_tokens, src_mask, src_langs, tgt_langs, pad_idx, max_len: int = None,
-                unpad_output: bool = True, beam_width: int = None):
+                unpad_output: bool = True, beam_width: int = None, images=None):
         """
 
         :param device:
@@ -53,6 +53,15 @@ class BeamDecoder(nn.Module):
         :param src_mask:
         :return:
         """
+        if isinstance(tgt_langs, list):
+            assert len(tgt_langs) == 1
+            tgt_langs = tgt_langs[0]
+            src_langs = src_langs[0]
+            src_mask = src_mask[0]
+            src_inputs = src_inputs[0]
+            first_tokens = first_tokens[0]
+            src_sizes = src_sizes[0]
+
         if beam_width is None:
             beam_width = self.beam_width
         device = self.seq2seq_model.encoder.embeddings.word_embeddings.weight.device

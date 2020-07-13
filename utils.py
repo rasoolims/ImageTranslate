@@ -7,15 +7,12 @@ import torch.optim as optim
 from apex import amp
 from torch.nn.utils.rnn import pad_sequence
 
-from pytorch_lamb.pytorch_lamb import Lamb
 from textprocessor import TextProcessor
 
 
-def build_optimizer(model, learning_rate, weight_decay, use_adam: bool = False):
-    if use_adam:
-        return AdamInverseSqrtWithWarmup(model.parameters(), lr=learning_rate, betas=(0.9, 0.98))
-    else:
-        return Lamb(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(.9, .999), adam=True)
+def build_optimizer(model, learning_rate, warump_steps):
+    return AdamInverseSqrtWithWarmup(model.parameters(), lr=learning_rate, betas=(0.9, 0.98),
+                                     warmup_updates=warump_steps)
 
 
 def mask_text(mask_prob, pads, texts, text_processor: TextProcessor, mask_eos: bool = True):

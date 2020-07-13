@@ -7,14 +7,13 @@ import time
 import torch
 import torch.nn as nn
 import torch.utils.data as data_utils
-import transformers.optimization as optim
 from IPython.core import ultratb
 
 import dataset
 from lm import LM
 from option_parser import get_lm_option_parser
 from parallel import DataParallelModel, DataParallelCriterion
-from pytorch_lamb.pytorch_lamb import Lamb
+from reformer_lm import ReformerLM
 from textprocessor import TextProcessor
 from utils import build_optimizer, mask_text, unmask_text
 
@@ -22,21 +21,13 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 class LMTrainer:
-    def __init__(self, model, mask_prob: float = 0.15, clip: int = 1, optimizer=None, warmup: int = 12500,
-                 step: int = 125000, last_epoch: int = 0):
+    def __init__(self, model, mask_prob: float = 0.15, clip: int = 1, optimizer=None):
         self.model = model
         self.clip = clip
         self.optimizer = optimizer
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.model.to(self.device)
-
-        if isinstance(self.optimizer, Lamb):
-            self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
-                                                                   num_training_steps=step)
-            self.scheduler.last_epoch = last_epoch
-        else:
-            self.scheduler = None
 
         self.mask_prob = mask_prob
         self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
@@ -79,8 +70,6 @@ class LMTrainer:
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
 
                     self.optimizer.step()
-                    if self.scheduler is not None:
-                        self.scheduler.step()
                     step += 1
 
                 loss = float(loss.data) * ntokens
@@ -112,7 +101,7 @@ class LMTrainer:
             )
             model_to_save.save(saving_path + ".latest")
             with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
+                pickle.dump(self.optimizer, fp)
         self.last_train_loss = current_loss
 
         self.validate_and_save(saving_path, dev_data_iter)
@@ -145,7 +134,7 @@ class LMTrainer:
                 )
                 model_to_save.save(saving_path)
                 with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                    pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
+                    pickle.dump(self.optimizer, fp)
             model.train()
 
     @staticmethod
@@ -160,11 +149,18 @@ class LMTrainer:
 
         text_processor = TextProcessor(options.tokenizer_path)
 
+        lm_class = ReformerLM if options.reformer else LM
         if options.pretrained_path is None:
-            lm = LM(text_processor=text_processor, size=options.model_size)
+            lm = lm_class(text_processor=text_processor, size=options.model_size)
         else:
-            lm = LM.load(options.pretrained_path)
-        LMTrainer.config_dropout(lm, options.dropout)
+            lm = lm_class.load(options.pretrained_path)
+
+        if options.reformer:
+            lm.config.hidden_dropout_prob = options.dropout
+            lm.config.local_attention_probs_dropout_prob = options.dropout
+            lm.config.lsh_attention_probs_dropout_prob = options.dropout
+        else:
+            LMTrainer.config_dropout(lm, options.dropout)
 
         train_data = dataset.TextDataset(save_cache_dir=options.train_path, max_cache_size=options.cache_size)
         dev_data = dataset.TextDataset(save_cache_dir=options.dev_path, max_cache_size=options.cache_size,
@@ -172,13 +168,11 @@ class LMTrainer:
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
-                optimizer, last_epoch = pickle.load(fp)
+                optimizer = pickle.load(fp)
         else:
-            optimizer, last_epoch = build_optimizer(lm, options.learning_rate, options.weight_decay,
-                                                    use_adam=options.adam), 0
+            optimizer = build_optimizer(lm, options.learning_rate, options.warmup)
 
-        trainer = LMTrainer(model=lm, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
-                            warmup=options.warmup, step=options.step, last_epoch=last_epoch)
+        trainer = LMTrainer(model=lm, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip)
 
         collator = dataset.TextCollator(pad_idx=text_processor.pad_token_id())
         train_sampler, dev_sampler = None, None
@@ -189,7 +183,7 @@ class LMTrainer:
         dev_loader = data_utils.DataLoader(dev_data, batch_size=options.batch, shuffle=False, pin_memory=pin_memory,
                                            collate_fn=collator, sampler=dev_sampler)
 
-        step, train_epoch = last_epoch, 1
+        step, train_epoch = 0, 1
         while step <= options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(data_iter=loader, dev_data_iter=dev_loader, saving_path=options.model_path,

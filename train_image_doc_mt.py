@@ -11,7 +11,6 @@ import sacrebleu
 import torch
 import torch.nn as nn
 import torch.utils.data as data_utils
-import transformers.optimization as optim
 from IPython.core import ultratb
 from apex import amp
 from torch.nn.utils.rnn import pad_sequence
@@ -23,7 +22,6 @@ from lm import LM
 from loss import SmoothedNLLLoss
 from option_parser import get_img_options_parser
 from parallel import DataParallelModel, DataParallelCriterion
-from pytorch_lamb.pytorch_lamb import Lamb
 from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
 from utils import build_optimizer, mass_mask, mass_unmask, backward
@@ -32,9 +30,9 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 class ImageDocTrainer:
-    def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
-                 step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
-                 len_penalty_ratio: float = 0.8, last_epoch: int = 0, nll_loss: bool = False, fp16: bool = False):
+    def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None,
+                 beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
+                 len_penalty_ratio: float = 0.8, nll_loss: bool = False, fp16: bool = False):
         self.model = model
 
         self.clip = clip
@@ -42,14 +40,6 @@ class ImageDocTrainer:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.model.to(self.device)
-
-        if isinstance(self.optimizer, Lamb):
-            self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
-                                                                   num_training_steps=step)
-            self.scheduler.last_epoch = last_epoch
-            print("Scheduler Last epoch", last_epoch)
-        else:
-            self.scheduler = None
 
         self.mask_prob = mask_prob
         if nll_loss:
@@ -250,8 +240,6 @@ class ImageDocTrainer:
                     # We accumulate the gradients for both tasks!
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
                     self.optimizer.step()
-                    if self.scheduler is not None:
-                        self.scheduler.step()
                     step += 1
 
                     if is_mass_batch and not fine_tune:
@@ -278,8 +266,7 @@ class ImageDocTrainer:
 
                         model.save(saving_path + ".latest")
                         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                            pickle.dump(
-                                (self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else step), fp)
+                            pickle.dump(self.optimizer, fp)
 
                     start, tokens, cur_loss = time.time(), 0, 0
             if i == shortest - 1:
@@ -346,7 +333,7 @@ class ImageDocTrainer:
             print("Saving best BLEU", self.best_bleu)
             model.save(saving_path)
             with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
+                pickle.dump(self.optimizer, fp)
 
             with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
                 writer.write("\n".join(
@@ -400,15 +387,13 @@ class ImageDocTrainer:
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
-                optimizer, last_epoch = pickle.load(fp)
+                optimizer = pickle.load(fp)
         else:
-            optimizer, last_epoch = build_optimizer(mt_model, options.learning_rate, options.weight_decay,
-                                                    use_adam=options.adam), 0
+            optimizer = build_optimizer(mt_model, options.learning_rate, warump_steps=options.warmup)
         trainer = ImageDocTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
-                                  warmup=options.warmup, step=options.step,
                                   beam_width=options.beam_width, max_len_a=options.max_len_a,
                                   max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
-                                  last_epoch=last_epoch, fp16=options.fp16)
+                                  fp16=options.fp16)
 
         dataset_class = dataset.ImageCaptionDataset if options.caption_mass or options.captioning else dataset.ImageDocDataset
 
@@ -421,7 +406,7 @@ class ImageDocTrainer:
         mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
         if options.mass_train_path is not None:
             mass_train_paths = options.mass_train_path.strip().split(",")
-            if options.step > 0 and last_epoch < options.step:
+            if options.step > 0:
                 mass_train_data, mass_train_loader = ImageDocTrainer.get_mass_loader(mass_train_paths, mt_model,
                                                                                      num_processors, options,
                                                                                      pin_memory)
@@ -454,11 +439,9 @@ class ImageDocTrainer:
         if train_epoch > 1:
             # Resetting the optimizer for the purpose of finetuning.
             model = mt_model.module if hasattr(mt_model, "module") else mt_model
-            trainer.optimizer = build_optimizer(model, options.learning_rate, options.weight_decay,
-                                                use_adam=options.adam)
-            trainer.scheduler = optim.get_linear_schedule_with_warmup(trainer.optimizer,
-                                                                      num_warmup_steps=options.warmup,
-                                                                      num_training_steps=options.finetune_step)
+            trainer.optimizer = build_optimizer(model, options.learning_rate, options.warmup)
+            if options.fp16:
+                _, trainer.optimizer = amp.initialize(model, optimizer, opt_level="O2")
 
         lang_directions = ImageDocTrainer.get_lang_dirs(langs)
 

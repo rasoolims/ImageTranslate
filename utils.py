@@ -82,7 +82,7 @@ def mass_unmask(src_text, src_mask, masked_ids):
 
 
 def backward(loss, optimizer, fp16: bool = False):
-    if fp16:
+    if fp16 and torch.cuda.device_count() == 1:
         with amp.scale_loss(loss, optimizer) as scaled_loss:
             scaled_loss.backward()
     else:

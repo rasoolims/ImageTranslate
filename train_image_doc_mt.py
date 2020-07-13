@@ -40,6 +40,9 @@ class ImageDocTrainer:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.model.to(self.device)
+        if fp16 and self.num_gpu > 1:
+            self.fp16 = True
+            self.model = model.half()
 
         self.mask_prob = mask_prob
         if nll_loss:
@@ -440,13 +443,13 @@ class ImageDocTrainer:
             # Resetting the optimizer for the purpose of finetuning.
             model = mt_model.module if hasattr(mt_model, "module") else mt_model
             trainer.optimizer = build_optimizer(model, options.learning_rate, options.warmup)
-            if options.fp16:
+            if options.fp16 and torch.cuda.device_count() == 1:
                 _, trainer.optimizer = amp.initialize(model, optimizer, opt_level="O2")
 
         lang_directions = ImageDocTrainer.get_lang_dirs(langs)
 
         print("Reloading image train data with new batch size...")
-        if options.caption_mass and img_train_loader is not None:
+        if options.finetune_step > 0 and options.caption_mass and img_train_loader is not None:
             img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset_class, img_train_loader, langs,
                                                               mt_model, num_batches, options, pin_memory, transform, 2)
         print("Reloading image train data with new batch size done!")

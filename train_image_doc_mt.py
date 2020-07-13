@@ -4,28 +4,78 @@ import os
 import pickle
 import sys
 import time
+from itertools import chain
 from typing import List
 
+import sacrebleu
 import torch
+import torch.nn as nn
 import torch.utils.data as data_utils
 import transformers.optimization as optim
 from IPython.core import ultratb
+from apex import amp
 from torch.nn.utils.rnn import pad_sequence
 from torchvision import transforms
 
 import dataset
 from image_doc_model import ImageDocSeq2Seq, ImageCaptionSeq2Seq, ImageMassSeq2Seq
 from lm import LM
+from loss import SmoothedNLLLoss
 from option_parser import get_img_options_parser
-from seq_gen import get_outputs_until_eos
+from parallel import DataParallelModel, DataParallelCriterion
+from pytorch_lamb.pytorch_lamb import Lamb
+from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
-from train_mass import MassTrainer
 from utils import build_optimizer, mass_mask, mass_unmask, backward
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
 
-class ImageDocTrainer(MassTrainer):
+class ImageDocTrainer:
+    def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None, warmup: int = 12500,
+                 step: int = 125000, beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
+                 len_penalty_ratio: float = 0.8, last_epoch: int = 0, nll_loss: bool = False, fp16: bool = False):
+        self.model = model
+
+        self.clip = clip
+        self.optimizer = optimizer
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = self.model.to(self.device)
+
+        if isinstance(self.optimizer, Lamb):
+            self.scheduler = optim.get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup,
+                                                                   num_training_steps=step)
+            self.scheduler.last_epoch = last_epoch
+            print("Scheduler Last epoch", last_epoch)
+        else:
+            self.scheduler = None
+
+        self.mask_prob = mask_prob
+        if nll_loss:
+            self.criterion = nn.NLLLoss(ignore_index=model.text_processor.pad_token_id())
+        else:
+            self.criterion = SmoothedNLLLoss(ignore_index=model.text_processor.pad_token_id())
+
+        self.num_gpu = torch.cuda.device_count()
+        if self.num_gpu > 1:
+            print("Let's use", self.num_gpu, "GPUs!")
+            self.model = DataParallelModel(self.model)
+            self.criterion = DataParallelCriterion(self.criterion)
+
+        self.generator = BeamDecoder(model, beam_width=beam_width, max_len_a=max_len_a, max_len_b=max_len_b,
+                                     len_penalty_ratio=len_penalty_ratio)
+        if self.num_gpu > 1:
+            self.generator = DataParallelModel(self.generator)
+
+        self.fp16 = False
+        if self.num_gpu == 1 and fp16:
+            self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O2")
+            self.fp16 = True
+
+        self.reference = None
+        self.best_bleu = -1.0
+
     def train_epoch(self, data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: List[data_utils.DataLoader] = None,
                     mt_train_iter: List[data_utils.DataLoader] = None,
@@ -244,45 +294,66 @@ class ImageDocTrainer(MassTrainer):
 
         return step
 
-    def get_batch_zip(self, data_iter, mass_data_iter, mt_train_iter):
-        if mt_train_iter is None:
-            if mass_data_iter is None:
-                shortest = min([len(l) for l in data_iter])
-                if len(data_iter) == 1:
-                    batch_zip = data_iter[0]
-                else:
-                    batch_zip = zip(data_iter[0], data_iter[1])
-            else:
-                shortest = min([len(l) for l in mass_data_iter] + [len(l) for l in data_iter])
-                if len(data_iter) == 1:
-                    batch_zip = zip(data_iter[0], mass_data_iter[0], mass_data_iter[1])
-                else:
-                    batch_zip = zip(data_iter[0], data_iter[1], mass_data_iter[0], mass_data_iter[1])
-        else:
-            if mass_data_iter is None:
-                shortest = min([len(l) for l in data_iter] + [len(l) for l in mt_train_iter])
-                if len(data_iter) == 1:
-                    batch_zip = zip(data_iter[0], mt_train_iter[0], mt_train_iter[1])
-                else:
-                    if len(mt_train_iter) == 1:
-                        batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter[0])
-                    else:
-                        batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter[0], mt_train_iter[1])
-            else:
-                shortest = min(
-                    [len(l) for l in mass_data_iter] + [len(l) for l in data_iter] + [len(l) for l in mt_train_iter])
-                if len(data_iter) == 1:
-                    batch_zip = zip(data_iter[0], mt_train_iter[0], mt_train_iter[1], mass_data_iter[0],
-                                    mass_data_iter[1])
-                else:
-                    if len(mt_train_iter) == 1:
-                        batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter[0], mass_data_iter[0],
-                                        mass_data_iter[1])
-                    else:
-                        batch_zip = zip(data_iter[0], data_iter[1], mt_train_iter[0], mt_train_iter[1],
-                                        mass_data_iter[0],
-                                        mass_data_iter[1])
-        return batch_zip, shortest
+    def get_batch_zip(self, img_data_iter, mass_data_iter, mt_train_iter):
+        iters = list(chain(*filter(lambda x: x != None, [img_data_iter, mass_data_iter, mt_train_iter])))
+        shortest = min(len(l) for l in iters)
+        return zip(*iters), shortest
+
+    def eval_bleu(self, dev_data_iter, saving_path):
+        mt_output = []
+        src_text = []
+        model = (
+            self.model.module if hasattr(self.model, "module") else self.model
+        )
+        model.eval()
+
+        with torch.no_grad():
+            for iter in dev_data_iter:
+                for batch in iter:
+                    src_inputs = batch["src_texts"].squeeze(0)
+                    src_mask = batch["src_pad_mask"].squeeze(0)
+                    tgt_inputs = batch["dst_texts"].squeeze(0)
+                    src_langs = batch["src_langs"].squeeze(0)
+                    dst_langs = batch["dst_langs"].squeeze(0)
+                    src_pad_idx = batch["pad_idx"].squeeze(0)
+
+                    src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs,
+                                                    remove_first_token=True)
+                    src_text += list(map(lambda src: model.text_processor.tokenizer.decode(src.numpy()), src_ids))
+
+                    outputs = self.generator(src_inputs=src_inputs, src_sizes=src_pad_idx,
+                                             first_tokens=tgt_inputs[:, 0],
+                                             src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs,
+                                             pad_idx=model.text_processor.pad_token_id())
+                    if self.num_gpu > 1:
+                        new_outputs = []
+                        for output in outputs:
+                            new_outputs += output
+                        outputs = new_outputs
+
+                    mt_output += list(map(lambda x: model.text_processor.tokenizer.decode(x[1:].numpy()), outputs))
+
+            model.train()
+        bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]], lowercase=True, tokenize="intl")
+
+        with open(os.path.join(saving_path, "bleu.output"), "w") as writer:
+            writer.write("\n".join(
+                [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
+                 zip(src_text, mt_output, self.reference[:len(mt_output)])]))
+
+        if bleu.score > self.best_bleu:
+            self.best_bleu = bleu.score
+            print("Saving best BLEU", self.best_bleu)
+            model.save(saving_path)
+            with open(os.path.join(saving_path, "optim"), "wb") as fp:
+                pickle.dump((self.optimizer, self.scheduler.last_epoch if self.scheduler is not None else 0), fp)
+
+            with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
+                writer.write("\n".join(
+                    [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
+                     zip(src_text, mt_output, self.reference[:len(mt_output)])]))
+
+        return bleu.score
 
     @staticmethod
     def train(options):
@@ -323,31 +394,9 @@ class ImageDocTrainer(MassTrainer):
 
         print("Model initialization done!")
 
-        pin_memory = torch.cuda.is_available()
-
         # We assume that the collator function returns a list with the size of number of gpus (in case of cpus,
         collator = dataset.ImageTextCollator()
         num_batches = max(1, torch.cuda.device_count())
-
-        dataset_class = dataset.ImageCaptionDataset if options.caption_mass or options.captioning else dataset.ImageDocDataset
-
-        train_loader = []
-        train_paths = options.train_path.split(",")
-        langs = set()
-        for train_path in train_paths:
-            train_data = dataset_class(root_img_dir=options.image_dir,
-                                       data_bin_file=train_path, transform=transform,
-                                       max_capacity=options.img_capacity,
-                                       text_processor=mt_model.text_processor,
-                                       max_img_per_batch=options.max_image)
-            print(train_path, "Length of training data", len(train_data))
-            tl = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True,
-                                       pin_memory=pin_memory,
-                                       collate_fn=collator)
-            train_loader.append(tl)
-
-            for lang1 in train_data.lang_ids:
-                langs.add(lang1)
 
         if options.continue_train:
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
@@ -361,82 +410,41 @@ class ImageDocTrainer(MassTrainer):
                                   max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
                                   last_epoch=last_epoch, fp16=options.fp16)
 
+        dataset_class = dataset.ImageCaptionDataset if options.caption_mass or options.captioning else dataset.ImageDocDataset
+
+        pin_memory = torch.cuda.is_available()
+        img_train_loader = None
+        langs = set()
+        img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset_class, img_train_loader, langs, mt_model,
+                                                          num_batches, options, pin_memory, transform)
+
         mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
         if options.mass_train_path is not None:
             mass_train_paths = options.mass_train_path.strip().split(",")
             if options.step > 0 and last_epoch < options.step:
-                mass_train_data, mass_train_loader = [], []
-                for i, mass_train_path in enumerate(mass_train_paths):
-                    td = dataset.MassDataset(batch_pickle_dir=mass_train_path,
-                                             max_batch_capacity=num_processors * options.total_capacity,
-                                             max_batch=num_processors * options.batch,
-                                             pad_idx=mt_model.text_processor.pad_token_id(),
-                                             max_seq_len=options.max_seq_len, keep_examples=True)
-                    mass_train_data.append(td)
-                    dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)
-                    mass_train_loader.append(dl)
-
-        if options.mass_train_path is not None:
-            if options.finetune_step > 0:
-                finetune_data, finetune_loader = [], []
-                for i, mass_train_path in enumerate(mass_train_paths):
-                    fd = dataset.MassDataset(batch_pickle_dir=mass_train_path,
-                                             max_batch_capacity=int(num_processors * options.total_capacity / 2),
-                                             max_batch=int(num_processors * options.batch / 2),
-                                             pad_idx=mt_model.text_processor.pad_token_id(),
-                                             max_seq_len=options.max_seq_len, keep_examples=False,
-                                             example_list=None if mass_train_data is None else mass_train_data[
-                                                 i].examples_list)
-                    finetune_data.append(fd)
-                    fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory)
-                    finetune_loader.append(fl)
-                    if mass_train_data is not None:
-                        mass_train_data[i].examples_list = []
-                for fd in finetune_data:
-                    for lang1 in fd.lang_ids:
+                mass_train_data, mass_train_loader = ImageDocTrainer.get_mass_loader(mass_train_paths, mt_model,
+                                                                                     num_processors, options,
+                                                                                     pin_memory)
+                for td in mass_train_data:
+                    for lang1 in td.lang_ids:
                         langs.add(lang1)
+
+            if options.finetune_step > 0:
+                finetune_loader = ImageDocTrainer.get_mass_finetune_data(mass_train_data, mass_train_paths, mt_model,
+                                                                         num_processors, options, pin_memory)
 
         mt_train_loader = None
         if options.mt_train_path is not None:
-            mt_train_loader = []
-            train_paths = options.mt_train_path.split(",")
-            for train_path in train_paths:
-                mt_train_data = dataset.MTDataset(batch_pickle_dir=train_path,
-                                                  max_batch_capacity=int(num_processors * options.total_capacity / 2.0),
-                                                  max_batch=int(num_processors * options.batch / 2.0),
-                                                  pad_idx=mt_model.text_processor.pad_token_id())
-                mtl = data_utils.DataLoader(mt_train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
-                mt_train_loader.append(mtl)
+            mt_train_loader = ImageDocTrainer.get_mt_train_data(mt_model, num_processors, options, pin_memory)
 
         mt_dev_loader = None
         if options.mt_dev_path is not None:
-            mt_dev_loader = []
-            dev_paths = options.mt_dev_path.split(",")
-            trainer.reference = []
-            for dev_path in dev_paths:
-                mt_dev_data = dataset.MTDataset(batch_pickle_dir=dev_path,
-                                                max_batch_capacity=options.total_capacity,
-                                                max_batch=int(options.batch / (options.beam_width * 2)),
-                                                pad_idx=mt_model.text_processor.pad_token_id())
-                dl = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
-                mt_dev_loader.append(dl)
-
-                print("creating reference")
-
-                generator = (
-                    trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
-                )
-
-                for batch in dl:
-                    tgt_inputs = batch["dst_texts"].squeeze()
-                    refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs, remove_first_token=True)
-                    ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
-                    trainer.reference += ref
+            mt_dev_loader = ImageDocTrainer.get_mt_dev_data(mt_model, options, pin_memory, text_processor, trainer)
 
         step, train_epoch = 0, 1
         while options.step > 0 and step < options.step:
             print("train epoch", train_epoch)
-            step = trainer.train_epoch(data_iter=train_loader, mass_data_iter=mass_train_loader,
+            step = trainer.train_epoch(data_iter=img_train_loader, mass_data_iter=mass_train_loader,
                                        mt_train_iter=mt_train_loader,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step)
             train_epoch += 1
@@ -452,19 +460,125 @@ class ImageDocTrainer(MassTrainer):
                                                                       num_warmup_steps=options.warmup,
                                                                       num_training_steps=options.finetune_step)
 
+        lang_directions = ImageDocTrainer.get_lang_dirs(langs)
+
+        print("Reloading image train data with new batch size...")
+        if options.caption_mass and img_train_loader is not None:
+            img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset_class, img_train_loader, langs,
+                                                              mt_model, num_batches, options, pin_memory, transform)
+        print("Reloading image train data with new batch size done!")
+
+        while options.finetune_step > 0 and step <= options.finetune_step + options.step:
+            print("finetune epoch", finetune_epoch)
+            step = trainer.train_epoch(data_iter=img_train_loader, mass_data_iter=finetune_loader,
+                                       mt_train_iter=mt_train_loader,
+                                       mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
+                                       fine_tune=True, lang_directions=lang_directions)
+            finetune_epoch += 1
+
+    @staticmethod
+    def get_lang_dirs(langs):
         lang_directions = {}
         for lang1 in langs:
             for lang2 in langs:
                 if lang1 != lang2:
                     # Assuming that we only have two languages!
                     lang_directions[lang1] = lang2
-        while options.finetune_step > 0 and step <= options.finetune_step + options.step:
-            print("finetune epoch", finetune_epoch)
-            step = trainer.train_epoch(data_iter=train_loader, mass_data_iter=finetune_loader,
-                                       mt_train_iter=mt_train_loader,
-                                       mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
-                                       fine_tune=True, lang_directions=lang_directions)
-            finetune_epoch += 1
+        return lang_directions
+
+    @staticmethod
+    def get_mt_dev_data(mt_model, options, pin_memory, text_processor, trainer):
+        mt_dev_loader = []
+        dev_paths = options.mt_dev_path.split(",")
+        trainer.reference = []
+        for dev_path in dev_paths:
+            mt_dev_data = dataset.MTDataset(batch_pickle_dir=dev_path,
+                                            max_batch_capacity=options.total_capacity,
+                                            max_batch=int(options.batch / (options.beam_width * 2)),
+                                            pad_idx=mt_model.text_processor.pad_token_id())
+            dl = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+            mt_dev_loader.append(dl)
+
+            print("creating reference")
+
+            generator = (
+                trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
+            )
+
+            for batch in dl:
+                tgt_inputs = batch["dst_texts"].squeeze()
+                refs = get_outputs_until_eos(text_processor.sep_token_id(), tgt_inputs, remove_first_token=True)
+                ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
+                trainer.reference += ref
+        return mt_dev_loader
+
+    @staticmethod
+    def get_mt_train_data(mt_model, num_processors, options, pin_memory):
+        mt_train_loader = []
+        train_paths = options.mt_train_path.split(",")
+        for train_path in train_paths:
+            mt_train_data = dataset.MTDataset(batch_pickle_dir=train_path,
+                                              max_batch_capacity=int(num_processors * options.total_capacity),
+                                              max_batch=int(num_processors * options.batch),
+                                              pad_idx=mt_model.text_processor.pad_token_id())
+            mtl = data_utils.DataLoader(mt_train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+            mt_train_loader.append(mtl)
+        return mt_train_loader
+
+    @staticmethod
+    def get_mass_finetune_data(mass_train_data, mass_train_paths, mt_model, num_processors, options, pin_memory):
+        finetune_data, finetune_loader = [], []
+        for i, mass_train_path in enumerate(mass_train_paths):
+            fd = dataset.MassDataset(batch_pickle_dir=mass_train_path,
+                                     max_batch_capacity=int(num_processors * options.total_capacity / 2),
+                                     max_batch=int(num_processors * options.batch / 2),
+                                     pad_idx=mt_model.text_processor.pad_token_id(),
+                                     max_seq_len=options.max_seq_len, keep_examples=False,
+                                     example_list=None if mass_train_data is None else mass_train_data[
+                                         i].examples_list)
+            finetune_data.append(fd)
+            fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory)
+            finetune_loader.append(fl)
+            if mass_train_data is not None:
+                mass_train_data[i].examples_list = []
+        return finetune_loader
+
+    @staticmethod
+    def get_mass_loader(mass_train_paths, mt_model, num_processors, options, pin_memory):
+        mass_train_data, mass_train_loader = [], []
+        for i, mass_train_path in enumerate(mass_train_paths):
+            td = dataset.MassDataset(batch_pickle_dir=mass_train_path,
+                                     max_batch_capacity=num_processors * options.total_capacity,
+                                     max_batch=num_processors * options.batch,
+                                     pad_idx=mt_model.text_processor.pad_token_id(),
+                                     max_seq_len=options.max_seq_len, keep_examples=True)
+            mass_train_data.append(td)
+
+            dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)
+            mass_train_loader.append(dl)
+        return mass_train_data, mass_train_loader
+
+    @staticmethod
+    def get_img_loader(collator, dataset_class, img_train_loader, langs, mt_model, num_batches, options, pin_memory,
+                       transform, denom=1):
+        if options.train_path is not None:
+            img_train_loader = []
+            train_paths = options.train_path.split(",")
+            for train_path in train_paths:
+                train_data = dataset_class(root_img_dir=options.image_dir,
+                                           data_bin_file=train_path, transform=transform,
+                                           max_capacity=int(options.img_capacity / denom),
+                                           text_processor=mt_model.text_processor,
+                                           max_img_per_batch=options.max_image)
+                print(train_path, "Length of training data", len(train_data))
+                tl = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True,
+                                           pin_memory=pin_memory,
+                                           collate_fn=collator)
+                img_train_loader.append(tl)
+
+                for lang1 in train_data.lang_ids:
+                    langs.add(lang1)
+        return img_train_loader
 
 
 if __name__ == "__main__":

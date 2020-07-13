@@ -122,8 +122,8 @@ class TestModel(unittest.TestCase):
             binarize_image_doc_data.write(text_processor=processor, output_file=os.path.join(tmpdirname, "image.bin"),
                                           json_dir=data_path, files_to_use="mzn,glk", root_img_dir=path_dir_name)
             image_data = ImageDocDataset(os.getcwd(), os.path.join(tmpdirname, "image.bin"), transform,
-                                         max_doc_batch_capacity=1, text_processor=processor, max_img_per_batch=100)
-            assert len(image_data[4]) == 8
+                                         max_capacity=1, text_processor=processor, max_img_per_batch=100)
+            assert len(image_data[4]) == 9
             assert len(image_data) == 276
 
             lm = LM(text_processor=processor, size=4)

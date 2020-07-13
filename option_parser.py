@@ -34,7 +34,7 @@ def get_lm_option_parser():
     return parser
 
 
-def get_mt_option_parser():
+def get_img_options_parser():
     parser = get_lm_option_parser()
     parser.add_option("--capacity", dest="total_capacity", help="Batch capacity", type="int", default=150)
     parser.add_option("--lm", dest="lm_path", help="LM pretrained model", metavar="FILE", default=None)
@@ -50,11 +50,6 @@ def get_mt_option_parser():
                       default=False)
     parser.add_option("--fp16", action="store_true", dest="fp16", default=False)
     parser.set_default("batch", 20000)
-    return parser
-
-
-def get_mass_option_parser():
-    parser = get_mt_option_parser()
     parser.add_option("--dev_mt", dest="mt_dev_path",
                       help="Path to the MT dev data pickle files (SHOULD NOT BE USED IN UNSUPERVISED SETTING)",
                       metavar="FILE", default=None)
@@ -63,12 +58,6 @@ def get_mass_option_parser():
                       metavar="FILE", default=None)
     parser.add_option("--fstep", dest="finetune_step", help="Number of finetuneing steps", type="int", default=125000)
     parser.set_default("mask_prob", 0.5)
-    parser.set_default("model_size", 5)
-    return parser
-
-
-def get_img_options_parser():
-    parser = get_mass_option_parser()
     parser.add_option("--mass_train", dest="mass_train_path", metavar="FILE", default=None)
     parser.add_option("--image", dest="image_dir", help="Path to the image files", metavar="FILE", default=None)
     parser.add_option("--img_capacity", dest="img_capacity", help="Batch capacity", type="int", default=50)
@@ -79,8 +68,8 @@ def get_img_options_parser():
                       help="ImageCaptionSeq2Seq instead of doc model", default=False)
     parser.add_option("--caption-mass", action="store_true", dest="caption_mass",
                       help="ImageMASSSeq2Seq instead of doc model", default=False)
-    parser.set_default("model_size", 6)
     parser.add_option("--img-depth", dest="resnet_depth", help="1 (18), 2 (34), 3 (50), 4 (101), 5 (152)", type="int",
                       default=1)
     parser.add_option("--cross-depth", dest="cross_depth", help="Batch capacity", type="int", default=2)
+    parser.set_default("model_size", 6)
     return parser

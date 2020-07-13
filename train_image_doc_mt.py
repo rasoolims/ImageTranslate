@@ -465,7 +465,7 @@ class ImageDocTrainer:
         print("Reloading image train data with new batch size...")
         if options.caption_mass and img_train_loader is not None:
             img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset_class, img_train_loader, langs,
-                                                              mt_model, num_batches, options, pin_memory, transform)
+                                                              mt_model, num_batches, options, pin_memory, transform, 2)
         print("Reloading image train data with new batch size done!")
 
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:

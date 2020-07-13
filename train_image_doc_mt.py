@@ -40,6 +40,7 @@ class ImageDocTrainer:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.model.to(self.device)
+        self.num_gpu = torch.cuda.device_count()
         if fp16 and self.num_gpu > 1:
             self.fp16 = True
             self.model = model.half()
@@ -50,7 +51,6 @@ class ImageDocTrainer:
         else:
             self.criterion = SmoothedNLLLoss(ignore_index=model.text_processor.pad_token_id())
 
-        self.num_gpu = torch.cuda.device_count()
         if self.num_gpu > 1:
             print("Let's use", self.num_gpu, "GPUs!")
             self.model = DataParallelModel(self.model)

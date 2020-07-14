@@ -251,6 +251,7 @@ class ImageDocTrainer:
                         map(lambda m: mass_unmask(m["src_text"], m["src_mask"], m["mask_idx"]), masked_info)
 
                 except RuntimeError as err:
+                    print(repr(err))
                     print("Error processing", is_img_batch)
                     if (isinstance(model, ImageCaptionSeq2Seq) or isinstance(model, ImageMassSeq2Seq)) and (
                             is_img_batch or is_img_caption_mass):

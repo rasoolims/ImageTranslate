@@ -414,13 +414,15 @@ class ImageDocTrainer:
                 mass_train_data, mass_train_loader = ImageDocTrainer.get_mass_loader(mass_train_paths, mt_model,
                                                                                      num_processors, options,
                                                                                      pin_memory)
-                for td in mass_train_data:
-                    for lang1 in td.lang_ids:
-                        langs.add(lang1)
 
             if options.finetune_step > 0:
-                finetune_loader = ImageDocTrainer.get_mass_finetune_data(mass_train_data, mass_train_paths, mt_model,
-                                                                         num_processors, options, pin_memory)
+                finetune_loader, finetune_data = ImageDocTrainer.get_mass_finetune_data(mass_train_data,
+                                                                                        mass_train_paths, mt_model,
+                                                                                        num_processors, options,
+                                                                                        pin_memory)
+                for td in finetune_data:
+                    for lang1 in td.lang_ids:
+                        langs.add(lang1)
 
         mt_train_loader = None
         if options.mt_train_path is not None:
@@ -528,7 +530,7 @@ class ImageDocTrainer:
             finetune_loader.append(fl)
             if mass_train_data is not None:
                 mass_train_data[i].examples_list = []
-        return finetune_loader
+        return finetune_loader, finetune_data
 
     @staticmethod
     def get_mass_loader(mass_train_paths, mt_model, num_processors, options, pin_memory):

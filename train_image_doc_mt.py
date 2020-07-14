@@ -69,7 +69,7 @@ class ImageDocTrainer:
         self.reference = None
         self.best_bleu = -1.0
 
-    def train_epoch(self, data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
+    def train_epoch(self, img_data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: List[data_utils.DataLoader] = None,
                     mt_train_iter: List[data_utils.DataLoader] = None,
                     fine_tune: bool = False, lang_directions: dict = False, **kwargs):
@@ -77,7 +77,7 @@ class ImageDocTrainer:
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
         cur_loss = 0
-        batch_zip, shortest = self.get_batch_zip(data_iter, mass_data_iter, mt_train_iter)
+        batch_zip, shortest = self.get_batch_zip(img_data_iter, mass_data_iter, mt_train_iter)
 
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
@@ -286,6 +286,10 @@ class ImageDocTrainer:
         return step
 
     def get_batch_zip(self, img_data_iter, mass_data_iter, mt_train_iter):
+        if img_data_iter is not None:
+            img_data_iter *= 10
+        if mass_data_iter is not None:
+            mass_data_iter *= 5
         iters = list(chain(*filter(lambda x: x != None, [img_data_iter, mass_data_iter, mt_train_iter])))
         shortest = min(len(l) for l in iters)
         return zip(*iters), shortest
@@ -435,7 +439,7 @@ class ImageDocTrainer:
         step, train_epoch = 0, 1
         while options.step > 0 and step < options.step:
             print("train epoch", train_epoch)
-            step = trainer.train_epoch(data_iter=img_train_loader, mass_data_iter=mass_train_loader,
+            step = trainer.train_epoch(img_data_iter=img_train_loader, mass_data_iter=mass_train_loader,
                                        mt_train_iter=mt_train_loader,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step)
             train_epoch += 1
@@ -459,7 +463,7 @@ class ImageDocTrainer:
 
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
             print("finetune epoch", finetune_epoch)
-            step = trainer.train_epoch(data_iter=img_train_loader, mass_data_iter=finetune_loader,
+            step = trainer.train_epoch(img_data_iter=img_train_loader, mass_data_iter=finetune_loader,
                                        mt_train_iter=mt_train_loader,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
                                        fine_tune=True, lang_directions=lang_directions)

@@ -63,11 +63,9 @@ if __name__ == "__main__":
     model = model.to(device)
     num_gpu = torch.cuda.device_count()
 
-    fp16 = False
     assert num_gpu <= 1
-    if fp16:
+    if options.fp16:
         model = amp.initialize(model, opt_level="O2")
-        fp16 = True
 
     trans_score = dict()
     with torch.no_grad():

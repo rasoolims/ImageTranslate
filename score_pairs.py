@@ -52,9 +52,11 @@ if __name__ == "__main__":
     parser = get_option_parser()
     (options, args) = parser.parse_args()
 
+    print("Loading text processor...")
     text_processor = TextProcessor(options.tokenizer_path)
     num_processors = max(torch.cuda.device_count(), 1)
 
+    print("Loading model...")
     model, _ = AlbertSeq2Seq.load(options.model, tok_dir=options.tokenizer_path,
                                   sep_decoder=options.sep_encoder, lang_dec=options.lang_decoder)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -69,9 +71,11 @@ if __name__ == "__main__":
 
     trans_score = dict()
     with torch.no_grad():
+        print("Loading data...")
         with open(options.data, "rb") as fp:
             sen_ids, src2dst_dict, dst2src_dict = marshal.load(fp)
 
+        print("Scoring candidates")
         for i, batch in enumerate(create_batches(sen_ids, src2dst_dict, dst2src_dict, text_processor)):
             sid, src_input, tids, tgt_inputs, src_lang, dst_langs = batch
             if sid not in trans_score:

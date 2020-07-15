@@ -53,7 +53,6 @@ def write(output_file: str, input_file: str, ref_file=None, output_image=False):
         print("Reference Captions", len(ref_captions), len(ref_caption_dict))
 
     sen_ids = dict()
-    sentences = []
     src2dst_dict = defaultdict(set)
     dst2src_dict = defaultdict(set)
     with open(input_file, "rb") as fp, open(output_file, "wb") as writer:
@@ -65,10 +64,8 @@ def write(output_file: str, input_file: str, ref_file=None, output_image=False):
             for src, dst in sentence_pairs:
                 if src not in sen_ids:
                     sen_ids[src] = len(sen_ids)
-                    sentences.append(src)
                 if dst not in sen_ids:
                     sen_ids[dst] = len(sen_ids)
-                    sentences.append(dst)
 
                 src2dst_dict[sen_ids[src]].add(sen_ids[dst])
                 dst2src_dict[sen_ids[dst]].add(sen_ids[src])

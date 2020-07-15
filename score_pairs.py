@@ -26,29 +26,30 @@ def get_option_parser():
     return parser
 
 
-def create_batches(sen_ids, src2dst_dict, dst2src_dict, text_processor: TextProcessor):
+tok_sen = lambda s: text_processor.tokenize_one_sentence(s)[:512]
+
+
+def create_batches(sen_ids, sentences, src2dst_dict, dst2src_dict, text_processor: TextProcessor):
     print(len(sen_ids), len(src2dst_dict), len(dst2src_dict))
-    print("Tokenizing sentences...")
-    tokenized_sentences = list(
-        map(lambda s: torch.LongTensor(text_processor.tokenize_one_sentence(s)[:512]), sen_ids.keys()))
-    languages = list(map(lambda s: text_processor.lang_id(s.strip().split(" ")[0]), sen_ids.keys()))
 
     print("Getting batches...")
     for sid in src2dst_dict.keys():
         tids = list(src2dst_dict[sid])
-        trans_cands = list(map(lambda i: tokenized_sentences[i], tids))
+        source_tokenized = torch.LongTensor(tok_sen(sentences[sid]))
+        trans_cands = list(map(lambda i: torch.LongTensor(tok_sen(sentences[i])), tids))
         candidates = pad_sequence(trans_cands, batch_first=True, padding_value=text_processor.pad_token_id())
-        target_langs = list(map(lambda i: languages[i], tids))
-        yield sid, tokenized_sentences[sid], tids, candidates, torch.LongTensor([languages[sid]]), torch.LongTensor(
-            target_langs)
+        target_langs = list(map(lambda i: text_processor.lang_id(sentences[i].strip().split(" ")[0]), tids))
+        src_lang = torch.LongTensor([text_processor.lang_id(sentences[sid].strip().split(" ")[0])])
+        yield sid, source_tokenized, tids, candidates, src_lang, torch.LongTensor(target_langs)
 
-    for tid in dst2src_dict.keys():
-        sids = list(dst2src_dict[tid])
-        trans_cands = list(map(lambda i: tokenized_sentences[i], sids))
-        target_langs = list(map(lambda i: languages[i], sids))
+    for sid in dst2src_dict.keys():
+        tids = list(dst2src_dict[sid])
+        source_tokenized = torch.LongTensor(tok_sen(sentences[sid]))
+        trans_cands = list(map(lambda i: torch.LongTensor(tok_sen(sentences[i])), tids))
         candidates = pad_sequence(trans_cands, batch_first=True, padding_value=text_processor.pad_token_id())
-        yield tid, tokenized_sentences[tid], sids, candidates, torch.LongTensor([languages[tid]]), torch.LongTensor(
-            target_langs)
+        target_langs = list(map(lambda i: text_processor.lang_id(sentences[i].strip().split(" ")[0]), tids))
+        src_lang = torch.LongTensor([text_processor.lang_id(sentences[sid].strip().split(" ")[0])])
+        yield sid, source_tokenized, tids, candidates, src_lang, torch.LongTensor(target_langs)
 
 
 if __name__ == "__main__":
@@ -70,17 +71,16 @@ if __name__ == "__main__":
     if options.fp16:
         model = amp.initialize(model, opt_level="O2")
 
-    trans_score = dict()
-    with torch.no_grad():
+    with torch.no_grad(), open(options.output, "w") as writer:
         print("Loading data...")
         with open(options.data, "rb") as fp:
             sen_ids, src2dst_dict, dst2src_dict = marshal.load(fp)
+        sentences = list(sen_ids.keys())
 
         print("Scoring candidates")
-        for i, batch in enumerate(create_batches(sen_ids, src2dst_dict, dst2src_dict, text_processor)):
+        for i, batch in enumerate(create_batches(sen_ids, sentences, src2dst_dict, dst2src_dict, text_processor)):
             sid, src_input, tids, tgt_inputs, src_lang, dst_langs = batch
-            if sid not in trans_score:
-                trans_score[sid] = dict()
+            trans_score = dict()
             tgt_mask = (tgt_inputs != text_processor.pad_token_id()).to(device)
 
             src_input = src_input.view(-1, src_input.size(0)).to(device)
@@ -107,20 +107,15 @@ if __name__ == "__main__":
             targets = tgt_inputs[:, 1:].contiguous().view(-1)
             w_losses = tgt_mask[:, 1:] * predictions.gather(1, targets.view(-1, 1)).squeeze(-1).view(len(tgt_mask), -1)
             loss = torch.sum(w_losses, dim=1)
-            loss = torch.div(loss, torch.sum(tgt_mask[:, 1:], dim=-1)).numpy()
+            loss = torch.div(loss, torch.sum(tgt_mask[:, 1:], dim=-1)).cpu().numpy()
             for j, l in enumerate(loss):
                 tid = tids[j]
-                trans_score[sid][tid] = l
+                trans_score[tid] = l
+            sorted_dict = sorted(trans_score.items(), key=operator.itemgetter(1), reverse=True)
+            tid, score = sorted_dict[0]
+            writer.write(sentences[sid] + "\t" + sentences[tid] + "\t" + str(score))
+            writer.write("\n")
+
             print(i + 1, len(src2dst_dict) + len(dst2src_dict), end="\r")
 
-    best_translations = []
-    sentences = list(sen_ids.keys())
-    print("\nWriting (after sorting) to file")
-    with open(options.output, "w") as writer:
-        for j, id in enumerate(trans_score.keys()):
-            sorted_dict = sorted(trans_score[id].items(), key=operator.itemgetter(1), reverse=True)
-            tid, score = sorted_dict[0]
-            writer.write(sentences[id] + "\t" + sentences[tid] + "\t" + str(score))
-            writer.write("\n")
-            print(j + 1, len(trans_score), end="\r")
     print("\nDone!")

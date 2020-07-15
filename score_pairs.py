@@ -35,7 +35,7 @@ def create_batches(sen_ids, sentences, src2dst_dict, dst2src_dict, text_processo
     print("Getting batches...")
     for dct in [src2dst_dict, dst2src_dict]:
         for sid in dct.keys():
-            tids = list(src2dst_dict[sid])
+            tids = list(dct[sid])
             source_tokenized = torch.LongTensor(tok_sen(sentences[sid]))
             trans_cands = list(map(lambda i: torch.LongTensor(tok_sen(sentences[i])), tids))
             candidates = pad_sequence(trans_cands, batch_first=True, padding_value=text_processor.pad_token_id())
@@ -72,57 +72,60 @@ if __name__ == "__main__":
 
         print("Scoring candidates")
         for i, batch in enumerate(create_batches(sen_ids, sentences, src2dst_dict, dst2src_dict, text_processor)):
-            sid, src_input, tids_all, tgt_inputs_all, src_lang, dst_langs_all = batch
-            cur_capacity = 2 * (max(int(src_input.size(0)), int(tgt_inputs_all.size(1))) ** 3) * int(
-                tgt_inputs_all.size(0))
-            split_size = int(math.ceil(cur_capacity / max_capacity))
-            split_size = max(1, int(math.floor(len(tids_all) / split_size)))
+            try:
+                sid, src_input, tids_all, tgt_inputs_all, src_lang, dst_langs_all = batch
+                cur_capacity = 2 * (max(int(src_input.size(0)), int(tgt_inputs_all.size(1))) ** 3) * int(
+                    tgt_inputs_all.size(0))
+                split_size = int(math.ceil(cur_capacity / max_capacity))
+                split_size = max(1, int(math.floor(len(tids_all) / split_size)))
 
-            tgt_inputs_spl = torch.split(tgt_inputs_all, split_size)
-            tids_spl = torch.split(tids_all, split_size)
-            dst_langs_spl = torch.split(dst_langs_all, split_size)
+                tgt_inputs_spl = torch.split(tgt_inputs_all, split_size)
+                tids_spl = torch.split(tids_all, split_size)
+                dst_langs_spl = torch.split(dst_langs_all, split_size)
 
-            trans_score = dict()
-            for spl_i in range(len(tgt_inputs_spl)):
-                src_input = src_input.view(-1, src_input.size(0)).to(device)
-                src_mask = (src_input != text_processor.pad_token_id())
-                src_lang = src_lang.to(device)
-                encoder_states = model.encode(src_input, src_mask, src_lang.expand(src_input.size()))[0]
+                trans_score = dict()
+                for spl_i in range(len(tgt_inputs_spl)):
+                    src_input = src_input.view(-1, src_input.size(0)).to(device)
+                    src_mask = (src_input != text_processor.pad_token_id())
+                    src_lang = src_lang.to(device)
+                    encoder_states = model.encode(src_input, src_mask, src_lang.expand(src_input.size()))[0]
 
-                tgt_inputs, tids, dst_langs = tgt_inputs_spl[spl_i], tids_spl[spl_i], dst_langs_spl[spl_i]
-                tgt_mask = (tgt_inputs != text_processor.pad_token_id()).to(device)
+                    tgt_inputs, tids, dst_langs = tgt_inputs_spl[spl_i], tids_spl[spl_i], dst_langs_spl[spl_i]
+                    tgt_mask = (tgt_inputs != text_processor.pad_token_id()).to(device)
 
-                tgt_inputs = tgt_inputs.to(device)
-                dst_langs = dst_langs.to(device)
-                batch_lang = int(dst_langs[0])
-                subseq_mask = future_mask(tgt_mask[:, :-1])
-                if subseq_mask.device != tgt_inputs.device:
-                    subseq_mask = subseq_mask.to(device)
+                    tgt_inputs = tgt_inputs.to(device)
+                    dst_langs = dst_langs.to(device)
+                    batch_lang = int(dst_langs[0])
+                    subseq_mask = future_mask(tgt_mask[:, :-1])
+                    if subseq_mask.device != tgt_inputs.device:
+                        subseq_mask = subseq_mask.to(device)
 
-                decoder = model.decoder if not model.lang_dec else model.decoder[batch_lang]
-                output_layer = model.output_layer if not model.lang_dec else model.output_layer[batch_lang]
+                    decoder = model.decoder if not model.lang_dec else model.decoder[batch_lang]
+                    output_layer = model.output_layer if not model.lang_dec else model.output_layer[batch_lang]
 
-                enc_states = encoder_states.expand(len(tgt_inputs), encoder_states.size(1), encoder_states.size(2))
-                src_mask_spl = src_mask.expand(len(tgt_inputs), src_mask.size(1))
-                dst_langs = dst_langs.unsqueeze(1).expand(tgt_inputs.size())
-                decoder_output = decoder(enc_states, tgt_inputs[:, :-1], tgt_mask[:, :-1], src_mask_spl, subseq_mask,
-                                         token_type_ids=dst_langs[:, :-1])
-                predictions = F.log_softmax(output_layer(decoder_output), dim=-1)
+                    enc_states = encoder_states.expand(len(tgt_inputs), encoder_states.size(1), encoder_states.size(2))
+                    src_mask_spl = src_mask.expand(len(tgt_inputs), src_mask.size(1))
+                    dst_langs = dst_langs.unsqueeze(1).expand(tgt_inputs.size())
+                    decoder_output = decoder(enc_states, tgt_inputs[:, :-1], tgt_mask[:, :-1], src_mask_spl, subseq_mask,
+                                             token_type_ids=dst_langs[:, :-1])
+                    predictions = F.log_softmax(output_layer(decoder_output), dim=-1)
 
-                predictions = predictions.view(-1, predictions.size(-1))
-                targets = tgt_inputs[:, 1:].contiguous().view(-1)
-                w_losses = tgt_mask[:, 1:] * predictions.gather(1, targets.view(-1, 1)).squeeze(-1).view(len(tgt_mask),
-                                                                                                         -1)
-                loss = torch.sum(w_losses, dim=1)
-                loss = torch.div(loss, torch.sum(tgt_mask[:, 1:], dim=-1)).cpu().numpy()
-                for j, l in enumerate(loss):
-                    tid = tids[j]
-                    trans_score[tid] = l
-            sorted_dict = sorted(trans_score.items(), key=operator.itemgetter(1), reverse=True)
-            tid, score = sorted_dict[0]
-            writer.write(sentences[sid] + "\t" + sentences[tid] + "\t" + str(score))
-            writer.write("\n")
+                    predictions = predictions.view(-1, predictions.size(-1))
+                    targets = tgt_inputs[:, 1:].contiguous().view(-1)
+                    w_losses = tgt_mask[:, 1:] * predictions.gather(1, targets.view(-1, 1)).squeeze(-1).view(len(tgt_mask),
+                                                                                                             -1)
+                    loss = torch.sum(w_losses, dim=1)
+                    loss = torch.div(loss, torch.sum(tgt_mask[:, 1:], dim=-1)).cpu().numpy()
+                    for j, l in enumerate(loss):
+                        tid = tids[j]
+                        trans_score[tid] = l
+                sorted_dict = sorted(trans_score.items(), key=operator.itemgetter(1), reverse=True)
+                tid, score = sorted_dict[0]
+                writer.write(sentences[sid] + "\t" + sentences[tid] + "\t" + str(score))
+                writer.write("\n")
 
-            print(i + 1, len(src2dst_dict) + len(dst2src_dict), end="\r")
+                print(i + 1, len(src2dst_dict) + len(dst2src_dict), end="\r")
+            except RuntimeError:
+                pass
 
     print("\nDone!")

@@ -82,13 +82,13 @@ if __name__ == "__main__":
             tids_spl = torch.split(tids_all, split_size)
             dst_langs_spl = torch.split(dst_langs_all, split_size)
 
-            src_input = src_input.view(-1, src_input.size(0)).to(device)
-            src_mask = (src_input != text_processor.pad_token_id())
-            src_lang = src_lang.to(device)
-            encoder_states = model.encode(src_input, src_mask, src_lang.expand(src_input.size()))[0]
-
             trans_score = dict()
             for spl_i in range(len(tgt_inputs_spl)):
+                src_input = src_input.view(-1, src_input.size(0)).to(device)
+                src_mask = (src_input != text_processor.pad_token_id())
+                src_lang = src_lang.to(device)
+                encoder_states = model.encode(src_input, src_mask, src_lang.expand(src_input.size()))[0]
+
                 tgt_inputs, tids, dst_langs = tgt_inputs_spl[spl_i], tids_spl[spl_i], dst_langs_spl[spl_i]
                 tgt_mask = (tgt_inputs != text_processor.pad_token_id()).to(device)
 

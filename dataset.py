@@ -437,7 +437,7 @@ class ImageCaptionDataset(Dataset):
                 cur_batch.append(caption)
                 cur_imgs.append(image_id)
                 cur_max_len = max(cur_max_len, len(caption))
-                batch_capacity_size = (49 ** 3 + (cur_max_len ** 3)) * len(cur_batch)
+                batch_capacity_size = 2 * (cur_max_len ** 3) * len(cur_batch)
                 if (len(cur_imgs) > max_img_per_batch or batch_capacity_size > max_capacity) and len(
                         cur_batch[:-1]) >= num_gpu and len(cur_batch) > 1:
                     batch_tensor = pad_sequence(list(map(lambda t: torch.LongTensor(t), cur_batch[:-1])),

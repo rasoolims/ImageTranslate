@@ -140,6 +140,11 @@ class TextProcessor:
     def is_lang(self, id) -> bool:
         return self.tokenizer.id_to_token(id) in self.languages
 
+    def lang_id(self, tok):
+        if tok in self.languages:
+            return self.languages[tok]
+        return 0
+
     def split_tokenized(self, tokenized: List[int], max_length: int = 512) -> List[List[int]]:
         """
         Based on self.max_len, splits very long sequences to smaller ones.

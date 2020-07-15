@@ -65,7 +65,7 @@ def write(output_file: str, input_file: str, ref_file=None, output_image=False, 
             dst_w.write("\n".join(list(map(lambda s: s[1], sentence_pairs))))
             src_w.write("\n")
             dst_w.write("\n")
-            print(len(sentence_pairs), i, "/", len(doc_dict), end="\r")
+            print(i, "/", len(doc_dict), end="\r")
 
 
 def get_options():

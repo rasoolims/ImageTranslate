@@ -27,10 +27,13 @@ def get_option_parser():
 
 
 def create_batches(sen_ids, src2dst_dict, dst2src_dict, text_processor: TextProcessor):
+    print(len(sen_ids), len(src2dst_dict), len(dst2src_dict))
+    print("Tokenizing sentences...")
     tokenized_sentences = list(
         map(lambda s: torch.LongTensor(text_processor.tokenize_one_sentence(s)[:512]), sen_ids.keys()))
     languages = list(map(lambda s: text_processor.lang_id(s.strip().split(" ")[0]), sen_ids.keys()))
 
+    print("Getting batches...")
     for sid in src2dst_dict.keys():
         tids = list(src2dst_dict[sid])
         trans_cands = list(map(lambda i: tokenized_sentences[i], tids))

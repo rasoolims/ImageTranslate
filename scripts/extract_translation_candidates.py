@@ -52,14 +52,14 @@ def write(output_file: str, input_file: str, ref_file=None, output_image=False, 
         ref_caption_dict = defaultdict(set)
         for i, s in ref_captions:
             ref_caption_dict[i].add(s)
-        print(len(ref_captions))
+        print("Reference Captions", len(ref_captions), len(ref_caption_dict))
 
     with open(input_file, "rb") as fp, open(output_file + "." + src_lang, "w") as src_w, open(
             output_file + "." + dst_lang, "w") as dst_w:
         doc_dicts = json.load(fp)
-        for sentence_pairs in list(
-                map(lambda v: extract_sentence_pairs(v, ref_images, ref_caption_dict, output_image), doc_dicts)):
-            if len(sentence_pairs)==0:
+        for doc_dict in doc_dicts:
+            sentence_pairs = extract_sentence_pairs(doc_dict, ref_images, ref_caption_dict, output_image)
+            if len(sentence_pairs) == 0:
                 continue
             src_w.write("\n".join(list(map(lambda s: s[0], sentence_pairs))))
             dst_w.write("\n".join(list(map(lambda s: s[1], sentence_pairs))))

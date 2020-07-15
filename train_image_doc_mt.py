@@ -257,6 +257,7 @@ class ImageDocTrainer:
                             is_img_batch or is_img_caption_mass):
                         for b in batch:
                             print("->", len(b["images"]), b["captions"].size())
+                    torch.cuda.empty_cache()
 
                 if step % 50 == 0 and tokens > 0:
                     elapsed = time.time() - start

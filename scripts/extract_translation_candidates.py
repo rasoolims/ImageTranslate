@@ -73,7 +73,7 @@ def write(output_file: str, input_file: str, ref_file=None, output_image=False):
                 src2dst_dict[sen_ids[src]].add(sen_ids[dst])
                 dst2src_dict[sen_ids[dst]].add(sen_ids[src])
 
-            print(i, "/", len(doc_dict), end="\r")
+            print(i, "/", len(doc_dicts), end="\r")
         marshal.dump((sen_ids, dict(src2dst_dict), dict(dst2src_dict)), writer)
 
 

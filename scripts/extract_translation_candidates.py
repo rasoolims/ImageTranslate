@@ -1,11 +1,9 @@
 import json
+import marshal
 from collections import defaultdict
 from itertools import chain
 from optparse import OptionParser
 
-"""
-Extracts all images with all sentences (longer than 5 words).
-"""
 sen_chooser = lambda sens, img: list(map(lambda s: (img, s), sens))
 img_sen_collect = lambda image, sens: [(image["img_path"], image["caption"])] + sen_chooser(sens, image["img_path"])
 len_condition = lambda words1, words2: True if .8 <= len(words1) / len(words2) <= 1.1 or abs(
@@ -44,7 +42,7 @@ def extract_sentence_pairs(v, ref_images, ref_captions, output_image):
     return sentence_pairs
 
 
-def write(output_file: str, input_file: str, ref_file=None, output_image=False, src_lang="src", dst_lang="dst"):
+def write(output_file: str, input_file: str, ref_file=None, output_image=False):
     with open(ref_file, "rb") as fp:
         ref_doc_dicts = json.load(fp)
         ref_images = set(chain(*map(lambda v: list(map(lambda im: im["img_path"], v["images"])), ref_doc_dicts)))
@@ -54,18 +52,29 @@ def write(output_file: str, input_file: str, ref_file=None, output_image=False, 
             ref_caption_dict[i].add(s)
         print("Reference Captions", len(ref_captions), len(ref_caption_dict))
 
-    with open(input_file, "rb") as fp, open(output_file + "." + src_lang, "w") as src_w, open(
-            output_file + "." + dst_lang, "w") as dst_w:
+    sen_ids = dict()
+    sentences = []
+    src2dst_dict = defaultdict(set)
+    dst2src_dict = defaultdict(set)
+    with open(input_file, "rb") as fp, open(output_file, "wb") as writer:
         doc_dicts = json.load(fp)
         for i, doc_dict in enumerate(doc_dicts):
             sentence_pairs = extract_sentence_pairs(doc_dict, ref_images, ref_caption_dict, output_image)
             if len(sentence_pairs) == 0:
                 continue
-            src_w.write("\n".join(list(map(lambda s: s[0], sentence_pairs))))
-            dst_w.write("\n".join(list(map(lambda s: s[1], sentence_pairs))))
-            src_w.write("\n")
-            dst_w.write("\n")
+            for src, dst in sentence_pairs:
+                if src not in sen_ids:
+                    sen_ids[src] = len(sen_ids)
+                    sentences.append(src)
+                if dst not in sen_ids:
+                    sen_ids[dst] = len(sen_ids)
+                    sentences.append(dst)
+
+                src2dst_dict[sen_ids[src]].add(sen_ids[dst])
+                dst2src_dict[sen_ids[dst]].add(sen_ids[src])
+
             print(i, "/", len(doc_dict), end="\r")
+        marshal.dump((sen_ids, dict(src2dst_dict), dict(dst2src_dict)), writer)
 
 
 def get_options():
@@ -76,8 +85,6 @@ def get_options():
     parser.add_option("--output", dest="output_file", help="Output pickle file.", metavar="FILE", default=None)
     parser.add_option("--image", action="store_true", dest="output_image", help="Output image path as well",
                       default=False)
-    parser.add_option("--src", dest="src_lang", type="str", default="src")
-    parser.add_option("--dst", dest="dst_lang", type="str", default="dst")
     (options, args) = parser.parse_args()
     return options
 
@@ -89,7 +96,5 @@ if __name__ == "__main__":
     write(output_file=options.output_file,
           input_file=options.file,
           ref_file=options.ref,
-          output_image=options.output_image,
-          src_lang=options.src_lang,
-          dst_lang=options.dst_lang)
+          output_image=options.output_image)
     print("\nFinished")

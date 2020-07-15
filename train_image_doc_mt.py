@@ -287,7 +287,7 @@ class ImageDocTrainer:
 
     def get_batch_zip(self, img_data_iter, mass_data_iter, mt_train_iter):
         if img_data_iter is not None:
-            img_data_iter *= 10
+            img_data_iter *= 5
         if mass_data_iter is not None:
             mass_data_iter *= 5
         iters = list(chain(*filter(lambda x: x != None, [img_data_iter, mass_data_iter, mt_train_iter])))

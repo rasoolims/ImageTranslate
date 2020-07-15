@@ -57,7 +57,7 @@ def write(output_file: str, input_file: str, ref_file=None, output_image=False, 
     with open(input_file, "rb") as fp, open(output_file + "." + src_lang, "w") as src_w, open(
             output_file + "." + dst_lang, "w") as dst_w:
         doc_dicts = json.load(fp)
-        for doc_dict in doc_dicts:
+        for i, doc_dict in enumerate(doc_dicts):
             sentence_pairs = extract_sentence_pairs(doc_dict, ref_images, ref_caption_dict, output_image)
             if len(sentence_pairs) == 0:
                 continue
@@ -65,8 +65,7 @@ def write(output_file: str, input_file: str, ref_file=None, output_image=False, 
             dst_w.write("\n".join(list(map(lambda s: s[1], sentence_pairs))))
             src_w.write("\n")
             dst_w.write("\n")
-            print(len(sentence_pairs), end="\r")
-        print("Done!")
+            print(len(sentence_pairs), i, "/", len(doc_dict), end="\r")
 
 
 def get_options():
@@ -93,4 +92,4 @@ if __name__ == "__main__":
           output_image=options.output_image,
           src_lang=options.src_lang,
           dst_lang=options.dst_lang)
-    print("Finished")
+    print("\nFinished")

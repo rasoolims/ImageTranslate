@@ -41,9 +41,6 @@ class ImageDocTrainer:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.model.to(self.device)
         self.num_gpu = torch.cuda.device_count()
-        if fp16 and self.num_gpu > 1:
-            self.fp16 = True
-            self.model = model.half()
 
         self.mask_prob = mask_prob
         if nll_loss:
@@ -447,12 +444,8 @@ class ImageDocTrainer:
 
         finetune_epoch = 0
         mt_model.save(options.model_path + ".beam")
-        if train_epoch > 1:
-            # Resetting the optimizer for the purpose of finetuning.
-            model = mt_model.module if hasattr(mt_model, "module") else mt_model
-            trainer.optimizer = build_optimizer(model, options.learning_rate, options.warmup)
-            if options.fp16 and torch.cuda.device_count() == 1:
-                _, trainer.optimizer = amp.initialize(model, optimizer, opt_level="O2")
+        # Resetting the optimizer for the purpose of finetuning.
+        trainer.optimizer.reset()
 
         lang_directions = ImageDocTrainer.get_lang_dirs(langs)
 

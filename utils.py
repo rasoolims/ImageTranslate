@@ -137,3 +137,7 @@ class AdamInverseSqrtWithWarmup(optim.Adam):
         for param_group in self.param_groups:
             param_group['num_updates'] += 1
             param_group['lr'] = self.get_lr_for_step(param_group['num_updates'])
+
+    def reset(self):
+        for param_group in self.param_groups:
+            param_group['num_updates'] = 0

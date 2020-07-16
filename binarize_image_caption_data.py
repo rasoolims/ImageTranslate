@@ -17,6 +17,14 @@ img_sen_collect = lambda image, sens: [(image["img_path"], image["caption"])] + 
 ref_sen_chooser = lambda i, s, sens, r, img: (img["img_path"], sens[i]) if s > r else None
 
 
+def extract_captions(v, ref_images=None):
+    if ref_images is not None:
+        shared_images = list(filter(lambda x: x is True, map(lambda img: img["img_path"] in ref_images, v["images"])))
+        if len(shared_images) == 0:
+            return []
+    return list(map(lambda i: (i["img_path"], i["caption"]), v["images"]))
+
+
 def extract_shared_sentences(v, ref_images=None):
     if ref_images is not None:
         shared_images = list(filter(lambda x: x is True, map(lambda img: img["img_path"] in ref_images, v["images"])))
@@ -57,7 +65,7 @@ def extract_sentences(v, ref_images=None):
 
 
 def write(text_processor: TextProcessor, output_file: str, input_file: str, root_img_dir, skip_check: bool = False,
-          max_len: int = 256, ref_file=None, choose_relevant=True):
+          max_len: int = 256, ref_file=None, choose_relevant=True, only_captions=False):
     ref_images = None
     if ref_file is not None:
         with open(ref_file, "rb") as fp:
@@ -67,7 +75,9 @@ def write(text_processor: TextProcessor, output_file: str, input_file: str, root
     with open(input_file, "rb") as fp:
         doc_dicts = json.load(fp)
         num_captions = sum(list(map(lambda v: len(v["images"]), doc_dicts)))
-        if choose_relevant:
+        if only_captions:
+            captions = list(chain(*map(lambda v: extract_captions(v, ref_images), doc_dicts)))
+        elif choose_relevant:
             captions = list(chain(*map(lambda v: extract_shared_sentences(v, ref_images), doc_dicts)))
         else:
             captions = list(chain(*map(lambda v: extract_sentences(v, ref_images), doc_dicts)))
@@ -141,6 +151,7 @@ def get_options():
                       help="Skipping checking if image file exists", default=False)
     parser.add_option("--all", action="store_true", dest="use_all",
                       help="Choose all sentences instead of only subset of captions", default=False)
+    parser.add_option("--only", action="store_true", dest="only", help="Choose only captions", default=False)
     (options, args) = parser.parse_args()
     return options
 
@@ -157,5 +168,6 @@ if __name__ == "__main__":
           skip_check=options.skip_check,
           max_len=options.max_len,
           ref_file=options.ref,
+          only_captions=options.only,
           choose_relevant=not options.use_all)
     print("Finished")

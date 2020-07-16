@@ -134,13 +134,13 @@ class ImageMassSeq2Seq(ImageCaptionSeq2Seq):
         super(ImageMassSeq2Seq, self).__init__(config, encoder, decoder, output_layer, text_processor, checkpoint,
                                                freeze_image, share_decoder, resnet_depth, lang_dec, num_cross_layers)
         if num_cross_layers is None:
-            self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(config))
+            self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(config), has_gate=True)
             self.image_self_attention = AlbertTransformer(config)
         else:
             cross_config = copy.deepcopy(config)
             cross_config.num_hidden_layers = num_cross_layers
             self.image_self_attention = AlbertTransformer(cross_config)
-            self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(cross_config))
+            self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(cross_config), has_gate=True)
         self.back_mapper = nn.Linear(config.hidden_size, config.embedding_size)
 
     def encode(self, src_inputs, src_mask, src_langs, images=None):
@@ -235,7 +235,7 @@ class ImageDocSeq2Seq(MassSeq2Seq):
         self.image_model: ModifiedResnet = init_net(embed_dim=config.embedding_size, dropout=config.hidden_dropout_prob,
                                                     freeze=freeze_image, depth=resnet_depth)
         self.image_decoder = self.decoder.decoder if share_decoder else AlbertDecoderTransformer(
-            AlbertTransformer(config))
+            AlbertTransformer(config), has_gate=True)
 
     def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 1,
                 tgt_positions=None,

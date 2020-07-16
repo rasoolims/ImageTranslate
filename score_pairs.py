@@ -106,14 +106,16 @@ if __name__ == "__main__":
                     enc_states = encoder_states.expand(len(tgt_inputs), encoder_states.size(1), encoder_states.size(2))
                     src_mask_spl = src_mask.expand(len(tgt_inputs), src_mask.size(1))
                     dst_langs = dst_langs.unsqueeze(1).expand(tgt_inputs.size())
-                    decoder_output = decoder(enc_states, tgt_inputs[:, :-1], tgt_mask[:, :-1], src_mask_spl, subseq_mask,
+                    decoder_output = decoder(enc_states, tgt_inputs[:, :-1], tgt_mask[:, :-1], src_mask_spl,
+                                             subseq_mask,
                                              token_type_ids=dst_langs[:, :-1])
                     predictions = F.log_softmax(output_layer(decoder_output), dim=-1)
 
                     predictions = predictions.view(-1, predictions.size(-1))
                     targets = tgt_inputs[:, 1:].contiguous().view(-1)
-                    w_losses = tgt_mask[:, 1:] * predictions.gather(1, targets.view(-1, 1)).squeeze(-1).view(len(tgt_mask),
-                                                                                                             -1)
+                    w_losses = tgt_mask[:, 1:] * predictions.gather(1, targets.view(-1, 1)).squeeze(-1).view(
+                        len(tgt_mask),
+                        -1)
                     loss = torch.sum(w_losses, dim=1)
                     loss = torch.div(loss, torch.sum(tgt_mask[:, 1:], dim=-1)).cpu().numpy()
                     for j, l in enumerate(loss):

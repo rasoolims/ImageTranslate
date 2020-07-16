@@ -135,9 +135,11 @@ class ImageMassSeq2Seq(ImageCaptionSeq2Seq):
                                                freeze_image, share_decoder, resnet_depth, lang_dec, num_cross_layers)
         if num_cross_layers is None:
             self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(config))
+            self.image_self_attention = AlbertTransformer(config)
         else:
             cross_config = copy.deepcopy(config)
             cross_config.num_hidden_layers = num_cross_layers
+            self.image_self_attention = AlbertTransformer(cross_config)
             self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(cross_config))
         self.back_mapper = nn.Linear(config.hidden_size, config.embedding_size)
 
@@ -151,9 +153,11 @@ class ImageMassSeq2Seq(ImageCaptionSeq2Seq):
                 images = images.to(device)
             if src_mask.device != device:
                 src_mask = src_mask.to(device)
-            image_embeddings = self.image_mapper(self.image_model(images))
+            image_embeddings = self.image_model(images)
+            head_mask = [None] * self.image_self_attention.config.num_hidden_layers
+            image_attended = self.image_self_attention(hidden_states=image_embeddings, head_mask=head_mask)[0]
             encoder_states = self.back_mapper(encoder_states[0])
-            imaged_attented_input = self.cross_decoder(encoder_states=image_embeddings, hidden_states=encoder_states,
+            imaged_attented_input = self.cross_decoder(encoder_states=image_attended, hidden_states=encoder_states,
                                                        tgt_attn_mask=src_mask)
             return imaged_attented_input
         return encoder_states

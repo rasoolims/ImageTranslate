@@ -85,7 +85,7 @@ class ImageDocTrainer:
                 is_img_batch = isinstance(batch, list) and "captions" in batch[0]
                 is_img_caption_mass = is_img_batch and isinstance(model, ImageMassSeq2Seq)
                 is_mass_batch = not is_img_batch and "dst_texts" not in batch
-                if True:
+                try:
                     if is_img_batch and not is_img_caption_mass:  # Image data
                         if len(batch) < self.num_gpu:
                             continue
@@ -247,7 +247,7 @@ class ImageDocTrainer:
                     if is_img_caption_mass and not fine_tune:
                         map(lambda m: mass_unmask(m["src_text"], m["src_mask"], m["mask_idx"]), masked_info)
 
-                else:
+                except RuntimeError as err:
                     print(repr(err))
                     print("Error processing", is_img_batch)
                     if (isinstance(model, ImageCaptionSeq2Seq) or isinstance(model, ImageMassSeq2Seq)) and (

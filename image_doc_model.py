@@ -75,7 +75,12 @@ class ImageCaptionSeq2Seq(MassSeq2Seq):
                                                   checkpoint)
         self.image_model: ModifiedResnet = init_net(embed_dim=config.embedding_size, dropout=config.hidden_dropout_prob,
                                                     freeze=freeze_image, depth=resnet_depth)
-        self.image_mapper = nn.Linear(config.embedding_size, config.hidden_size)
+        if num_cross_layers is None:
+            self.image_self_attention = AlbertTransformer(config)
+        else:
+            cross_config = copy.deepcopy(config)
+            cross_config.num_hidden_layers = num_cross_layers
+            self.image_self_attention = AlbertTransformer(cross_config)
 
     def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 1,
                 tgt_positions=None, batch=None, log_softmax: bool = False, **kwargs):
@@ -95,12 +100,14 @@ class ImageCaptionSeq2Seq(MassSeq2Seq):
         batch_lang = int(batch["langs"][0])
         langs = batch["langs"].unsqueeze(-1).expand(-1, captions.size(-1)).to(device)
 
-        image_embeddings = self.image_mapper(self.image_model(images))
+        image_embeddings = self.image_model(images)
+        head_mask = [None] * self.image_self_attention.config.num_hidden_layers
+        self_attended_image = self.image_self_attention(image_embeddings, head_mask=head_mask)[0]
 
         subseq_mask = future_mask(caption_mask[:, :-1]).to(device)
         decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
         output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
-        decoder_output = decoder(encoder_states=image_embeddings, input_ids=captions[:, :-1],
+        decoder_output = decoder(encoder_states=self_attended_image, input_ids=captions[:, :-1],
                                  input_ids_mask=caption_mask[:, :-1], tgt_attn_mask=subseq_mask,
                                  token_type_ids=langs[:, :-1])
         diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
@@ -135,11 +142,9 @@ class ImageMassSeq2Seq(ImageCaptionSeq2Seq):
                                                freeze_image, share_decoder, resnet_depth, lang_dec, num_cross_layers)
         if num_cross_layers is None:
             self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(config), has_gate=True)
-            self.image_self_attention = AlbertTransformer(config)
         else:
             cross_config = copy.deepcopy(config)
             cross_config.num_hidden_layers = num_cross_layers
-            self.image_self_attention = AlbertTransformer(cross_config)
             self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(cross_config), has_gate=True)
         self.back_mapper = nn.Linear(config.hidden_size, config.embedding_size)
 

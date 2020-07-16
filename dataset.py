@@ -478,7 +478,7 @@ class ImageCaptionDataset(Dataset):
         image_batch = []
         for image_id in self.image_batches[item]:
             if image_id not in self.image_cache:
-                if len(self.image_cache) >= 60000:
+                if len(self.image_cache) >= 200000:
                     k = self.image_queue.pop(0)
                     del self.image_cache[k]
                 image_path = self.unique_images[image_id]

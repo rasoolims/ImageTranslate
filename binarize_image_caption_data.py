@@ -14,6 +14,32 @@ Extracts all images with all sentences (longer than 5 words).
 """
 sen_chooser = lambda sens, img: list(map(lambda s: (img, s), sens))
 img_sen_collect = lambda image, sens: [(image["img_path"], image["caption"])] + sen_chooser(sens, image["img_path"])
+ref_sen_chooser = lambda i, s, sens, r, img: (img["img_path"], sens[i]) if s > r else None
+
+
+def extract_shared_sentences(v, ref_images=None):
+    if ref_images is not None:
+        shared_images = list(filter(lambda x: x is True, map(lambda img: img["img_path"] in ref_images, v["images"])))
+        if len(shared_images) == 0:
+            return []
+    content_spl = v["content"].strip().split(" ")
+    lang_id, content = content_spl[0] + " ", " ".join(content_spl[1:])
+    sens = list(map(lambda s: lang_id + s.strip() + " </s>", content.split("</s>")))
+    sen_words = list(map(lambda s: set(s.split()[1:-1]), sens))
+    return list(chain(*map(lambda image: extract_captions4imgs(image, sen_words, sens), v["images"])))
+
+
+def extract_captions4imgs(image, sen_words, sens):
+    caption = image["caption"]
+    caption_words = set(caption.strip().split(" ")[1:-1])
+    shared_word_counts = list(map(lambda s: len(s & caption_words), sen_words))
+    max_word_count = max(shared_word_counts)
+    least_req_count = max(2, max_word_count - 2)
+    captions = [(image["img_path"], caption)] + list(
+        filter(lambda x: x != None,
+               map(lambda i, s: ref_sen_chooser(i, s, sens, least_req_count, image), range(len(sens)),
+                   shared_word_counts)))
+    return captions
 
 
 def extract_sentences(v, ref_images=None):
@@ -31,7 +57,7 @@ def extract_sentences(v, ref_images=None):
 
 
 def write(text_processor: TextProcessor, output_file: str, input_file: str, root_img_dir, skip_check: bool = False,
-          max_len: int = 256, ref_file=None):
+          max_len: int = 256, ref_file=None, choose_relevant=True):
     ref_images = None
     if ref_file is not None:
         with open(ref_file, "rb") as fp:
@@ -41,7 +67,10 @@ def write(text_processor: TextProcessor, output_file: str, input_file: str, root
     with open(input_file, "rb") as fp:
         doc_dicts = json.load(fp)
         num_captions = sum(list(map(lambda v: len(v["images"]), doc_dicts)))
-        captions = list(chain(*map(lambda v: extract_sentences(v, ref_images), doc_dicts)))
+        if choose_relevant:
+            captions = list(chain(*map(lambda v: extract_shared_sentences(v, ref_images), doc_dicts)))
+        else:
+            captions = list(chain(*map(lambda v: extract_sentences(v, ref_images), doc_dicts)))
         print(num_captions, len(captions))
 
     transform = transforms.Compose([  # [1]
@@ -110,6 +139,8 @@ def get_options():
     parser.add_option("--max-len", dest="max_len", help="Maximum tokenized caption length", type="int", default=256)
     parser.add_option("--skip-check", action="store_true", dest="skip_check",
                       help="Skipping checking if image file exists", default=False)
+    parser.add_option("--all", action="store_true", dest="use_all",
+                      help="Choose all sentences instead of only subset of captions", default=False)
     (options, args) = parser.parse_args()
     return options
 
@@ -125,5 +156,6 @@ if __name__ == "__main__":
           root_img_dir=options.image_dir,
           skip_check=options.skip_check,
           max_len=options.max_len,
-          ref_file=options.ref)
+          ref_file=options.ref,
+          choose_relevant=not options.use_all)
     print("Finished")

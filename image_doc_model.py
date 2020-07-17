@@ -76,11 +76,11 @@ class ImageMassSeq2Seq(MassSeq2Seq):
                                                     freeze=freeze_image, depth=resnet_depth)
         if num_cross_layers is None:
             self.image_self_attention = AlbertTransformer(config)
-            self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(config), has_gate=True)
+            self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(config))
         else:
             cross_config = copy.deepcopy(config)
             cross_config.num_hidden_layers = num_cross_layers
-            self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(cross_config), has_gate=True)
+            self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(cross_config))
             self.image_self_attention = AlbertTransformer(cross_config)
         self.back_mapper = nn.Linear(config.hidden_size, config.embedding_size)
 

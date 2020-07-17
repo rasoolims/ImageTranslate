@@ -170,7 +170,7 @@ class MassSeq2Seq(AlbertSeq2Seq):
 
 
 class AlbertDecoderAttention(nn.Module):
-    def __init__(self, albert_attention: AlbertAttention, has_gate: bool = False):
+    def __init__(self, albert_attention: AlbertAttention):
         super().__init__()
         self.output_attentions = albert_attention.output_attentions  # config.output_attentions
         self.dropout = albert_attention.dropout
@@ -190,9 +190,6 @@ class AlbertDecoderAttention(nn.Module):
         self.dense = albert_attention.dense
         self.LayerNorm = albert_attention.LayerNorm
         self.pruned_heads = set()
-        self.has_gate = has_gate
-        if has_gate:
-            self.gate = nn.Parameter(torch.zeros(1, self.hidden_size).fill_(2.0), requires_grad=True)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -206,10 +203,10 @@ class AlbertDecoderAttention(nn.Module):
         output_attention = self.attention(self.query(decoder_inputs), self.key(decoder_inputs),
                                           self.value(decoder_inputs), attn_mask=tgt_attn_mask)
         cross_attention = self.attention(self.src_attn_query(output_attention[0]), self.src_attn_key(encoder_states),
-                                         self.src_attn_value(encoder_states), attn_mask=src_attn_mask, gate=True)
+                                         self.src_attn_value(encoder_states), attn_mask=src_attn_mask)
         return cross_attention
 
-    def attention(self, q, k, v, attn_mask=None, gate=False):
+    def attention(self, q, k, v, attn_mask=None):
         q_layer = self.transpose_for_scores(q)
         k_layer = self.transpose_for_scores(k)
         v_layer = self.transpose_for_scores(v)
@@ -243,23 +240,16 @@ class AlbertDecoderAttention(nn.Module):
         projected_context_layer = torch.einsum("bfnd,ndh->bfh", context_layer, w) + b
         projected_context_layer_dropout = self.dropout(projected_context_layer)
 
-        if gate and self.has_gate:
-            eps = 1e-7
-            sig_gate = torch.sigmoid(self.gate + eps)
-            pq = sig_gate * q + (1 - sig_gate) * projected_context_layer_dropout
-        else:
-            pq = q + projected_context_layer_dropout
-
-        layernormed_context_layer = self.LayerNorm(pq)
+        layernormed_context_layer = self.LayerNorm(q + projected_context_layer_dropout)
         return (layernormed_context_layer, attention_probs) if self.output_attentions else (layernormed_context_layer,)
 
 
 class AlbertDecoderLayer(nn.Module):
-    def __init__(self, albert_layer: AlbertLayer, has_gate: bool = False):
+    def __init__(self, albert_layer: AlbertLayer):
         super().__init__()
 
         self.full_layer_layer_norm = albert_layer.full_layer_layer_norm  # nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps) #todo clone
-        self.attention = AlbertDecoderAttention(albert_layer.attention, has_gate=has_gate)
+        self.attention = AlbertDecoderAttention(albert_layer.attention)
         self.ffn = albert_layer.ffn  # nn.Linear(self.config.hidden_size, self.config.intermediate_size) #todo clone
         self.ffn_output = albert_layer.ffn_output  # nn.Linear(self.config.intermediate_size, self.config.hidden_size) #todo clone
         self.activation = albert_layer.activation  # ACT2FN[self.config.hidden_act]
@@ -275,10 +265,9 @@ class AlbertDecoderLayer(nn.Module):
 
 
 class AlbertDecoderLayerGroup(nn.Module):
-    def __init__(self, layer_groups: AlbertLayerGroup, has_gate=False):
+    def __init__(self, layer_groups: AlbertLayerGroup):
         super().__init__()
-        self.albert_layers = nn.ModuleList(
-            [AlbertDecoderLayer(layer, has_gate=has_gate) for layer in layer_groups.albert_layers])
+        self.albert_layers = nn.ModuleList([AlbertDecoderLayer(layer) for layer in layer_groups.albert_layers])
 
     def forward(self, encoder_states, hidden_states, src_attn_mask=None, tgt_attn_mask=None):
         for layer_index, albert_layer in enumerate(self.albert_layers):
@@ -290,13 +279,13 @@ class AlbertDecoderLayerGroup(nn.Module):
 
 
 class AlbertDecoderTransformer(nn.Module):
-    def __init__(self, albert_transformer: AlbertTransformer, has_gate=False):
+    def __init__(self, albert_transformer: AlbertTransformer):
         super().__init__()
 
         self.config = albert_transformer.config
         self.embedding_hidden_mapping_in = albert_transformer.embedding_hidden_mapping_in
         self.albert_layer_groups = nn.ModuleList(
-            [AlbertDecoderLayerGroup(albert_transformer.albert_layer_groups[i], has_gate=has_gate) for i in
+            [AlbertDecoderLayerGroup(albert_transformer.albert_layer_groups[i]) for i in
              range(self.config.num_hidden_groups)])
 
     def forward(self, encoder_states, hidden_states, src_attn_mask=None, tgt_attn_mask=None):

@@ -24,7 +24,11 @@ with open(input_path, "r") as reader:
 
 print("Getting shared dictionary")
 shared_dict = {}
+first_lang = None
 for s1 in translation_dict.keys():
+    lang = s1.strip().split(" ")[0]
+    if first_lang is None:
+        first_lang = lang
     s2, p1 = translation_dict[s1]
     if s2 not in translation_dict: continue
     if s2 in shared_dict: continue
@@ -33,13 +37,14 @@ for s1 in translation_dict.keys():
 
     if s3.lower().strip() == s1.lower().strip():
         p12 = float(p1) + float(p2)
-        if p12 >= limit:
+        if p12 >= limit and lang == first_lang:
             shared_dict[s1] = (s2, p1, p2, str(p12))
 
 print("Writing shared dictionary")
 with open(output_path, "w") as writer:
     for s1 in shared_dict.keys():
         s2, p1, p2, p12 = shared_dict[s1]
+        s1_lang =
         writer.write("\t".join([s1, s2, p1, p2, p12]))
         writer.write("\n")
 print("Done!")

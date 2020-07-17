@@ -138,7 +138,7 @@ if __name__ == "__main__":
                 writer.write(sentences[sid] + "\t" + sentences[tid] + "\t" + str(score))
                 writer.write("\n")
 
-                print(i + 1, len(src2dst_dict) + len(dst2src_dict), end="\r")
+                print(options.resume_index + i + 1, len(src2dst_dict) + len(dst2src_dict), end="\r")
             except RuntimeError:
                 pass
 

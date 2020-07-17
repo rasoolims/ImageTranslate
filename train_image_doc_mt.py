@@ -285,9 +285,9 @@ class ImageDocTrainer:
         return step
 
     def get_batch_zip(self, img_data_iter, mass_data_iter, mt_train_iter):
-        if img_data_iter is not None:
+        if img_data_iter is not None and mt_train_iter is not None:
             img_data_iter *= 5
-        if mass_data_iter is not None:
+        if mass_data_iter is not None and mt_train_iter is not None:
             mass_data_iter *= 5
         iters = list(chain(*filter(lambda x: x != None, [img_data_iter, mass_data_iter, mt_train_iter])))
         shortest = min(len(l) for l in iters)

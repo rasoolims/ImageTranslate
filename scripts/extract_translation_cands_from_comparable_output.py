@@ -44,7 +44,6 @@ print("Writing shared dictionary")
 with open(output_path, "w") as writer:
     for s1 in shared_dict.keys():
         s2, p1, p2, p12 = shared_dict[s1]
-        s1_lang =
         writer.write("\t".join([s1, s2, p1, p2, p12]))
         writer.write("\n")
 print("Done!")

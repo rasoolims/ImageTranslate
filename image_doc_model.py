@@ -82,7 +82,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             cross_config.num_hidden_layers = num_cross_layers
             self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(cross_config))
             self.image_self_attention = AlbertTransformer(cross_config)
-        self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, config.hidden_size).fill_(0.1), requires_grad=True)
+        self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, config.hidden_size).fill_(2.0), requires_grad=True)
         self.back_mapper = nn.Linear(config.hidden_size, config.embedding_size)
 
     def encode(self, src_inputs, src_mask, src_langs, images=None):

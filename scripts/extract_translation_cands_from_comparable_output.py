@@ -34,7 +34,7 @@ for s1 in translation_dict.keys():
     if s3.lower().strip() == s1.lower().strip():
         p12 = float(p1)+float(p2)
         if p12 <= limit:
-            shared_dict[s1] = (s2, p1, p2, str())
+            shared_dict[s1] = (s2, p1, p2, str(p12))
 
 print("Writing shared dictionary")
 with open(output_path, "w") as writer:

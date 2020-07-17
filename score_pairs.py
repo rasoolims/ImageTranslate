@@ -22,6 +22,8 @@ def get_option_parser():
     parser.add_option("--capacity", dest="total_capacity", help="Batch capacity", type="int", default=2000)
     parser.add_option("--data", dest="data", metavar="FILE", default=None)
     parser.add_option("--output", dest="output", metavar="FILE", default=None)
+    parser.add_option("--resume", dest="resume_index", type="int", default=0)
+    parser.add_option("--end", dest="end_index", type="int", default=-1)
     parser.set_default("model_size", 6)
     return parser
 
@@ -29,12 +31,20 @@ def get_option_parser():
 tok_sen = lambda s: text_processor.tokenize_one_sentence(s)[:512]
 
 
-def create_batches(sen_ids, sentences, src2dst_dict, dst2src_dict, text_processor: TextProcessor):
+def create_batches(sen_ids, sentences, src2dst_dict, dst2src_dict, text_processor: TextProcessor, resume_index=0,
+                   end_index=-1):
     print(len(sen_ids), len(src2dst_dict), len(dst2src_dict))
 
     print("Getting batches...")
+    index = 0
+
     for dct in [src2dst_dict, dst2src_dict]:
         for sid in dct.keys():
+            index += 1
+            if index >= end_index and end_index > 0:
+                break
+            if index <= resume_index:
+                continue
             tids = list(dct[sid])
             source_tokenized = torch.LongTensor(tok_sen(sentences[sid]))
             trans_cands = list(map(lambda i: torch.LongTensor(tok_sen(sentences[i])), tids))
@@ -71,7 +81,9 @@ if __name__ == "__main__":
         sentences = list(sen_ids.keys())
 
         print("Scoring candidates")
-        for i, batch in enumerate(create_batches(sen_ids, sentences, src2dst_dict, dst2src_dict, text_processor)):
+        for i, batch in enumerate(
+                create_batches(sen_ids, sentences, src2dst_dict, dst2src_dict, text_processor, options.resume_index,
+                               options.end_index)):
             try:
                 sid, src_input, tids_all, tgt_inputs_all, src_lang, dst_langs_all = batch
                 cur_capacity = 2 * (max(int(src_input.size(0)), int(tgt_inputs_all.size(1))) ** 3) * int(

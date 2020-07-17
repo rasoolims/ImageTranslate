@@ -82,6 +82,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             cross_config.num_hidden_layers = num_cross_layers
             self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(cross_config))
             self.image_self_attention = AlbertTransformer(cross_config)
+        self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, config.hidden_size).fill_(2.0), requires_grad=True)
         self.back_mapper = nn.Linear(config.hidden_size, config.embedding_size)
 
     def encode(self, src_inputs, src_mask, src_langs, images=None):
@@ -92,15 +93,10 @@ class ImageMassSeq2Seq(MassSeq2Seq):
                 images = images[0]
             if images.device != device:
                 images = images.to(device)
-            if src_mask.device != device:
-                src_mask = src_mask.to(device)
             image_embeddings = self.image_model(images)
             head_mask = [None] * self.image_self_attention.config.num_hidden_layers
             image_attended = self.image_self_attention(hidden_states=image_embeddings, head_mask=head_mask)[0]
-            encoder_states = self.back_mapper(encoder_states[0])
-            imaged_attented_input = self.cross_decoder(encoder_states=image_attended, hidden_states=encoder_states,
-                                                       tgt_attn_mask=src_mask)
-            return imaged_attented_input
+            return encoder_states[0], image_attended
         return encoder_states
 
     def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 1,
@@ -132,24 +128,34 @@ class ImageMassSeq2Seq(MassSeq2Seq):
         tgt_mask = tgt_inputs != pad_idx
         src_pads = src_pads.to(device)
         src_inputs = src_inputs.to(device)
-        src_langs_t = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
-        src_langs_t = src_langs_t.to(device)
+        src_langs_t = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1)).to(device)
         batch_lang = int(src_langs[0])
 
         decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
         output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
-        imaged_attented_input = self.encode(src_inputs, src_pads, src_langs_t, images)
         tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
         if tgt_positions is not None:
             tgt_positions = tgt_positions[:, :-1].to(device)
 
         subseq_mask = future_mask(tgt_mask[:, :-1])
 
-        decoder_output = decoder(encoder_states=imaged_attented_input, input_ids=tgt_inputs[:, :-1],
+        encoder_states, image_attended = self.encode(src_inputs, src_pads, src_langs_t, images)
+
+        text_decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
                                  input_ids_mask=tgt_mask[:, :-1], src_attn_mask=src_pads,
                                  tgt_attn_mask=subseq_mask,
                                  position_ids=tgt_positions,
                                  token_type_ids=tgt_langs[:, :-1])
+        image_decoder_output = decoder(encoder_states=image_attended, input_ids=tgt_inputs[:, :-1],
+                                      input_ids_mask=tgt_mask[:, :-1],
+                                      tgt_attn_mask=subseq_mask,
+                                      position_ids=tgt_positions,
+                                      token_type_ids=tgt_langs[:, :-1])
+        eps = 1e-7
+        sig_gate = torch.sigmoid(self.multimodal_attention_gate + eps)
+        decoder_output = sig_gate * text_decoder_output + (1 - sig_gate) * image_decoder_output
+
+
         diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
         tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
         non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]

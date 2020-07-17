@@ -8,6 +8,9 @@ directions.
 
 input_path = os.path.abspath(sys.argv[1])
 output_path = os.path.abspath(sys.argv[2])
+limit = -13 # lowest possible value for sum of log probs
+if len(sys.argv)>3:
+    limit = float(sys.argv[3])
 
 translation_dict = {}
 
@@ -29,7 +32,9 @@ for s1 in translation_dict.keys():
     s3, p2 = translation_dict[s2]
 
     if s3.lower().strip() == s1.lower().strip():
-        shared_dict[s1] = (s2, p1, p2, str(float(p1)+float(p2)))
+        p12 = float(p1)+float(p2)
+        if p12 <= limit:
+            shared_dict[s1] = (s2, p1, p2, str())
 
 print("Writing shared dictionary")
 with open(output_path, "w") as writer:

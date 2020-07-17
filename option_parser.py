@@ -61,12 +61,6 @@ def get_img_options_parser():
     parser.add_option("--image", dest="image_dir", help="Path to the image files", metavar="FILE", default=None)
     parser.add_option("--img_capacity", dest="img_capacity", help="Batch capacity", type="int", default=50)
     parser.add_option("--max-image", dest="max_image", help="Maximum number of images in batch", type="int", default=32)
-    parser.add_option("--share-decoder", action="store_true", dest="share_decoder", help="Share image and text decoder",
-                      default=False)
-    parser.add_option("--caption", action="store_true", dest="captioning",
-                      help="ImageCaptionSeq2Seq instead of doc model", default=False)
-    parser.add_option("--caption-mass", action="store_true", dest="caption_mass",
-                      help="ImageMASSSeq2Seq instead of doc model", default=False)
     parser.add_option("--img-depth", dest="resnet_depth", help="1 (18), 2 (34), 3 (50), 4 (101), 5 (152)", type="int",
                       default=1)
     parser.add_option("--cross-depth", dest="cross_depth", help="Batch capacity", type="int", default=2)

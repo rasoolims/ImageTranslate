@@ -3,13 +3,10 @@ import tempfile
 import unittest
 
 import torch
-from torchvision import transforms
 
-import binarize_image_doc_data
 import create_batches
 from albert_seq2seq import AlbertSeq2Seq
-from dataset import TextDataset, ImageDocDataset
-from image_doc_model import ImageDocSeq2Seq
+from dataset import TextDataset
 from lm import LM
 from textprocessor import TextProcessor
 
@@ -100,35 +97,6 @@ class TestModel(unittest.TestCase):
 
             dataset.__getitem__(69)
             assert len(dataset.current_cache) == 2
-
-    def test_image_data_model(self):
-        transform = transforms.Compose([  # [1]
-            transforms.Resize(256),  # [2]
-            transforms.CenterCrop(224),  # [3]
-            transforms.ToTensor(),  # [4]
-            transforms.Normalize(  # [5]
-                mean=[0.485, 0.456, 0.406],  # [6]
-                std=[0.229, 0.224, 0.225]  # [7]
-            )])
-
-        path_dir_name = os.path.dirname(os.path.realpath(__file__))
-        text_data_path = os.path.join(path_dir_name, "sample.txt")
-        data_path = os.path.join(path_dir_name, "image_jsons")
-
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            processor = TextProcessor()
-            processor.train_tokenizer([text_data_path], vocab_size=1000, to_save_dir=tmpdirname,
-                                      languages={"<mzn>": 0, "<glk>": 1, "<en>": 2})
-            binarize_image_doc_data.write(text_processor=processor, output_file=os.path.join(tmpdirname, "image.bin"),
-                                          json_dir=data_path, files_to_use="mzn,glk", root_img_dir=path_dir_name)
-            image_data = ImageDocDataset(os.getcwd(), os.path.join(tmpdirname, "image.bin"), transform,
-                                         max_capacity=1, text_processor=processor, max_img_per_batch=100)
-            assert len(image_data[4]) == 9
-            assert len(image_data) == 276
-
-            lm = LM(text_processor=processor, size=4)
-            image_seq2seq = ImageDocSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
-            output = image_seq2seq(image_data[4])
 
 
 if __name__ == '__main__':

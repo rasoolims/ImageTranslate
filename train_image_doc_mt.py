@@ -17,7 +17,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torchvision import transforms
 
 import dataset
-from image_doc_model import ImageDocSeq2Seq, ImageCaptionSeq2Seq, ImageMassSeq2Seq
+from image_doc_model import ImageMassSeq2Seq
 from lm import LM
 from loss import SmoothedNLLLoss
 from option_parser import get_img_options_parser
@@ -353,17 +353,13 @@ class ImageDocTrainer:
         if not os.path.exists(options.model_path):
             os.makedirs(options.model_path)
 
-        # One mode is possible for captioning
-        assert not (options.captioning and options.caption_mass)
-
-        images_class = ImageCaptionSeq2Seq if options.captioning else ImageMassSeq2Seq if options.caption_mass else ImageDocSeq2Seq
         text_processor = TextProcessor(options.tokenizer_path)
         num_processors = max(torch.cuda.device_count(), 1)
 
         if options.pretrained_path is not None:
-            mt_model, lm = images_class.load(options.pretrained_path, tok_dir=options.tokenizer_path,
-                                             sep_decoder=options.sep_encoder, share_decoder=options.share_decoder,
-                                             resnet_depth=options.resnet_depth, lang_dec=options.lang_decoder)
+            mt_model, lm = ImageMassSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path,
+                                                 sep_decoder=options.sep_encoder, resnet_depth=options.resnet_depth,
+                                                 lang_dec=options.lang_decoder)
         else:
             if options.lm_path is None:
                 lm = LM(text_processor=text_processor, size=options.model_size)
@@ -371,10 +367,11 @@ class ImageDocTrainer:
                 lm = LM.load(options.lm_path)
 
             decoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
-            mt_model = images_class(config=lm.config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
-                                    text_processor=lm.text_processor, checkpoint=options.checkpoint,
-                                    share_decoder=options.share_decoder, resnet_depth=options.resnet_depth,
-                                    lang_dec=options.lang_decoder, num_cross_layers=options.cross_depth)
+            mt_model = ImageMassSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder,
+                                        output_layer=lm.masked_lm,
+                                        text_processor=lm.text_processor, checkpoint=options.checkpoint,
+                                        resnet_depth=options.resnet_depth, lang_dec=options.lang_decoder,
+                                        num_cross_layers=options.cross_depth)
 
         transform = transforms.Compose([  # [1]
             transforms.Resize(256),  # [2]
@@ -401,13 +398,11 @@ class ImageDocTrainer:
                                   max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
                                   fp16=options.fp16)
 
-        dataset_class = dataset.ImageCaptionDataset if options.caption_mass or options.captioning else dataset.ImageDocDataset
-
         pin_memory = torch.cuda.is_available()
         img_train_loader = None
         langs = set()
-        img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset_class, img_train_loader, langs, mt_model,
-                                                          num_batches, options, pin_memory, transform)
+        img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
+                                                          langs, mt_model, num_batches, options, pin_memory, transform)
 
         mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
         if options.mass_train_path is not None:
@@ -450,9 +445,10 @@ class ImageDocTrainer:
         lang_directions = ImageDocTrainer.get_lang_dirs(langs)
 
         print("Reloading image train data with new batch size...")
-        if options.finetune_step > 0 and options.caption_mass and img_train_loader is not None:
-            img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset_class, img_train_loader, langs,
-                                                              mt_model, num_batches, options, pin_memory, transform, 2)
+        if options.finetune_step > 0 and img_train_loader is not None:
+            img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
+                                                              langs, mt_model, num_batches, options, pin_memory,
+                                                              transform, 2)
         print("Reloading image train data with new batch size done!")
 
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:

@@ -411,7 +411,7 @@ class ImageDocDataset(Dataset):
 
 
 class ImageCaptionDataset(Dataset):
-    def __init__(self, root_img_dir: str, data_bin_files: List[str], transform, max_capacity: int,
+    def __init__(self, root_img_dir: str, data_bin_file: str, transform, max_capacity: int,
                  text_processor: TextProcessor, max_img_per_batch: int):
         self.transform = transform
         self.pad_idx = text_processor.pad_token_id()
@@ -427,45 +427,21 @@ class ImageCaptionDataset(Dataset):
         print("Start", datetime.datetime.now())
         cur_batch, cur_imgs = [], []
         cur_max_len = 0
-        self.unique_images = []
-        img_paths = dict()
-        for data_bin_file in data_bin_files:
-            with open(data_bin_file, "rb") as fp:
-                unique_images, captions = marshal.load(fp)
-                lang_id = text_processor.id2token(captions[0][1][0])
-                self.lang_ids.add(int(captions[0][1][0]))
-                self.lang = text_processor.languages[lang_id] if lang_id in text_processor.languages else 0
-                for caption_info in captions:
-                    img_id, caption = caption_info
-                    image_path = unique_images[img_id]
-                    if image_path not in img_paths:
-                        img_paths[image_path] = len(image_path)
-                        self.unique_images.append(image_path)
-                    image_id = img_paths[image_path]
-                    cur_batch.append(caption)
-                    cur_imgs.append(image_id)
-                    cur_max_len = max(cur_max_len, len(caption))
-                    batch_capacity_size = 2 * (cur_max_len ** 3) * len(cur_batch)
-                    if (len(cur_imgs) > max_img_per_batch or batch_capacity_size > max_capacity) and len(
-                            cur_batch[:-1]) >= num_gpu and len(cur_batch) > 1:
-                        batch_tensor = pad_sequence(list(map(lambda t: torch.LongTensor(t), cur_batch[:-1])),
-                                                    batch_first=True, padding_value=self.pad_idx)
-                        pads = batch_tensor != self.pad_idx
-                        pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
-                        pindices = torch.nonzero(~pads)
-                        for (r, c) in pindices:
-                            pad_indices[r] = min(pad_indices[r], int(c))
-
-                        self.batches.append((batch_tensor, pads, torch.LongTensor(pad_indices)))
-                        self.image_batches.append(cur_imgs[:-1])
-
-                        cur_batch = [cur_batch[-1]]
-                        cur_imgs = [cur_imgs[-1]]
-                        cur_max_len = len(cur_batch[0])
-
-                if len(cur_batch) > 0:
-                    batch_tensor = pad_sequence(list(map(lambda t: torch.LongTensor(t), cur_batch)), batch_first=True,
-                                                padding_value=self.pad_idx)
+        with open(data_bin_file, "rb") as fp:
+            self.unique_images, captions = marshal.load(fp)
+            lang_id = text_processor.id2token(captions[0][1][0])
+            self.lang_ids.add(int(captions[0][1][0]))
+            self.lang = text_processor.languages[lang_id] if lang_id in text_processor.languages else 0
+            for caption_info in captions:
+                image_id, caption = caption_info
+                cur_batch.append(caption)
+                cur_imgs.append(image_id)
+                cur_max_len = max(cur_max_len, len(caption))
+                batch_capacity_size = 2 * (cur_max_len ** 3) * len(cur_batch)
+                if (len(cur_imgs) > max_img_per_batch or batch_capacity_size > max_capacity) and len(
+                        cur_batch[:-1]) >= num_gpu and len(cur_batch) > 1:
+                    batch_tensor = pad_sequence(list(map(lambda t: torch.LongTensor(t), cur_batch[:-1])),
+                                                batch_first=True, padding_value=self.pad_idx)
                     pads = batch_tensor != self.pad_idx
                     pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
                     pindices = torch.nonzero(~pads)
@@ -473,30 +449,26 @@ class ImageCaptionDataset(Dataset):
                         pad_indices[r] = min(pad_indices[r], int(c))
 
                     self.batches.append((batch_tensor, pads, torch.LongTensor(pad_indices)))
-                    self.image_batches.append(cur_imgs)
+                    self.image_batches.append(cur_imgs[:-1])
+
+                    cur_batch = [cur_batch[-1]]
+                    cur_imgs = [cur_imgs[-1]]
+                    cur_max_len = len(cur_batch[0])
+
+            if len(cur_batch) > 0:
+                batch_tensor = pad_sequence(list(map(lambda t: torch.LongTensor(t), cur_batch)), batch_first=True,
+                                            padding_value=self.pad_idx)
+                pads = batch_tensor != self.pad_idx
+                pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
+                pindices = torch.nonzero(~pads)
+                for (r, c) in pindices:
+                    pad_indices[r] = min(pad_indices[r], int(c))
+
+                self.batches.append((batch_tensor, pads, torch.LongTensor(pad_indices)))
+                self.image_batches.append(cur_imgs)
 
         print("Loaded %d image batches of %d unique images!" % (len(self.batches), len(self.unique_images)))
         print("End", datetime.datetime.now())
-
-    def rebuild_batch_size(self, denom=1):
-        new_batches, new_img_batches = [], []
-        for batch, img_batch in zip(self.batches, self.image_batches):
-            if len(batch[-1]) < denom:
-                new_batches.append(batch)
-                new_img_batches.append(img_batch)
-            else:
-                split_size = int(math.ceil(len(batch[-1]) / 2))
-                batch_tensors = torch.split(batch[0], split_size)
-                pads_split = torch.split(batch[1], split_size)
-                pad_indices_spl = torch.split(batch[2], split_size)
-                imgs_split = torch.split(torch.LongTensor(img_batch), split_size)
-                assert len(batch_tensors) == len(pads_split) == len(pad_indices_spl) == len(imgs_split)
-                for i in range(len(imgs_split)):
-                    new_img_batches.append(list(imgs_split[i]))
-                    new_batches.append((batch_tensors[i], pads_split[i], pad_indices_spl[i]))
-
-        self.batches = new_batches
-        self.image_batches = new_img_batches
 
     def __len__(self):
         return len(self.batches)

@@ -404,11 +404,10 @@ class ImageDocTrainer:
         dataset_class = dataset.ImageCaptionDataset if options.caption_mass or options.captioning else dataset.ImageDocDataset
 
         pin_memory = torch.cuda.is_available()
+        img_train_loader = None
         langs = set()
-        img_train_loader, img_data = None, None
-        if options.step > 0:
-            img_train_loader, img_data = ImageDocTrainer.get_img_loader(collator, dataset_class, langs, mt_model,
-                                                                        num_batches, options, pin_memory, transform)
+        img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset_class, img_train_loader, langs, mt_model,
+                                                          num_batches, options, pin_memory, transform)
 
         mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
         if options.mass_train_path is not None:
@@ -450,19 +449,11 @@ class ImageDocTrainer:
 
         lang_directions = ImageDocTrainer.get_lang_dirs(langs)
 
-        if options.finetune_step > 0 and (options.caption_mass or options.captioning):
-            print("Reloading image train data with new batch size...")
-            if img_train_loader is None and options.caption_mass:
-                img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset_class, langs,
-                                                                  mt_model, num_batches, options, pin_memory, transform,
-                                                                  2 if options.caption_mass else 1)
-            elif options.caption_mass:
-                img_data.rebuild_batch_size(2)
-                data_utils.DataLoader(img_data, batch_size=num_batches, shuffle=True,
-                                      pin_memory=pin_memory,
-                                      collate_fn=collator)
-
-            print("Reloading image train data with new batch size done!")
+        print("Reloading image train data with new batch size...")
+        if options.finetune_step > 0 and options.caption_mass and img_train_loader is not None:
+            img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset_class, img_train_loader, langs,
+                                                              mt_model, num_batches, options, pin_memory, transform, 2)
+        print("Reloading image train data with new batch size done!")
 
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
             print("finetune epoch", finetune_epoch)
@@ -555,25 +546,26 @@ class ImageDocTrainer:
         return mass_train_data, mass_train_loader
 
     @staticmethod
-    def get_img_loader(collator, dataset_class, langs, mt_model, num_batches, options, pin_memory,
+    def get_img_loader(collator, dataset_class, img_train_loader, langs, mt_model, num_batches, options, pin_memory,
                        transform, denom=1):
         if options.train_path is not None:
+            img_train_loader = []
             train_paths = options.train_path.split(",")
-            train_data = dataset_class(root_img_dir=options.image_dir,
-                                       data_bin_files=train_paths, transform=transform,
-                                       max_capacity=int(options.img_capacity / denom),
-                                       text_processor=mt_model.text_processor,
-                                       max_img_per_batch=options.max_image)
-            tl = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True,
-                                       pin_memory=pin_memory,
-                                       collate_fn=collator)
-            for lang1 in train_data.lang_ids:
-                langs.add(lang1)
+            for train_path in train_paths:
+                train_data = dataset_class(root_img_dir=options.image_dir,
+                                           data_bin_file=train_path, transform=transform,
+                                           max_capacity=int(options.img_capacity / denom),
+                                           text_processor=mt_model.text_processor,
+                                           max_img_per_batch=options.max_image)
+                print(train_path, "Length of training data", len(train_data))
+                tl = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True,
+                                           pin_memory=pin_memory,
+                                           collate_fn=collator)
+                img_train_loader.append(tl)
 
-            print(train_paths, "Length of training data", len(train_data))
-
-            return [tl], train_data
-        return None
+                for lang1 in train_data.lang_ids:
+                    langs.add(lang1)
+        return img_train_loader
 
 
 if __name__ == "__main__":

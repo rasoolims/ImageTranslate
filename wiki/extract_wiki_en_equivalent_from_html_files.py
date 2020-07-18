@@ -24,7 +24,7 @@ with open(output_file, "w") as fp:
             fp.write(title + "\t" + translation + "\n")
             num_written += 1
             if (f + 1) % 10 == 0:
-                print(f + 1, "/", len(dirs), "-> wrote", num_written)  # , end="\r")
+                print(f + 1, "/", len(dirs), "-> wrote", num_written, end="\r")
         except:
             pass
 print("\nWrote", num_written)

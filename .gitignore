@@ -6,3 +6,4 @@
 .DS_Store
 pytorch_lamb
 tests/images
+*.npz

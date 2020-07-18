@@ -360,7 +360,7 @@ class ImageDocTrainer:
         if options.pretrained_path is not None:
             mt_model, lm = ImageMassSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path,
                                                  sep_decoder=options.sep_encoder, resnet_depth=options.resnet_depth,
-                                                 lang_dec=options.lang_decoder)
+                                                 freeze_image=options.freeze, lang_dec=options.lang_decoder,image_dim=options.img_dim)
         else:
             if options.lm_path is None:
                 lm = LM(text_processor=text_processor, size=options.model_size)
@@ -369,9 +369,9 @@ class ImageDocTrainer:
 
             decoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
             mt_model = ImageMassSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder,
-                                        output_layer=lm.masked_lm,
+                                        output_layer=lm.masked_lm, freeze_image=options.freeze,
                                         text_processor=lm.text_processor, checkpoint=options.checkpoint,
-                                        resnet_depth=options.resnet_depth, lang_dec=options.lang_decoder)
+                                        resnet_depth=options.resnet_depth, lang_dec=options.lang_decoder,image_dim=options.img_dim)
 
         transform = transforms.Compose([  # [1]
             transforms.Resize(256),  # [2]
@@ -552,6 +552,7 @@ class ImageDocTrainer:
                                            data_bin_file=train_path, transform=transform,
                                            max_capacity=int(options.img_capacity / denom),
                                            text_processor=mt_model.text_processor,
+                                           freeze=mt_model.freeze,
                                            max_img_per_batch=options.max_image)
                 print(train_path, "Length of training data", len(train_data))
                 tl = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True,

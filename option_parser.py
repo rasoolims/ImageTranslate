@@ -48,6 +48,7 @@ def get_img_options_parser():
     parser.add_option("--nll", action="store_true", dest="nll_loss", help="Use NLL loss instead of smoothed NLL loss",
                       default=False)
     parser.add_option("--fp16", action="store_true", dest="fp16", default=False)
+    parser.add_option("--freeze", action="store_true", dest="freeze", help="Image frozen (use npz)", default=False)
     parser.set_default("batch", 20000)
     parser.add_option("--dev_mt", dest="mt_dev_path",
                       help="Path to the MT dev data pickle files (SHOULD NOT BE USED IN UNSUPERVISED SETTING)",
@@ -60,6 +61,7 @@ def get_img_options_parser():
     parser.add_option("--mass_train", dest="mass_train_path", metavar="FILE", default=None)
     parser.add_option("--image", dest="image_dir", help="Path to the image files", metavar="FILE", default=None)
     parser.add_option("--img_capacity", dest="img_capacity", help="Batch capacity", type="int", default=50)
+    parser.add_option("--img_dim", dest="img_dim", help="Image grid dimension", type="int", default=2048)
     parser.add_option("--max-image", dest="max_image", help="Maximum number of images in batch", type="int", default=32)
     parser.add_option("--img-depth", dest="resnet_depth", help="1 (18), 2 (34), 3 (50), 4 (101), 5 (152)", type="int",
                       default=1)

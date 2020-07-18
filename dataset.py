@@ -6,6 +6,7 @@ import math
 import os
 from typing import Dict, List, Tuple
 
+import numpy as np
 import torch
 from PIL import Image
 from torch.nn.utils.rnn import pad_sequence
@@ -239,10 +240,11 @@ class MassDataset(Dataset):
 
 class ImageCaptionDataset(Dataset):
     def __init__(self, root_img_dir: str, data_bin_file: str, transform, max_capacity: int,
-                 text_processor: TextProcessor, max_img_per_batch: int):
+                 text_processor: TextProcessor, max_img_per_batch: int, freeze: bool):
         self.transform = transform
         self.pad_idx = text_processor.pad_token_id()
         self.batches = []
+        self.use_npz = freeze
         self.root_img_dir = root_img_dir
         max_capacity *= 1000000
         self.image_cache = {}
@@ -309,14 +311,18 @@ class ImageCaptionDataset(Dataset):
                     k = self.image_queue.pop(0)
                     del self.image_cache[k]
                 image_path = self.unique_images[image_id]
-                try:
-                    with Image.open(os.path.join(self.root_img_dir, image_path)) as im:
-                        # make sure not to deal with rgba or grayscale images.
-                        image = self.transform(im.convert("RGB"))
-                        im.close()
-                except:
-                    print("Corrupted image", image_path)
-                    image = torch.zeros(3, 224, 224)
+                if self.use_npz:
+                    image_path = os.path.join(self.root_img_dir, image_path[:image_path.rfind(".")] + ".npz")
+                    image = torch.Tensor(np.load(image_path)["grid"])
+                else:
+                    try:
+                        with Image.open(os.path.join(self.root_img_dir, image_path)) as im:
+                            # make sure not to deal with rgba or grayscale images.
+                            image = self.transform(im.convert("RGB"))
+                            im.close()
+                    except:
+                        print("Corrupted image", image_path)
+                        image = torch.zeros(3, 224, 224)
                 self.image_cache[image_id] = image
                 self.image_queue.append(image_id)
             image_batch.append(self.image_cache[image_id])

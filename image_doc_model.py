@@ -35,58 +35,64 @@ class ModifiedResnet(models.ResNet):
         return out_norm
 
 
-def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: int = 1):
-    if depth == 1:
-        model = models.resnet18(pretrained=True)
-    elif depth == 2:
-        model = models.resnet34(pretrained=True)
-    elif depth == 3:
-        model = models.resnet50(pretrained=True)
-    elif depth == 4:
-        model = models.resnet101(pretrained=True)
-    elif depth == 5:
-        model = models.resnet152(pretrained=True)
+class SimpleImageModel(nn.Module):
+    def __init__(self, embed_dim, image_dim=2048, dropout=0.1):
+        super(SimpleImageModel, self).__init__()
+        self.fc = torch.nn.Linear(in_features=image_dim, out_features=embed_dim, bias=False)
+        self.location_embedding = nn.Embedding(49, embed_dim)
+        self.layer_norm = torch.nn.LayerNorm(embed_dim, eps=1e-12)
+        self.dropout = dropout
 
-    model.__class__ = ModifiedResnet
-    model.dropout = dropout
-    model.layer_norm = torch.nn.LayerNorm(embed_dim, eps=1e-12)
+    def forward(self, image):
+        grid_outputs = F.relu(self.fc(image))
+        location_embedding = self.location_embedding.weight.unsqueeze(0)
+        out = grid_outputs + location_embedding
+        out_norm = self.layer_norm(out)
+        if self.dropout > 0:
+            out_norm = F.dropout(out_norm, p=self.dropout)
+        return out_norm
 
-    if freeze:
-        for param in model.parameters():
-            param.requires_grad = False
 
-    current_weight = model.state_dict()["fc.weight"]
-    model.fc = torch.nn.Linear(in_features=current_weight.size()[1], out_features=embed_dim, bias=False)
-    model.fc.train()
+def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: int = 1, image_dim=2048):
+    if not freeze:
+        if depth == 1:
+            model = models.resnet18(pretrained=True)
+        elif depth == 2:
+            model = models.resnet34(pretrained=True)
+        elif depth == 3:
+            model = models.resnet50(pretrained=True)
+        elif depth == 4:
+            model = models.resnet101(pretrained=True)
+        elif depth == 5:
+            model = models.resnet152(pretrained=True)
 
-    # Learning embedding of each CNN region.
-    model.location_embedding = nn.Embedding(49, embed_dim)
-    model.location_embedding.train(True)
+        model.__class__ = ModifiedResnet
+        model.dropout = dropout
+        model.layer_norm = torch.nn.LayerNorm(embed_dim, eps=1e-12)
 
-    return model
+        current_weight = model.state_dict()["fc.weight"]
+        model.fc = torch.nn.Linear(in_features=current_weight.size()[1], out_features=embed_dim, bias=False)
+
+        # Learning embedding of each CNN region.
+        model.location_embedding = nn.Embedding(49, embed_dim)
+
+        model.train()
+        return model
+
+    else:
+        return SimpleImageModel(embed_dim, image_dim=image_dim)
 
 
 class ImageMassSeq2Seq(MassSeq2Seq):
     def __init__(self, config: AlbertConfig, encoder: AlbertModel, decoder, output_layer: AlbertMLMHead,
                  text_processor: TextProcessor, checkpoint: int = 5, freeze_image: bool = False,
-                 resnet_depth: int = 1, lang_dec: bool = False):
+                 resnet_depth: int = 1, lang_dec: bool = False, image_dim=2048):
         super(ImageMassSeq2Seq, self).__init__(config, encoder, decoder, output_layer, text_processor, lang_dec,
                                                checkpoint)
+        self.freeze = freeze_image
         self.image_model: ModifiedResnet = init_net(embed_dim=config.hidden_size, dropout=config.hidden_dropout_prob,
-                                                    freeze=freeze_image, depth=resnet_depth)
+                                                    freeze=freeze_image, depth=resnet_depth, image_dim=image_dim)
         self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, config.hidden_size).fill_(0.1), requires_grad=True)
-
-    def encode(self, src_inputs, src_mask, src_langs, images=None):
-        encoder_states = super().encode(src_inputs, src_mask, src_langs)
-        if images is not None:
-            device = self.encoder.embeddings.word_embeddings.weight.device
-            if isinstance(images, list):
-                images = images[0]
-            if images.device != device:
-                images = images.to(device)
-            image_embeddings = self.image_model(images)
-            return encoder_states[0], image_embeddings
-        return encoder_states
 
     def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 1,
                 tgt_positions=None, batch=None, log_softmax: bool = False, **kwargs):
@@ -128,7 +134,8 @@ class ImageMassSeq2Seq(MassSeq2Seq):
 
         subseq_mask = future_mask(tgt_mask[:, :-1])
 
-        encoder_states, image_embeddings = self.encode(src_inputs, src_pads, src_langs_t, images)
+        image_embeddings = self.image_model(images)
+        encoder_states = self.encode(src_inputs, src_pads, src_langs_t)[0]
 
         text_decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
                                       input_ids_mask=tgt_mask[:, :-1], src_attn_mask=src_pads,
@@ -153,14 +160,16 @@ class ImageMassSeq2Seq(MassSeq2Seq):
         return outputs
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool, resnet_depth: int = 1, lang_dec: bool = False):
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool, resnet_depth: int = 1, lang_dec: bool = False,
+             freeze_image=False, image_dim=2048):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
             lm = LM(text_processor=text_processor, config=config)
             decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
             mt_model = ImageMassSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder,
-                                        output_layer=lm.masked_lm, resnet_depth=resnet_depth,
-                                        text_processor=lm.text_processor, checkpoint=checkpoint, lang_dec=lang_dec)
+                                        output_layer=lm.masked_lm, resnet_depth=resnet_depth, freeze_image=freeze_image,
+                                        text_processor=lm.text_processor, checkpoint=checkpoint, lang_dec=lang_dec,
+                                        image_dim=2048)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm

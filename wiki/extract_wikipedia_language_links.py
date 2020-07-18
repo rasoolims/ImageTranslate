@@ -1,5 +1,4 @@
-import os
-from optparse import OptionParser
+import errno
 import os
 import signal
 import time
@@ -83,7 +82,7 @@ if __name__ == "__main__":
                     break
                 except:
                     if t == total_tries - 1:
-                        print("\nunable to download\t" + output_path + "\t" + fixed_url+"\n")
+                        print("\nunable to download\t" + output_path + "\t" + fixed_url + "\n")
                     time.sleep(1)
                     pass
 

@@ -371,8 +371,7 @@ class ImageDocTrainer:
             mt_model = ImageMassSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder,
                                         output_layer=lm.masked_lm,
                                         text_processor=lm.text_processor, checkpoint=options.checkpoint,
-                                        resnet_depth=options.resnet_depth, lang_dec=options.lang_decoder,
-                                        num_cross_layers=options.cross_depth)
+                                        resnet_depth=options.resnet_depth, lang_dec=options.lang_decoder)
 
         transform = transforms.Compose([  # [1]
             transforms.Resize(256),  # [2]

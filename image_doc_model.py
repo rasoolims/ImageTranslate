@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torchvision import models
 from transformers.modeling_albert import *
 
-from albert_seq2seq import MassSeq2Seq, future_mask, AlbertDecoderTransformer
+from albert_seq2seq import MassSeq2Seq, future_mask
 from lm import LM
 from textprocessor import TextProcessor
 
@@ -69,21 +69,12 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
 class ImageMassSeq2Seq(MassSeq2Seq):
     def __init__(self, config: AlbertConfig, encoder: AlbertModel, decoder, output_layer: AlbertMLMHead,
                  text_processor: TextProcessor, checkpoint: int = 5, freeze_image: bool = False,
-                 resnet_depth: int = 1, lang_dec: bool = False, num_cross_layers: int = None):
+                 resnet_depth: int = 1, lang_dec: bool = False):
         super(ImageMassSeq2Seq, self).__init__(config, encoder, decoder, output_layer, text_processor, lang_dec,
                                                checkpoint)
-        self.image_model: ModifiedResnet = init_net(embed_dim=config.embedding_size, dropout=config.hidden_dropout_prob,
+        self.image_model: ModifiedResnet = init_net(embed_dim=config.hidden_size, dropout=config.hidden_dropout_prob,
                                                     freeze=freeze_image, depth=resnet_depth)
-        if num_cross_layers is None:
-            self.image_self_attention = AlbertTransformer(config)
-            self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(config))
-        else:
-            cross_config = copy.deepcopy(config)
-            cross_config.num_hidden_layers = num_cross_layers
-            self.cross_decoder = AlbertDecoderTransformer(AlbertTransformer(cross_config))
-            self.image_self_attention = AlbertTransformer(cross_config)
         self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, config.hidden_size).fill_(0.1), requires_grad=True)
-        self.back_mapper = nn.Linear(config.hidden_size, config.embedding_size)
 
     def encode(self, src_inputs, src_mask, src_langs, images=None):
         encoder_states = super().encode(src_inputs, src_mask, src_langs)
@@ -94,9 +85,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             if images.device != device:
                 images = images.to(device)
             image_embeddings = self.image_model(images)
-            head_mask = [None] * self.image_self_attention.config.num_hidden_layers
-            image_attended = self.image_self_attention(hidden_states=image_embeddings, head_mask=head_mask)[0]
-            return encoder_states[0], image_attended
+            return encoder_states[0], image_embeddings
         return encoder_states
 
     def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 1,
@@ -139,22 +128,21 @@ class ImageMassSeq2Seq(MassSeq2Seq):
 
         subseq_mask = future_mask(tgt_mask[:, :-1])
 
-        encoder_states, image_attended = self.encode(src_inputs, src_pads, src_langs_t, images)
+        encoder_states, image_embeddings = self.encode(src_inputs, src_pads, src_langs_t, images)
 
         text_decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
-                                 input_ids_mask=tgt_mask[:, :-1], src_attn_mask=src_pads,
-                                 tgt_attn_mask=subseq_mask,
-                                 position_ids=tgt_positions,
-                                 token_type_ids=tgt_langs[:, :-1])
-        image_decoder_output = decoder(encoder_states=image_attended, input_ids=tgt_inputs[:, :-1],
-                                      input_ids_mask=tgt_mask[:, :-1],
+                                      input_ids_mask=tgt_mask[:, :-1], src_attn_mask=src_pads,
                                       tgt_attn_mask=subseq_mask,
                                       position_ids=tgt_positions,
                                       token_type_ids=tgt_langs[:, :-1])
+        image_decoder_output = decoder(encoder_states=image_embeddings, input_ids=tgt_inputs[:, :-1],
+                                       input_ids_mask=tgt_mask[:, :-1],
+                                       tgt_attn_mask=subseq_mask,
+                                       position_ids=tgt_positions,
+                                       token_type_ids=tgt_langs[:, :-1])
         eps = 1e-7
         sig_gate = torch.sigmoid(self.multimodal_attention_gate + eps)
         decoder_output = sig_gate * text_decoder_output + (1 - sig_gate) * image_decoder_output
-
 
         diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
         tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)

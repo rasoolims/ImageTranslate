@@ -63,6 +63,5 @@ def get_img_options_parser():
     parser.add_option("--max-image", dest="max_image", help="Maximum number of images in batch", type="int", default=32)
     parser.add_option("--img-depth", dest="resnet_depth", help="1 (18), 2 (34), 3 (50), 4 (101), 5 (152)", type="int",
                       default=1)
-    parser.add_option("--cross-depth", dest="cross_depth", help="Batch capacity", type="int", default=2)
     parser.set_default("model_size", 6)
     return parser

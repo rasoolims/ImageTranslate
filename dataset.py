@@ -4,6 +4,7 @@ import logging
 import marshal
 import math
 import os
+import random
 from typing import Dict, List, Tuple
 
 import torch
@@ -250,6 +251,7 @@ class ImageCaptionDataset(Dataset):
         self.lang_ids = set()
         self.image_queue = []
         num_gpu = torch.cuda.device_count()
+        self.all_captions = []
 
         print("Start", datetime.datetime.now())
         cur_batch, cur_imgs = [], []
@@ -262,6 +264,7 @@ class ImageCaptionDataset(Dataset):
             for caption_info in captions:
                 image_id, caption = caption_info
                 cur_batch.append(caption)
+                self.all_captions.append(torch.LongTensor(caption))
                 cur_imgs.append(image_id)
                 cur_max_len = max(cur_max_len, len(caption))
                 batch_capacity_size = 2 * (cur_max_len ** 3) * len(cur_batch)
@@ -294,7 +297,8 @@ class ImageCaptionDataset(Dataset):
                 self.batches.append((batch_tensor, pads, torch.LongTensor(pad_indices)))
                 self.image_batches.append(cur_imgs)
 
-        print("Loaded %d image batches of %d unique images!" % (len(self.batches), len(self.unique_images)))
+        print("Loaded %d image batches of %d unique images and %d all captions!" % (
+            len(self.batches), len(self.unique_images), len(self.all_captions)))
         print("End", datetime.datetime.now())
 
     def __len__(self):
@@ -321,8 +325,12 @@ class ImageCaptionDataset(Dataset):
                 self.image_queue.append(image_id)
             image_batch.append(self.image_cache[image_id])
 
-        return {"images": torch.stack(image_batch), "captions": batch, "pad_idx": pad_indices,
-                "langs": torch.LongTensor([self.lang] * len(batch)), "caption_mask": caption_mask}
+        # We choose 30 fixed negative samples for all batch items.
+        neg_samples = pad_sequence(random.sample(self.all_captions, min(len(self.all_captions), 30)), batch_first=True,
+                                   padding_value=self.pad_idx)
+        neg_mask = (neg_samples != self.pad_idx)
+        return {"images": torch.stack(image_batch), "captions": batch, "pad_idx": pad_indices, "neg": neg_samples,
+                "langs": torch.LongTensor([self.lang] * len(batch)), "caption_mask": caption_mask, "neg_mask": neg_mask}
 
 
 class TextCollator(object):

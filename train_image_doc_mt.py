@@ -83,18 +83,9 @@ class ImageDocTrainer:
             for batch in batches:
                 self.optimizer.zero_grad()
                 is_img_batch = isinstance(batch, list) and "captions" in batch[0]
-                is_img_caption_mass = is_img_batch and isinstance(model, ImageMassSeq2Seq)
                 is_mass_batch = not is_img_batch and "dst_texts" not in batch
                 try:
-                    if is_img_batch and not is_img_caption_mass:  # Image data
-                        if len(batch) < self.num_gpu:
-                            continue
-                        predictions = self.model(batch=batch, log_softmax=True)
-                        targets = [b["captions"][:, 1:].contiguous().view(-1) for b in batch]
-                        tgt_mask_flat = [b["caption_mask"][:, 1:].contiguous().view(-1) for b in batch]
-                        targets = torch.cat(list(map(lambda i: targets[i][tgt_mask_flat[i]], range(len(batch)))))
-                        ntokens = targets.size(0)
-                    elif fine_tune and (is_img_caption_mass or is_mass_batch):
+                    if fine_tune and (is_img_batch or is_mass_batch):
                         id2lid = lambda r: model.text_processor.languages[
                             model.text_processor.id2token(lang_directions[int(r)])]
                         if is_mass_batch:
@@ -122,7 +113,7 @@ class ImageDocTrainer:
                         with torch.no_grad():
                             # We do not backpropagate the data generator following the MASS paper.
                             images = None
-                            if is_img_caption_mass:
+                            if is_img_batch:
                                 images = [b["images"] for b in batch]
                             outputs = self.generator(src_inputs=src_inputs,
                                                      src_sizes=pad_indices,
@@ -170,7 +161,7 @@ class ImageDocTrainer:
                         targets = src_targets[src_mask_flat]
 
                         ntokens = targets.size(0)
-                    elif is_img_caption_mass:
+                    elif is_img_batch:
                         src_inputs = [b["captions"] for b in batch]
                         src_pad_mask = [b["caption_mask"] for b in batch]
                         pad_indices = [b["pad_idx"] for b in batch]
@@ -244,13 +235,13 @@ class ImageDocTrainer:
 
                     if is_mass_batch and not fine_tune:
                         mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
-                    if is_img_caption_mass and not fine_tune:
+                    if is_img_batch and not fine_tune:
                         map(lambda m: mass_unmask(m["src_text"], m["src_mask"], m["mask_idx"]), masked_info)
 
                 except RuntimeError as err:
                     print(repr(err))
                     print("Error processing", is_img_batch)
-                    if (isinstance(model, ImageMassSeq2Seq)) and (is_img_batch or is_img_caption_mass):
+                    if (isinstance(model, ImageMassSeq2Seq)) and is_img_batch:
                         for b in batch:
                             print("->", len(b["images"]), b["captions"].size())
                     torch.cuda.empty_cache()

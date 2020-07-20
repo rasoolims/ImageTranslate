@@ -33,7 +33,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class ImageDocTrainer:
     def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None,
                  beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
-                 len_penalty_ratio: float = 0.8, nll_loss: bool = False, fp16: bool = False):
+                 len_penalty_ratio: float = 0.8, nll_loss: bool = False, fp16: bool = False, mm_mode="mixed"):
         self.model = model
 
         self.clip = clip
@@ -66,6 +66,7 @@ class ImageDocTrainer:
 
         self.reference = None
         self.best_bleu = -1.0
+        self.mm_mode = mm_mode
 
     def train_epoch(self, img_data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: List[data_utils.DataLoader] = None,
@@ -167,7 +168,7 @@ class ImageDocTrainer:
                         src_inputs = [b["captions"] for b in batch]
                         src_pad_mask = [b["caption_mask"] for b in batch]
                         langs = [b["langs"] for b in batch]
-                        if random.random() <= .5:
+                        if (self.mm_mode == "mixed" and random.random() <= .5) or self.mm_mode == "masked":
                             pad_indices = [b["pad_idx"] for b in batch]
                             if len(batch) < self.num_gpu:
                                 continue
@@ -240,10 +241,10 @@ class ImageDocTrainer:
                         backward(loss, self.optimizer, self.fp16)
 
                         loss = float(loss.data) * ntokens
+                        tokens += ntokens
+                        total_tokens += ntokens
                     total_loss += loss
                     cur_loss += loss
-                    total_tokens += ntokens
-                    tokens += ntokens
 
                     # We accumulate the gradients for both tasks!
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
@@ -252,7 +253,7 @@ class ImageDocTrainer:
 
                     if is_mass_batch and not fine_tune:
                         mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
-                    if is_img_batch and not fine_tune:
+                    if not is_contrastive and is_img_batch and not fine_tune:
                         map(lambda m: mass_unmask(m["src_text"], m["src_mask"], m["mask_idx"]), masked_info)
 
                 else:
@@ -404,7 +405,7 @@ class ImageDocTrainer:
         trainer = ImageDocTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                                   beam_width=options.beam_width, max_len_a=options.max_len_a,
                                   max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
-                                  fp16=options.fp16)
+                                  fp16=options.fp16, mm_mode=options.mm_mode)
 
         pin_memory = torch.cuda.is_available()
         img_train_loader = None

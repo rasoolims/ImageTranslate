@@ -66,5 +66,6 @@ def get_img_options_parser():
     parser.add_option("--langs", dest="bt_langs",
                       help="Languages for back-translation (should be two, sepearated by comma)", type="str",
                       default="")
+    parser.add_option("--mmode", dest="mm_mode", help="Option: mixed, masked, contrastive", type="str", default="mixed")
     parser.set_default("model_size", 6)
     return parser

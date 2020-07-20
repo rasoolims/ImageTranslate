@@ -68,7 +68,7 @@ class ImageDocTrainer:
 
     def train_epoch(self, img_data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: List[data_utils.DataLoader] = None,
-                    mt_train_iter: List[data_utils.DataLoader] = None,
+                    mt_train_iter: List[data_utils.DataLoader] = None, max_step: int = 300000,
                     fine_tune: bool = False, lang_directions: dict = False, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
@@ -264,7 +264,7 @@ class ImageDocTrainer:
                         print(model.multimodal_attention_gate)
                         if mt_dev_iter is not None and step % 5000 == 0:
                             bleu = self.eval_bleu(mt_dev_iter, saving_path)
-                            print("Pretraining BLEU:", bleu)
+                            print("BLEU:", bleu)
 
                         model.save(saving_path + ".latest")
                         with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
@@ -280,7 +280,7 @@ class ImageDocTrainer:
         if mt_dev_iter is not None:
             print(model.multimodal_attention_gate)
             bleu = self.eval_bleu(mt_dev_iter, saving_path)
-            print("Pretraining BLEU:", bleu)
+            print("BLEU:", bleu)
 
         return step
 
@@ -429,7 +429,7 @@ class ImageDocTrainer:
         while options.step > 0 and step < options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(img_data_iter=img_train_loader, mass_data_iter=mass_train_loader,
-                                       mt_train_iter=mt_train_loader,
+                                       mt_train_iter=mt_train_loader, max_step=options.step,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step)
             train_epoch += 1
 
@@ -450,7 +450,7 @@ class ImageDocTrainer:
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
             print("finetune epoch", finetune_epoch)
             step = trainer.train_epoch(img_data_iter=img_train_loader, mass_data_iter=finetune_loader,
-                                       mt_train_iter=mt_train_loader,
+                                       mt_train_iter=mt_train_loader, max_step=options.finetune_step + options.step,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
                                        fine_tune=True, lang_directions=lang_directions)
             finetune_epoch += 1

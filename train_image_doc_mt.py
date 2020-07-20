@@ -400,9 +400,8 @@ class ImageDocTrainer:
 
         pin_memory = torch.cuda.is_available()
         img_train_loader = None
-        langs = set()
         img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
-                                                          langs, mt_model, num_batches, options, pin_memory, transform)
+                                                          mt_model, num_batches, options, pin_memory, transform)
 
         mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
         if options.mass_train_path is not None:
@@ -417,9 +416,6 @@ class ImageDocTrainer:
                                                                                         mass_train_paths, mt_model,
                                                                                         num_processors, options,
                                                                                         pin_memory)
-                for td in finetune_data:
-                    for lang1 in td.lang_ids:
-                        langs.add(lang1)
 
         mt_train_loader = None
         if options.mt_train_path is not None:
@@ -442,12 +438,12 @@ class ImageDocTrainer:
         # Resetting the optimizer for the purpose of finetuning.
         trainer.optimizer.reset()
 
-        lang_directions = ImageDocTrainer.get_lang_dirs(langs)
+        lang_directions = ImageDocTrainer.get_lang_dirs(options.bt_langs, text_processor)
 
         print("Reloading image train data with new batch size...")
         if options.finetune_step > 0 and img_train_loader is not None:
             img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
-                                                              langs, mt_model, num_batches, options, pin_memory,
+                                                              mt_model, num_batches, options, pin_memory,
                                                               transform, 2)
         print("Reloading image train data with new batch size done!")
 
@@ -460,7 +456,12 @@ class ImageDocTrainer:
             finetune_epoch += 1
 
     @staticmethod
-    def get_lang_dirs(langs):
+    def get_lang_dirs(bt_langs, text_processor: TextProcessor):
+        langs = ["<" + l + ">" for l in bt_langs.strip().split(",")]
+        langs = set([text_processor.token_id(l) for l in langs])
+        if len(langs) < 2:
+            return None
+        assert len(langs) <= 2
         lang_directions = {}
         for lang1 in langs:
             for lang2 in langs:
@@ -542,7 +543,7 @@ class ImageDocTrainer:
         return mass_train_data, mass_train_loader
 
     @staticmethod
-    def get_img_loader(collator, dataset_class, img_train_loader, langs, mt_model, num_batches, options, pin_memory,
+    def get_img_loader(collator, dataset_class, img_train_loader, mt_model, num_batches, options, pin_memory,
                        transform, denom=1):
         if options.train_path is not None:
             img_train_loader = []
@@ -559,8 +560,6 @@ class ImageDocTrainer:
                                            collate_fn=collator)
                 img_train_loader.append(tl)
 
-                for lang1 in train_data.lang_ids:
-                    langs.add(lang1)
         return img_train_loader
 
 

@@ -325,8 +325,9 @@ class ImageCaptionDataset(Dataset):
                 self.image_queue.append(image_id)
             image_batch.append(self.image_cache[image_id])
 
-        # We choose 30 fixed negative samples for all batch items.
-        neg_samples = pad_sequence(random.sample(self.all_captions, min(len(self.all_captions), 30)), batch_first=True,
+        # We choose fixed negative samples for all batch items.
+        num_neg_samples = min(len(self.all_captions), max(30, 5 * len(batch)))
+        neg_samples = pad_sequence(random.sample(self.all_captions, num_neg_samples), batch_first=True,
                                    padding_value=self.pad_idx)
         neg_mask = (neg_samples != self.pad_idx)
         return {"images": torch.stack(image_batch), "captions": batch, "pad_idx": pad_indices, "neg": neg_samples,

@@ -76,6 +76,9 @@ class ImageMassSeq2Seq(MassSeq2Seq):
                                                     freeze=freeze_image, depth=resnet_depth)
         self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, config.hidden_size).fill_(0.1), requires_grad=True)
 
+        self.image_attention_w = nn.Linear(config.hidden_size, 1)  # For Constrastive loss
+        self.encoder_attention_w = nn.Linear(config.hidden_size, 1)  # For Constrastive loss
+
     def encode(self, src_inputs, src_mask, src_langs, images=None):
         encoder_states = super().encode(src_inputs, src_mask, src_langs)
         if images is not None:
@@ -89,11 +92,11 @@ class ImageMassSeq2Seq(MassSeq2Seq):
         return encoder_states
 
     def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 1,
-                tgt_positions=None, batch=None, log_softmax: bool = False, **kwargs):
+                tgt_positions=None, batch=None, neg_samples=None, neg_mask=None, log_softmax: bool = False, **kwargs):
         if isinstance(batch, list):
             assert len(batch) == 1
             batch = batch[0]
-            tgt_inputs = tgt_inputs[0]
+        if isinstance(src_langs, list):
             src_langs = src_langs[0]
         if isinstance(src_pads, list):
             src_pads = src_pads[0]
@@ -101,6 +104,8 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             src_inputs = src_inputs[0]
         if isinstance(tgt_positions, list):
             tgt_positions = tgt_positions[0]
+        if isinstance(tgt_inputs, list):
+            tgt_inputs = tgt_inputs[0]
 
         if batch is None:
             return super().forward(src_inputs=src_inputs, src_pads=src_pads, tgt_inputs=tgt_inputs, src_langs=src_langs,
@@ -108,49 +113,75 @@ class ImageMassSeq2Seq(MassSeq2Seq):
                                    log_softmax=log_softmax)
 
         assert src_inputs is not None
-        assert tgt_inputs is not None
-
         device = self.encoder.embeddings.word_embeddings.weight.device
         images = batch["images"].to(device)
-
-        tgt_inputs = tgt_inputs.to(device)
-        tgt_mask = tgt_inputs != pad_idx
         src_pads = src_pads.to(device)
         src_inputs = src_inputs.to(device)
         src_langs_t = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1)).to(device)
-        batch_lang = int(src_langs[0])
-
-        decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
-        output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
-        tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
-        if tgt_positions is not None:
-            tgt_positions = tgt_positions[:, :-1].to(device)
-
-        subseq_mask = future_mask(tgt_mask[:, :-1])
-
         encoder_states, image_embeddings = self.encode(src_inputs, src_pads, src_langs_t, images)
 
-        text_decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
-                                      input_ids_mask=tgt_mask[:, :-1], src_attn_mask=src_pads,
-                                      tgt_attn_mask=subseq_mask,
-                                      position_ids=tgt_positions,
-                                      token_type_ids=tgt_langs[:, :-1])
-        image_decoder_output = decoder(encoder_states=image_embeddings, input_ids=tgt_inputs[:, :-1],
-                                       input_ids_mask=tgt_mask[:, :-1],
-                                       tgt_attn_mask=subseq_mask,
-                                       position_ids=tgt_positions,
-                                       token_type_ids=tgt_langs[:, :-1])
-        eps = 1e-7
-        sig_gate = torch.sigmoid(self.multimodal_attention_gate + eps)
-        decoder_output = sig_gate * text_decoder_output + (1 - sig_gate) * image_decoder_output
+        if neg_samples is None:
+            assert tgt_inputs is not None
+            tgt_inputs = tgt_inputs.to(device)
+            tgt_mask = tgt_inputs != pad_idx
 
-        diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
-        tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
-        non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]
-        outputs = output_layer(non_padded_outputs)
-        if log_softmax:
-            outputs = F.log_softmax(outputs, dim=-1)
-        return outputs
+            batch_lang = int(src_langs[0])
+
+            decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
+            output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
+            tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
+            if tgt_positions is not None:
+                tgt_positions = tgt_positions[:, :-1].to(device)
+
+            subseq_mask = future_mask(tgt_mask[:, :-1])
+
+            text_decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
+                                          input_ids_mask=tgt_mask[:, :-1], src_attn_mask=src_pads,
+                                          tgt_attn_mask=subseq_mask,
+                                          position_ids=tgt_positions,
+                                          token_type_ids=tgt_langs[:, :-1])
+            image_decoder_output = decoder(encoder_states=image_embeddings, input_ids=tgt_inputs[:, :-1],
+                                           input_ids_mask=tgt_mask[:, :-1],
+                                           tgt_attn_mask=subseq_mask,
+                                           position_ids=tgt_positions,
+                                           token_type_ids=tgt_langs[:, :-1])
+            eps = 1e-7
+            sig_gate = torch.sigmoid(self.multimodal_attention_gate + eps)
+            decoder_output = sig_gate * text_decoder_output + (1 - sig_gate) * image_decoder_output
+
+            diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
+            tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
+            non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]
+            outputs = output_layer(non_padded_outputs)
+            if log_softmax:
+                outputs = F.log_softmax(outputs, dim=-1)
+            return outputs
+        else:
+            if isinstance(neg_samples, list):
+                neg_samples = neg_samples[0]
+                neg_mask = neg_mask[0]
+            neg_langs = src_langs[0].squeeze().unsqueeze(-1).expand(len(neg_samples), neg_samples.size(-1)).to(device)
+
+            neg_states = self.encode(neg_samples, neg_mask, neg_langs)[0]
+            neg_attend = nn.Softmax(dim=1)(self.encoder_attention_w(neg_states).squeeze(-1))
+            neg_state_attended = torch.einsum("bfd,bf->bd", neg_states, neg_attend)
+
+            encoder_attend = nn.Softmax(dim=1)(self.encoder_attention_w(encoder_states).squeeze(-1))
+            encoder_state_attended = torch.einsum("bfd,bf->bd", encoder_states, encoder_attend)
+
+            text_vectors = torch.cat([encoder_state_attended, neg_state_attended])
+
+            image_attend = nn.Softmax(dim=1)(self.image_attention_w(image_embeddings).squeeze(-1))
+            image_state_attended = torch.einsum("bfd,bf->bd", image_embeddings, image_attend)
+
+            cross_dot = torch.mm(image_state_attended, text_vectors.T)
+            cross_dot_exp = torch.exp(cross_dot)
+
+            pos_cross_dot = cross_dot[:, :len(encoder_state_attended)]
+            denom = torch.sum(cross_dot_exp, dim=-1)
+            nominator = torch.sum(pos_cross_dot, dim=-1)
+            log_neg = torch.sum(nominator - denom) / len(encoder_state_attended)
+            return log_neg
 
     @staticmethod
     def load(out_dir: str, tok_dir: str, sep_decoder: bool, resnet_depth: int = 1, lang_dec: bool = False):

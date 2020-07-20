@@ -2,6 +2,7 @@ import copy
 import datetime
 import os
 import pickle
+import random
 import sys
 import time
 from itertools import chain
@@ -84,7 +85,8 @@ class ImageDocTrainer:
                 self.optimizer.zero_grad()
                 is_img_batch = isinstance(batch, list) and "captions" in batch[0]
                 is_mass_batch = not is_img_batch and "dst_texts" not in batch
-                try:
+                is_contrastive = False
+                if True:
                     if fine_tune and (is_img_batch or is_mass_batch):
                         id2lid = lambda r: model.text_processor.languages[
                             model.text_processor.id2token(lang_directions[int(r)])]
@@ -164,23 +166,36 @@ class ImageDocTrainer:
                     elif is_img_batch:
                         src_inputs = [b["captions"] for b in batch]
                         src_pad_mask = [b["caption_mask"] for b in batch]
-                        pad_indices = [b["pad_idx"] for b in batch]
                         langs = [b["langs"] for b in batch]
-                        if len(batch) < self.num_gpu:
-                            continue
+                        if random.random() <= .5:
+                            pad_indices = [b["pad_idx"] for b in batch]
+                            if len(batch) < self.num_gpu:
+                                continue
 
-                        masked_info = list(
-                            map(lambda pi, si: mass_mask(self.mask_prob, pi, si, model.text_processor), pad_indices,
-                                src_inputs))
-                        predictions = self.model(src_inputs=list(map(lambda m: m["src_text"], masked_info)),
-                                                 tgt_inputs=list(map(lambda m: m["to_recover"], masked_info)),
-                                                 tgt_positions=list(map(lambda m: m["positions"], masked_info)),
-                                                 src_pads=src_pad_mask,
-                                                 pad_idx=model.text_processor.pad_token_id(),
-                                                 src_langs=langs, batch=batch,
-                                                 log_softmax=True)
-                        targets = torch.cat(list(map(lambda m: m["targets"], masked_info)))
-                        ntokens = targets.size(0)
+                            masked_info = list(
+                                map(lambda pi, si: mass_mask(self.mask_prob, pi, si, model.text_processor), pad_indices,
+                                    src_inputs))
+                            predictions = self.model(src_inputs=list(map(lambda m: m["src_text"], masked_info)),
+                                                     tgt_inputs=list(map(lambda m: m["to_recover"], masked_info)),
+                                                     tgt_positions=list(map(lambda m: m["positions"], masked_info)),
+                                                     src_pads=src_pad_mask,
+                                                     pad_idx=model.text_processor.pad_token_id(),
+                                                     src_langs=langs, batch=batch,
+                                                     log_softmax=True)
+                            targets = torch.cat(list(map(lambda m: m["targets"], masked_info)))
+                            ntokens = targets.size(0)
+                        else:
+                            neg_samples = [b["neg"] for b in batch]
+                            neg_mask = [b["neg_mask"] for b in batch]
+                            loss = self.model(src_inputs=src_inputs,
+                                              src_pads=src_pad_mask,
+                                              neg_samples=neg_samples,
+                                              neg_mask=neg_mask,
+                                              pad_idx=model.text_processor.pad_token_id(),
+                                              src_langs=langs, batch=batch,
+                                              log_softmax=True)
+                            is_contrastive = True
+
                     elif not is_mass_batch:  # MT data
                         src_inputs = batch["src_texts"].squeeze(0)
                         src_mask = batch["src_pad_mask"].squeeze(0)
@@ -214,15 +229,17 @@ class ImageDocTrainer:
                         targets = masked_info["targets"]
                         ntokens = targets.size(0)
 
-                    if ntokens == 0:  # Nothing to predict!
-                        continue
-                    if self.num_gpu == 1:
-                        targets = targets.to(predictions.device)
+                    if is_contrastive:  # Nothing to predict!
+                        backward(loss, self.optimizer, self.fp16)
+                        loss = loss.data
+                    elif ntokens > 0:
+                        if self.num_gpu == 1:
+                            targets = targets.to(predictions.device)
 
-                    loss = self.criterion(predictions, targets).mean()
-                    backward(loss, self.optimizer, self.fp16)
+                        loss = self.criterion(predictions, targets).mean()
+                        backward(loss, self.optimizer, self.fp16)
 
-                    loss = float(loss.data) * ntokens
+                        loss = float(loss.data) * ntokens
                     total_loss += loss
                     cur_loss += loss
                     total_tokens += ntokens
@@ -238,7 +255,7 @@ class ImageDocTrainer:
                     if is_img_batch and not fine_tune:
                         map(lambda m: mass_unmask(m["src_text"], m["src_mask"], m["mask_idx"]), masked_info)
 
-                except RuntimeError as err:
+                else:
                     print(repr(err))
                     print("Error processing", is_img_batch)
                     if (isinstance(model, ImageMassSeq2Seq)) and is_img_batch:

@@ -43,10 +43,12 @@ def extract_captions4imgs(image, sen_words, sens):
     shared_word_counts = list(map(lambda s: len(s & caption_words), sen_words))
     max_word_count = max(shared_word_counts)
     least_req_count = max(2, max_word_count - 2)
-    captions = [(image["img_path"], caption)] + list(
+    captions = list(
         filter(lambda x: x != None,
                map(lambda i, s: ref_sen_chooser(i, s, sens, least_req_count, image), range(len(sens)),
                    shared_word_counts)))
+    if len(captions) == 0:
+        captions = [(image["img_path"], caption)]
     return captions
 
 

@@ -27,5 +27,6 @@ with open(path, "r") as reader, open(output_path, "w") as writer:
         if len(sens) > 0:
             writer.write("\n".join(sens))
             writer.write("\n")
-        print(i, end="\r")
+        if i % 1000 == 0:
+            print(i, end="\r")
 print("\nDone!")

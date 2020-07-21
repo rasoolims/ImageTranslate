@@ -28,4 +28,4 @@ with open(path, "r") as reader, open(output_path, "w") as writer:
             writer.write("\n".join(sens))
             writer.write("\n")
         print(i, end="\r")
-print("Done!")
+print("\nDone!")

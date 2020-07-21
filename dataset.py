@@ -326,7 +326,7 @@ class ImageCaptionDataset(Dataset):
             image_batch.append(self.image_cache[image_id])
 
         # We choose fixed negative samples for all batch items.
-        num_neg_samples = min(len(self.all_captions), max(30, 5 * len(batch)))
+        num_neg_samples = min(len(self.all_captions), max(30, len(batch)))
         neg_samples = pad_sequence(random.sample(self.all_captions, num_neg_samples), batch_first=True,
                                    padding_value=self.pad_idx)
         neg_mask = (neg_samples != self.pad_idx)

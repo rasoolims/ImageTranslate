@@ -61,6 +61,8 @@ class BeamDecoder(nn.Module):
             src_inputs = src_inputs[0]
             first_tokens = first_tokens[0]
             src_sizes = src_sizes[0]
+        if isinstance(images, list):
+            images = images[0]
 
         if beam_width is None:
             beam_width = self.beam_width
@@ -68,7 +70,11 @@ class BeamDecoder(nn.Module):
         batch_lang = int(tgt_langs[0])
         batch_size = src_inputs.size(0)
         src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
-        encoder_states = self.seq2seq_model.encode(src_inputs, src_mask, src_langs)[0]
+        if images is None:
+            encoder_states = self.seq2seq_model.encode(src_inputs, src_mask, src_langs)[0]
+        else:
+            images = images.to(device)
+            encoder_states, image_embeddings = self.seq2seq_model.encode(src_inputs, src_mask, src_langs, images)
         eos = self.seq2seq_model.text_processor.sep_token_id()
 
         src_mask = src_mask.to(device)
@@ -116,8 +122,22 @@ class BeamDecoder(nn.Module):
             output_layer = self.seq2seq_model.output_layer if not self.seq2seq_model.lang_dec else \
                 self.seq2seq_model.output_layer[batch_lang]
 
-            decoder_states = decoder(enc_states, cur_outputs, cur_outputs != pad_idx, cur_src_mask,
-                                     output_mask, token_type_ids=dst_langs)
+            if images is None:
+                decoder_states = decoder(enc_states, cur_outputs, cur_outputs != pad_idx, cur_src_mask,
+                                         output_mask, token_type_ids=dst_langs)
+            else:
+                o_mask = cur_outputs != pad_idx
+                text_decoder_output = decoder(encoder_states=encoder_states, input_ids=cur_outputs,
+                                              input_ids_mask=o_mask, src_attn_mask=cur_src_mask,
+                                              tgt_attn_mask=output_mask,
+                                              token_type_ids=dst_langs)
+                image_decoder_output = decoder(encoder_states=image_embeddings, input_ids=cur_outputs,
+                                               input_ids_mask=o_mask, tgt_attn_mask=output_mask,
+                                               token_type_ids=dst_langs)
+                eps = 1e-7
+                sig_gate = torch.sigmoid(self.seq2seq_model.multimodal_attention_gate + eps)
+                decoder_states = sig_gate * text_decoder_output + (1 - sig_gate) * image_decoder_output
+
             output = F.log_softmax(output_layer(decoder_states[:, -1, :]), dim=-1)
             output[eos_mask] = 0  # Disregard those items with EOS in them!
             if i > 1:

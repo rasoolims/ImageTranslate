@@ -186,8 +186,8 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             image_state_attended = torch.div(image_state_attended, image_norm)
 
             cross_dot = torch.mm(image_state_attended, text_vectors.T)
-            denom = torch.logsumexp(cross_dot, dim=-1)
-            nominator = torch.diagonal(cross_dot[:, :len(encoder_state_attended)], 0)
+            denom = torch.log(torch.sum(torch.exp(cross_dot), dim=-1) + 1e-8)
+            nominator = torch.diagonal(cross_dot[:, :len(encoder_state_attended)], 0) + 1e-8
             log_neg = torch.sum(denom - nominator) / len(encoder_state_attended)
             return log_neg
 

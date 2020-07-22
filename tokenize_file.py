@@ -10,7 +10,7 @@ def write(text_processor: TextProcessor, output_file: str, txt_file: str, output
             tok_line = text_processor.tokenize_one_line(line.strip(), ignore_middle_eos=True)
 
             if output_txt:
-                tokenized = [text_processor.id2token(tok) for tok in tok_line]
+                tokenized = [text_processor.id2token(tok) for tok in tok_line][1:-1]
             else:
                 tokenized = [str(tok) for tok in tok_line]
             writer.write(" ".join(tokenized) + "\n")

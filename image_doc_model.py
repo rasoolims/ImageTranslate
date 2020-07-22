@@ -180,9 +180,13 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             image_attend = nn.Softmax(dim=1)(self.image_attention_w(image_embeddings).squeeze(-1))
             image_state_attended = torch.einsum("bfd,bf->bd", image_embeddings, image_attend)
 
+            text_norm = torch.norm(text_vectors, dim=-1, p=2).unsqueeze(-1) + 1e-8
+            text_vectors = torch.div(text_vectors, text_norm)
+            image_norm = torch.norm(image_state_attended, dim=-1, p=2).unsqueeze(-1) + 1e-8
+            image_state_attended = torch.div(image_state_attended, image_norm)
+
             cross_dot = torch.mm(image_state_attended, text_vectors.T)
             denom = torch.logsumexp(cross_dot, dim=-1)
-
             nominator = torch.diagonal(cross_dot[:, :len(encoder_state_attended)], 0)
             log_neg = torch.sum(denom - nominator) / len(encoder_state_attended)
             return log_neg

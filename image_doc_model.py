@@ -162,6 +162,8 @@ class ImageMassSeq2Seq(MassSeq2Seq):
                 neg_mask = neg_mask[0]
             neg_langs = src_langs[0].squeeze().unsqueeze(-1).expand(len(neg_samples), neg_samples.size(-1)).to(device)
 
+            neg_samples = neg_samples.to(device)
+            neg_mask = neg_mask.to(device)
             neg_states = self.encode(neg_samples, neg_mask, neg_langs)[0]
             neg_attend_scores = self.encoder_attention_w(neg_states).squeeze(-1)
             neg_attend_scores.masked_fill_(~neg_mask, -10000.0)

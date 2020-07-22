@@ -175,11 +175,11 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             image_state_attended = torch.einsum("bfd,bf->bd", image_embeddings, image_attend)
 
             cross_dot = torch.mm(image_state_attended, text_vectors.T)
-            cross_dot_exp = torch.exp(cross_dot)
+            denom = torch.logsumexp(cross_dot, dim=-1)
 
             pos_cross_dot = cross_dot[:, :len(encoder_state_attended)]
-            denom = torch.sum(cross_dot_exp, dim=-1)
             nominator = torch.sum(pos_cross_dot, dim=-1)
+
             log_neg = torch.sum(denom - nominator) / len(encoder_state_attended)
             return log_neg
 

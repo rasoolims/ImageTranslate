@@ -163,10 +163,14 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             neg_langs = src_langs[0].squeeze().unsqueeze(-1).expand(len(neg_samples), neg_samples.size(-1)).to(device)
 
             neg_states = self.encode(neg_samples, neg_mask, neg_langs)[0]
-            neg_attend = nn.Softmax(dim=1)(self.encoder_attention_w(neg_states).squeeze(-1))
+            neg_attend_scores = self.encoder_attention_w(neg_states).squeeze(-1)
+            neg_attend_scores.masked_fill_(~neg_mask, -10000.0)
+            neg_attend = nn.Softmax(dim=1)(neg_attend_scores)
             neg_state_attended = torch.einsum("bfd,bf->bd", neg_states, neg_attend)
 
-            encoder_attend = nn.Softmax(dim=1)(self.encoder_attention_w(encoder_states).squeeze(-1))
+            encoder_attend_scores = self.encoder_attention_w(encoder_states).squeeze(-1)
+            encoder_attend_scores.masked_fill_(~src_pads, -10000.0)
+            encoder_attend = nn.Softmax(dim=1)(encoder_attend_scores)
             encoder_state_attended = torch.einsum("bfd,bf->bd", encoder_states, encoder_attend)
 
             text_vectors = torch.cat([encoder_state_attended, neg_state_attended])

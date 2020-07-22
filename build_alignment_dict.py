@@ -54,7 +54,7 @@ with open(output_file, "w") as writer:
         denom = word_counter[w]
         for t in word_translation[w].keys():
             word_translation[w][t] /= denom
-        sort_orders = sorted(word_translation[w].items(), key=lambda x: x[1], reverse=True)[:10]
+        sort_orders = sorted(word_translation[w].items(), key=lambda x: x[1], reverse=True)[:5]
         for so in sort_orders:
             output.append(str(so[0]))
         max_align_len = max(len(word_translation[w]), max_align_len)

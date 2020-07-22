@@ -11,6 +11,7 @@ import torch
 from PIL import Image
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
+from torchvision import transforms
 
 from textprocessor import TextProcessor
 
@@ -239,9 +240,15 @@ class MassDataset(Dataset):
 
 
 class ImageCaptionDataset(Dataset):
-    def __init__(self, root_img_dir: str, data_bin_file: str, transform, max_capacity: int,
-                 text_processor: TextProcessor, max_img_per_batch: int):
-        self.transform = transform
+    def __init__(self, root_img_dir: str, data_bin_file: str, max_capacity: int, text_processor: TextProcessor,
+                 max_img_per_batch: int):
+        self.size_transform = transforms.Resize(256)
+        self.crop = transforms.CenterCrop(224)
+        self.to_tensor = transforms.ToTensor()
+        self.img_normalize = transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225]
+        )
         self.pad_idx = text_processor.pad_token_id()
         self.batches = []
         self.root_img_dir = root_img_dir
@@ -307,6 +314,7 @@ class ImageCaptionDataset(Dataset):
     def __getitem__(self, item):
         batch, caption_mask, pad_indices = self.batches[item]
         image_batch = []
+        img_list = []
         for image_id in self.image_batches[item]:
             if image_id not in self.image_cache:
                 if len(self.image_cache) >= 30000:
@@ -316,21 +324,23 @@ class ImageCaptionDataset(Dataset):
                 try:
                     with Image.open(os.path.join(self.root_img_dir, image_path)) as im:
                         # make sure not to deal with rgba or grayscale images.
-                        image = self.transform(im.convert("RGB"))
+                        img = im.convert("RGB")
+                        img = self.crop(self.size_transform(img))
                         im.close()
                 except:
                     print("Corrupted image", image_path)
-                    image = torch.zeros(3, 224, 224)
-                self.image_cache[image_id] = image
+                    img = Image.new('RGB', (224, 224))
+                self.image_cache[image_id] = img
                 self.image_queue.append(image_id)
             image_batch.append(self.image_cache[image_id])
 
         # We choose fixed negative samples for all batch items.
+        img_tensors = torch.stack(list(map(lambda im: self.img_normalize(self.to_tensor(im)), image_batch)))
         num_neg_samples = min(len(self.all_captions), max(30, len(batch)))
         neg_samples = pad_sequence(random.sample(self.all_captions, num_neg_samples), batch_first=True,
                                    padding_value=self.pad_idx)
         neg_mask = (neg_samples != self.pad_idx)
-        return {"images": torch.stack(image_batch), "captions": batch, "pad_idx": pad_indices, "neg": neg_samples,
+        return {"images": img_tensors, "captions": batch, "pad_idx": pad_indices, "neg": neg_samples,
                 "langs": torch.LongTensor([self.lang] * len(batch)), "caption_mask": caption_mask, "neg_mask": neg_mask}
 
 

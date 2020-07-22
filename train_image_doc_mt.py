@@ -15,7 +15,6 @@ import torch.utils.data as data_utils
 from IPython.core import ultratb
 from apex import amp
 from torch.nn.utils.rnn import pad_sequence
-from torchvision import transforms
 
 import dataset
 from image_doc_model import ImageMassSeq2Seq
@@ -380,15 +379,6 @@ class ImageDocTrainer:
                                         text_processor=lm.text_processor, checkpoint=options.checkpoint,
                                         resnet_depth=options.resnet_depth, lang_dec=options.lang_decoder)
 
-        transform = transforms.Compose([  # [1]
-            transforms.Resize(256),  # [2]
-            transforms.CenterCrop(224),  # [3]
-            transforms.ToTensor(),  # [4]
-            transforms.Normalize(  # [5]
-                mean=[0.485, 0.456, 0.406],  # [6]
-                std=[0.229, 0.224, 0.225]  # [7]
-            )])
-
         print("Model initialization done!")
 
         # We assume that the collator function returns a list with the size of number of gpus (in case of cpus,
@@ -408,7 +398,7 @@ class ImageDocTrainer:
         pin_memory = torch.cuda.is_available()
         img_train_loader = None
         img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
-                                                          mt_model, num_batches, options, pin_memory, transform)
+                                                          mt_model, num_batches, options, pin_memory)
 
         mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
         if options.mass_train_path is not None:
@@ -450,8 +440,7 @@ class ImageDocTrainer:
         print("Reloading image train data with new batch size...")
         if options.finetune_step > 0 and img_train_loader is not None:
             img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
-                                                              mt_model, num_batches, options, pin_memory,
-                                                              transform, 2)
+                                                              mt_model, num_batches, options, pin_memory, 2)
         print("Reloading image train data with new batch size done!")
 
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
@@ -550,14 +539,13 @@ class ImageDocTrainer:
         return mass_train_data, mass_train_loader
 
     @staticmethod
-    def get_img_loader(collator, dataset_class, img_train_loader, mt_model, num_batches, options, pin_memory,
-                       transform, denom=1):
+    def get_img_loader(collator, dataset_class, img_train_loader, mt_model, num_batches, options, pin_memory, denom=1):
         if options.train_path is not None:
             img_train_loader = []
             train_paths = options.train_path.split(",")
             for train_path in train_paths:
                 train_data = dataset_class(root_img_dir=options.image_dir,
-                                           data_bin_file=train_path, transform=transform,
+                                           data_bin_file=train_path,
                                            max_capacity=int(options.img_capacity / denom),
                                            text_processor=mt_model.text_processor,
                                            max_img_per_batch=options.max_image)

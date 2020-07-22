@@ -83,7 +83,7 @@ class TestModel(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdirname:
             processor = TextProcessor()
             processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname,
-                                      languages={"<en>": 0, "<fa>": 1})
+                                      languages={"<mzn>": 0, "<glk": 1})
             create_batches.write(text_processor=processor, cache_dir=tmpdirname, seq_len=512, txt_file=data_path,
                                  sen_block_size=10)
             dataset = TextDataset(save_cache_dir=tmpdirname, max_cache_size=3)

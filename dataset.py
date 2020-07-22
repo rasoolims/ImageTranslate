@@ -314,7 +314,6 @@ class ImageCaptionDataset(Dataset):
     def __getitem__(self, item):
         batch, caption_mask, pad_indices = self.batches[item]
         image_batch = []
-        img_list = []
         for image_id in self.image_batches[item]:
             if image_id not in self.image_cache:
                 if len(self.image_cache) >= 30000:

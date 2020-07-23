@@ -26,7 +26,7 @@ class TextProcessor:
         self.unk_token = "<unk>"
         self.sep_token = "</s>"
         self.bos = "<s>"
-        self.special_tokens = [self.bos, self.pad_token, self.unk_token, self.mask_token,
+        self.special_tokens = [self.pad_token, self.bos, self.unk_token, self.mask_token,
                                self.sep_token] + list(languages.keys())
         self.languages = languages
 

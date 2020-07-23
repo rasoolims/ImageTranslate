@@ -479,6 +479,7 @@ class ImageDocTrainer:
         trainer.optimizer.reset()
 
         lang_directions = ImageDocTrainer.get_lang_dirs(options.bt_langs, text_processor)
+        print("lang dirs", lang_directions)
 
         print("Reloading image train data with new batch size...")
         if options.finetune_step > 0 and img_train_loader is not None:

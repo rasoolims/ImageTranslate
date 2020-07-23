@@ -148,7 +148,7 @@ class ImageDocTrainer:
                                 translations = pad_sequence(outputs, batch_first=True,
                                                             padding_value=model.text_processor.pad_token_id())
                                 translation_proposals = None
-                                if proposal is not None:
+                                if lex_dict is not None:
                                     translation_proposals = list(map(lambda o: dataset.get_lex_suggestions(lex_dict, o,
                                                                                                            model.text_processor.pad_token_id()),
                                                                      outputs))
@@ -157,7 +157,7 @@ class ImageDocTrainer:
                                 translation_pad_mask = (translations != model.text_processor.pad_token_id())
                             else:
                                 translation_proposals = None
-                                if proposal is not None:
+                                if lex_dict is not None:
                                     translation_proposals = [
                                         pad_sequence(list(map(lambda o: dataset.get_lex_suggestions(lex_dict, o,
                                                                                                     model.text_processor.pad_token_id()),

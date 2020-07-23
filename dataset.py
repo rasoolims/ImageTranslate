@@ -121,7 +121,7 @@ class MTDataset(Dataset):
                 dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
                 src_pad_mask = (src_batch != pad_idx)
                 dst_pad_mask = (dst_batch != pad_idx)
-                lex_cand_batch = "None"
+                lex_cand_batch = torch.LongTensor([pad_idx])
                 if self.lex_dict is not None:
                     lex_cand_batch = pad_sequence(cur_lex_cand_batch[:-1], batch_first=True, padding_value=pad_idx)
                     cur_lex_cand_batch = [cur_lex_cand_batch[-1]]
@@ -136,7 +136,7 @@ class MTDataset(Dataset):
         if len(cur_src_batch) > 0 and len(cur_src_batch) >= num_gpu:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
             dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
-            lex_cand_batch = "None"
+            lex_cand_batch = torch.LongTensor([pad_idx])
             if self.lex_dict is not None:
                 lex_cand_batch = pad_sequence(cur_lex_cand_batch, batch_first=True, padding_value=pad_idx)
             src_pad_mask = (src_batch != pad_idx)
@@ -243,7 +243,7 @@ class MassDataset(Dataset):
         padder = lambda b: pad_sequence(b, batch_first=True, padding_value=pad_idx)
         tensorfier = lambda b: list(map(torch.LongTensor, b))
         entry = lambda b, l: {"src_texts": padder(tensorfier(b[0])),
-                              "proposal": padder(tensorfier(b[1])) if b[1] is not None else None,
+                              "proposal": padder(tensorfier(b[1])) if b[1] is not None else torch.LongTensor([pad_idx]),
                               "langs": torch.LongTensor(l)}
         pad_entry = lambda e: {"src_pad_mask": e["src_texts"] != pad_idx, "src_texts": e["src_texts"],
                                "langs": e["langs"], "proposal": e["proposal"]}

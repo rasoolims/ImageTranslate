@@ -25,7 +25,8 @@ def get_tokenizer(train_path: Optional[str] = None,
                     languages.add(sen_split[0])
                 wf.write("\n".join(spl))
                 wf.write("\n")
-                print(i + 1, "\r", end="")
+                if (i + 1) % 1000000:
+                    print(i + 1, "\r", end="")
     print("Writing raw text done!")
 
     print(" ".join(languages))

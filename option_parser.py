@@ -37,6 +37,7 @@ def get_img_options_parser():
     parser = get_lm_option_parser()
     parser.add_option("--capacity", dest="total_capacity", help="Batch capacity", type="int", default=150)
     parser.add_option("--lm", dest="lm_path", help="LM pretrained model", metavar="FILE", default=None)
+    parser.add_option("--dict", dest="dict_path", help="External lexical dictionary", metavar="FILE", default=None)
     parser.add_option("--beam", dest="beam_width", help="Beam width", type="int", default=5)
     parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Disjoint encoder/decoder", default=False)
     parser.add_option("--max_len_a", dest="max_len_a", help="a for beam search (a*l+b)", type="float", default=1.3)

@@ -5,6 +5,7 @@ import pickle
 import random
 import sys
 import time
+from collections import defaultdict
 from itertools import chain
 from typing import List
 
@@ -27,6 +28,16 @@ from textprocessor import TextProcessor
 from utils import build_optimizer, mass_mask, mass_unmask, backward
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
+
+
+def get_lex_dict(dict_path):
+    lex_dict = defaultdict(list)
+    with open(dict_path) as dr:
+        for line in dr:
+            elements = list(map(lambda x: int(x), line.strip().split(" ")))
+            for element in elements[1:]:
+                lex_dict[elements[0]].append(element)
+    return lex_dict
 
 
 class ImageDocTrainer:
@@ -70,7 +81,7 @@ class ImageDocTrainer:
     def train_epoch(self, img_data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: List[data_utils.DataLoader] = None,
                     mt_train_iter: List[data_utils.DataLoader] = None, max_step: int = 300000,
-                    fine_tune: bool = False, lang_directions: dict = False, **kwargs):
+                    fine_tune: bool = False, lang_directions: dict = False, lex_dict=None, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -86,7 +97,7 @@ class ImageDocTrainer:
                 is_img_batch = isinstance(batch, list) and "captions" in batch[0]
                 is_mass_batch = not is_img_batch and "dst_texts" not in batch
                 is_contrastive = False
-                try:
+                if True:  # try:
                     if fine_tune and (is_img_batch or is_mass_batch):
                         id2lid = lambda r: model.text_processor.languages[
                             model.text_processor.id2token(lang_directions[int(r)])]
@@ -94,12 +105,14 @@ class ImageDocTrainer:
                             src_inputs = batch["src_texts"].squeeze(0)
                             src_pad_mask = batch["src_pad_mask"].squeeze(0)
                             pad_indices = batch["pad_idx"].squeeze(0)
+                            proposal = batch["proposal"].squeeze(0) if lex_dict is not None else None
                             target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
                             dst_langs = torch.LongTensor([id2lid(l) for l in src_inputs[:, 0]])
                         else:
                             src_inputs = [b["captions"] for b in batch]
                             src_pad_mask = [b["caption_mask"] for b in batch]
                             pad_indices = [b["pad_idx"] for b in batch]
+                            proposal = [b["proposal"] if lex_dict is not None else None for b in batch]
                             target_langs = [torch.LongTensor([lang_directions[int(l)] for l in src[:, 0]]) for src in
                                             src_inputs]
                             dst_langs = [torch.LongTensor([id2lid(l) for l in src[:, 0]]) for src in src_inputs]
@@ -123,7 +136,7 @@ class ImageDocTrainer:
                                                      src_langs=langs, tgt_langs=dst_langs,
                                                      pad_idx=model.text_processor.pad_token_id(),
                                                      src_mask=src_pad_mask, unpad_output=False, beam_width=1,
-                                                     images=images)
+                                                     images=images, proposals=proposal)
                             if self.num_gpu > 1:
                                 if is_mass_batch:
                                     new_outputs = []
@@ -134,8 +147,24 @@ class ImageDocTrainer:
                             if is_mass_batch or self.num_gpu <= 1:
                                 translations = pad_sequence(outputs, batch_first=True,
                                                             padding_value=model.text_processor.pad_token_id())
+                                translation_proposals = None
+                                if proposal is not None:
+                                    translation_proposals = list(map(lambda o: dataset.get_lex_suggestions(lex_dict, o,
+                                                                                                           model.text_processor.pad_token_id()),
+                                                                     outputs))
+                                    translation_proposals = pad_sequence(translation_proposals, batch_first=True,
+                                                                         padding_value=model.text_processor.pad_token_id())
                                 translation_pad_mask = (translations != model.text_processor.pad_token_id())
                             else:
+                                translation_proposals = None
+                                if proposal is not None:
+                                    translation_proposals = [
+                                        pad_sequence(list(map(lambda o: dataset.get_lex_suggestions(lex_dict, o,
+                                                                                                    model.text_processor.pad_token_id()),
+                                                              output)), batch_first=True,
+                                                     padding_value=model.text_processor.pad_token_id()) for output in
+                                        outputs]
+
                                 translations = [pad_sequence(output, batch_first=True,
                                                              padding_value=model.text_processor.pad_token_id()) for
                                                 output in outputs]
@@ -152,7 +181,7 @@ class ImageDocTrainer:
                                                  src_pads=translation_pad_mask,
                                                  pad_idx=model.text_processor.pad_token_id(),
                                                  src_langs=dst_langs,
-                                                 tgt_langs=langs,
+                                                 tgt_langs=langs, proposals=translation_proposals,
                                                  log_softmax=True)
                         if is_mass_batch:
                             src_targets = src_inputs[:, 1:].contiguous().view(-1)
@@ -166,6 +195,7 @@ class ImageDocTrainer:
                     elif is_img_batch:
                         src_inputs = [b["captions"] for b in batch]
                         src_pad_mask = [b["caption_mask"] for b in batch]
+                        proposals = [b["proposal"] for b in batch] if lex_dict is not None else None
                         langs = [b["langs"] for b in batch]
                         if (self.mm_mode == "mixed" and random.random() <= .5) or self.mm_mode == "masked":
                             pad_indices = [b["pad_idx"] for b in batch]
@@ -180,7 +210,7 @@ class ImageDocTrainer:
                                                      tgt_positions=list(map(lambda m: m["positions"], masked_info)),
                                                      src_pads=src_pad_mask,
                                                      pad_idx=model.text_processor.pad_token_id(),
-                                                     src_langs=langs, batch=batch,
+                                                     src_langs=langs, batch=batch, proposals=proposals,
                                                      log_softmax=True)
                             targets = torch.cat(list(map(lambda m: m["targets"], masked_info)))
                             ntokens = targets.size(0)
@@ -192,7 +222,7 @@ class ImageDocTrainer:
                                               neg_samples=neg_samples,
                                               neg_mask=neg_mask,
                                               pad_idx=model.text_processor.pad_token_id(),
-                                              src_langs=langs, batch=batch,
+                                              src_langs=langs, batch=batch, proposals=proposals,
                                               log_softmax=True)
                             is_contrastive = True
 
@@ -203,11 +233,13 @@ class ImageDocTrainer:
                         tgt_mask = batch["dst_pad_mask"].squeeze(0)
                         src_langs = batch["src_langs"].squeeze(0)
                         dst_langs = batch["dst_langs"].squeeze(0)
+                        proposals = batch["proposal"].squeeze(0) if lex_dict is not None else None
                         if src_inputs.size(0) < self.num_gpu:
                             continue
                         predictions = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                                  src_pads=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
-                                                 tgt_langs=dst_langs, log_softmax=True)
+                                                 tgt_langs=dst_langs, proposals=proposals,
+                                                 pad_idx=model.text_processor.pad_token_id(), log_softmax=True)
                         targets = tgt_inputs[:, 1:].contiguous().view(-1)
                         tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
                         targets = targets[tgt_mask_flat]
@@ -216,6 +248,7 @@ class ImageDocTrainer:
                         src_inputs = batch["src_texts"].squeeze(0)
                         src_pad_mask = batch["src_pad_mask"].squeeze(0)
                         pad_indices = batch["pad_idx"].squeeze(0)
+                        proposals = batch["proposal"].squeeze(0) if lex_dict is not None else None
                         if src_inputs.size(0) < self.num_gpu:
                             continue
 
@@ -224,7 +257,7 @@ class ImageDocTrainer:
                                                  tgt_inputs=masked_info["to_recover"],
                                                  tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
                                                  pad_idx=model.text_processor.pad_token_id(),
-                                                 src_langs=batch["langs"].squeeze(0),
+                                                 src_langs=batch["langs"].squeeze(0), proposals=proposals,
                                                  log_softmax=True)
                         targets = masked_info["targets"]
                         ntokens = targets.size(0)
@@ -255,7 +288,7 @@ class ImageDocTrainer:
                     if not is_contrastive and is_img_batch and not fine_tune:
                         map(lambda m: mass_unmask(m["src_text"], m["src_mask"], m["mask_idx"]), masked_info)
 
-                except RuntimeError as err:
+                else:  # except RuntimeError as err:
                     print(repr(err))
                     print("Error processing", is_img_batch)
                     if (isinstance(model, ImageMassSeq2Seq)) and is_img_batch:
@@ -278,7 +311,10 @@ class ImageDocTrainer:
                             pickle.dump(self.optimizer, fp)
 
                     start, tokens, cur_loss = time.time(), 0, 0
+
             if i == shortest - 1:
+                break
+            if step >= max_step:
                 break
 
         print("Total loss in this epoch: %f" % (total_loss / total_tokens))
@@ -316,6 +352,7 @@ class ImageDocTrainer:
                     src_langs = batch["src_langs"].squeeze(0)
                     dst_langs = batch["dst_langs"].squeeze(0)
                     src_pad_idx = batch["pad_idx"].squeeze(0)
+                    proposal = batch["proposal"].squeeze(0) if batch["proposal"] is not None else None
 
                     src_ids = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs,
                                                     remove_first_token=True)
@@ -324,7 +361,7 @@ class ImageDocTrainer:
                     outputs = self.generator(src_inputs=src_inputs, src_sizes=src_pad_idx,
                                              first_tokens=tgt_inputs[:, 0],
                                              src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs,
-                                             pad_idx=model.text_processor.pad_token_id())
+                                             pad_idx=model.text_processor.pad_token_id(), proposals=proposal)
                     if self.num_gpu > 1:
                         new_outputs = []
                         for output in outputs:
@@ -357,16 +394,20 @@ class ImageDocTrainer:
 
     @staticmethod
     def train(options):
+        lex_dict = None
+        if options.dict_path is not None:
+            lex_dict = get_lex_dict(options.dict_path)
         if not os.path.exists(options.model_path):
             os.makedirs(options.model_path)
 
         text_processor = TextProcessor(options.tokenizer_path)
+        assert text_processor.pad_token_id() == 0
         num_processors = max(torch.cuda.device_count(), 1)
 
         if options.pretrained_path is not None:
             mt_model, lm = ImageMassSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path,
                                                  sep_decoder=options.sep_encoder, resnet_depth=options.resnet_depth,
-                                                 lang_dec=options.lang_decoder)
+                                                 lang_dec=options.lang_decoder, use_proposals=lex_dict is not None)
         else:
             if options.lm_path is None:
                 lm = LM(text_processor=text_processor, size=options.model_size)
@@ -375,7 +416,7 @@ class ImageDocTrainer:
 
             decoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
             mt_model = ImageMassSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder,
-                                        output_layer=lm.masked_lm,
+                                        output_layer=lm.masked_lm, use_proposals=lex_dict is not None,
                                         text_processor=lm.text_processor, checkpoint=options.checkpoint,
                                         resnet_depth=options.resnet_depth, lang_dec=options.lang_decoder)
 
@@ -398,7 +439,7 @@ class ImageDocTrainer:
         pin_memory = torch.cuda.is_available()
         img_train_loader = None
         img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
-                                                          mt_model, num_batches, options, pin_memory)
+                                                          mt_model, num_batches, options, pin_memory, lex_dict=lex_dict)
 
         mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
         if options.mass_train_path is not None:
@@ -406,27 +447,29 @@ class ImageDocTrainer:
             if options.step > 0:
                 mass_train_data, mass_train_loader = ImageDocTrainer.get_mass_loader(mass_train_paths, mt_model,
                                                                                      num_processors, options,
-                                                                                     pin_memory)
+                                                                                     pin_memory, lex_dict=lex_dict)
 
             if options.finetune_step > 0:
                 finetune_loader, finetune_data = ImageDocTrainer.get_mass_finetune_data(mass_train_data,
                                                                                         mass_train_paths, mt_model,
                                                                                         num_processors, options,
-                                                                                        pin_memory)
+                                                                                        pin_memory, lex_dict=lex_dict)
 
         mt_train_loader = None
         if options.mt_train_path is not None:
-            mt_train_loader = ImageDocTrainer.get_mt_train_data(mt_model, num_processors, options, pin_memory)
+            mt_train_loader = ImageDocTrainer.get_mt_train_data(mt_model, num_processors, options, pin_memory,
+                                                                lex_dict=lex_dict)
 
         mt_dev_loader = None
         if options.mt_dev_path is not None:
-            mt_dev_loader = ImageDocTrainer.get_mt_dev_data(mt_model, options, pin_memory, text_processor, trainer)
+            mt_dev_loader = ImageDocTrainer.get_mt_dev_data(mt_model, options, pin_memory, text_processor, trainer,
+                                                            lex_dict=lex_dict)
 
         step, train_epoch = 0, 1
         while options.step > 0 and step < options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(img_data_iter=img_train_loader, mass_data_iter=mass_train_loader,
-                                       mt_train_iter=mt_train_loader, max_step=options.step,
+                                       mt_train_iter=mt_train_loader, max_step=options.step, lex_dict=lex_dict,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step)
             train_epoch += 1
 
@@ -440,7 +483,8 @@ class ImageDocTrainer:
         print("Reloading image train data with new batch size...")
         if options.finetune_step > 0 and img_train_loader is not None:
             img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
-                                                              mt_model, num_batches, options, pin_memory, 2)
+                                                              mt_model, num_batches, options, pin_memory, denom=2,
+                                                              lex_dict=lex_dict)
         print("Reloading image train data with new batch size done!")
 
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
@@ -448,7 +492,7 @@ class ImageDocTrainer:
             step = trainer.train_epoch(img_data_iter=img_train_loader, mass_data_iter=finetune_loader,
                                        mt_train_iter=mt_train_loader, max_step=options.finetune_step + options.step,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
-                                       fine_tune=True, lang_directions=lang_directions)
+                                       fine_tune=True, lang_directions=lang_directions, lex_dict=lex_dict)
             finetune_epoch += 1
 
     @staticmethod
@@ -467,7 +511,7 @@ class ImageDocTrainer:
         return lang_directions
 
     @staticmethod
-    def get_mt_dev_data(mt_model, options, pin_memory, text_processor, trainer):
+    def get_mt_dev_data(mt_model, options, pin_memory, text_processor, trainer, lex_dict=None):
         mt_dev_loader = []
         dev_paths = options.mt_dev_path.split(",")
         trainer.reference = []
@@ -475,7 +519,7 @@ class ImageDocTrainer:
             mt_dev_data = dataset.MTDataset(batch_pickle_dir=dev_path,
                                             max_batch_capacity=options.total_capacity,
                                             max_batch=int(options.batch / (options.beam_width * 2)),
-                                            pad_idx=mt_model.text_processor.pad_token_id())
+                                            pad_idx=mt_model.text_processor.pad_token_id(), lex_dict=lex_dict)
             dl = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
             mt_dev_loader.append(dl)
 
@@ -493,20 +537,21 @@ class ImageDocTrainer:
         return mt_dev_loader
 
     @staticmethod
-    def get_mt_train_data(mt_model, num_processors, options, pin_memory):
+    def get_mt_train_data(mt_model, num_processors, options, pin_memory, lex_dict=None):
         mt_train_loader = []
         train_paths = options.mt_train_path.split(",")
         for train_path in train_paths:
             mt_train_data = dataset.MTDataset(batch_pickle_dir=train_path,
                                               max_batch_capacity=int(num_processors * options.total_capacity / 2),
                                               max_batch=int(num_processors * options.batch / 2),
-                                              pad_idx=mt_model.text_processor.pad_token_id())
+                                              pad_idx=mt_model.text_processor.pad_token_id(), lex_dict=lex_dict)
             mtl = data_utils.DataLoader(mt_train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
             mt_train_loader.append(mtl)
         return mt_train_loader
 
     @staticmethod
-    def get_mass_finetune_data(mass_train_data, mass_train_paths, mt_model, num_processors, options, pin_memory):
+    def get_mass_finetune_data(mass_train_data, mass_train_paths, mt_model, num_processors, options, pin_memory,
+                               lex_dict=None):
         finetune_data, finetune_loader = [], []
         for i, mass_train_path in enumerate(mass_train_paths):
             fd = dataset.MassDataset(batch_pickle_dir=mass_train_path,
@@ -515,7 +560,7 @@ class ImageDocTrainer:
                                      pad_idx=mt_model.text_processor.pad_token_id(),
                                      max_seq_len=options.max_seq_len, keep_examples=False,
                                      example_list=None if mass_train_data is None else mass_train_data[
-                                         i].examples_list)
+                                         i].examples_list, lex_dict=lex_dict)
             finetune_data.append(fd)
             fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory)
             finetune_loader.append(fl)
@@ -524,14 +569,14 @@ class ImageDocTrainer:
         return finetune_loader, finetune_data
 
     @staticmethod
-    def get_mass_loader(mass_train_paths, mt_model, num_processors, options, pin_memory):
+    def get_mass_loader(mass_train_paths, mt_model, num_processors, options, pin_memory, lex_dict=None):
         mass_train_data, mass_train_loader = [], []
         for i, mass_train_path in enumerate(mass_train_paths):
             td = dataset.MassDataset(batch_pickle_dir=mass_train_path,
                                      max_batch_capacity=num_processors * options.total_capacity,
                                      max_batch=num_processors * options.batch,
                                      pad_idx=mt_model.text_processor.pad_token_id(),
-                                     max_seq_len=options.max_seq_len, keep_examples=True)
+                                     max_seq_len=options.max_seq_len, keep_examples=True, lex_dict=lex_dict)
             mass_train_data.append(td)
 
             dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)
@@ -539,7 +584,8 @@ class ImageDocTrainer:
         return mass_train_data, mass_train_loader
 
     @staticmethod
-    def get_img_loader(collator, dataset_class, img_train_loader, mt_model, num_batches, options, pin_memory, denom=1):
+    def get_img_loader(collator, dataset_class, img_train_loader, mt_model, num_batches, options, pin_memory, denom=1,
+                       lex_dict=None):
         if options.train_path is not None:
             img_train_loader = []
             train_paths = options.train_path.split(",")
@@ -548,7 +594,7 @@ class ImageDocTrainer:
                                            data_bin_file=train_path,
                                            max_capacity=int(options.img_capacity / denom),
                                            text_processor=mt_model.text_processor,
-                                           max_img_per_batch=options.max_image)
+                                           max_img_per_batch=options.max_image, lex_dict=lex_dict)
                 print(train_path, "Length of training data", len(train_data))
                 tl = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True,
                                            pin_memory=pin_memory,

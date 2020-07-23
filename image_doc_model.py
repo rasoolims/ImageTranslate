@@ -69,9 +69,9 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
 class ImageMassSeq2Seq(MassSeq2Seq):
     def __init__(self, config: AlbertConfig, encoder: AlbertModel, decoder, output_layer: AlbertMLMHead,
                  text_processor: TextProcessor, checkpoint: int = 5, freeze_image: bool = False,
-                 resnet_depth: int = 1, lang_dec: bool = False):
+                 resnet_depth: int = 1, lang_dec: bool = False, use_proposals=False):
         super(ImageMassSeq2Seq, self).__init__(config, encoder, decoder, output_layer, text_processor, lang_dec,
-                                               checkpoint)
+                                               checkpoint, use_proposals=use_proposals)
         self.image_model: ModifiedResnet = init_net(embed_dim=config.hidden_size, dropout=config.hidden_dropout_prob,
                                                     freeze=freeze_image, depth=resnet_depth)
         self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, config.hidden_size).fill_(0.1), requires_grad=True)
@@ -91,8 +91,10 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             return encoder_states[0], image_embeddings
         return encoder_states
 
-    def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 1,
-                tgt_positions=None, batch=None, neg_samples=None, neg_mask=None, log_softmax: bool = False, **kwargs):
+    def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, pad_idx: int = 0,
+                tgt_positions=None, batch=None, neg_samples=None, neg_mask=None, proposals=None,
+                log_softmax: bool = False, **kwargs):
+        device = self.encoder.embeddings.word_embeddings.weight.device
         if isinstance(batch, list):
             assert len(batch) == 1
             batch = batch[0]
@@ -106,14 +108,16 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             tgt_positions = tgt_positions[0]
         if isinstance(tgt_inputs, list):
             tgt_inputs = tgt_inputs[0]
+        if isinstance(proposals, list):
+            proposals = proposals[0]
 
         if batch is None:
             return super().forward(src_inputs=src_inputs, src_pads=src_pads, tgt_inputs=tgt_inputs, src_langs=src_langs,
                                    tgt_langs=tgt_langs, pad_idx=pad_idx, tgt_positions=tgt_positions,
+                                   proposals=proposals,
                                    log_softmax=log_softmax)
 
         assert src_inputs is not None
-        device = self.encoder.embeddings.word_embeddings.weight.device
         images = batch["images"].to(device)
         src_pads = src_pads.to(device)
         src_inputs = src_inputs.to(device)
@@ -148,6 +152,9 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             eps = 1e-7
             sig_gate = torch.sigmoid(self.multimodal_attention_gate + eps)
             decoder_output = sig_gate * text_decoder_output + (1 - sig_gate) * image_decoder_output
+
+            if self.use_proposals:
+                decoder_output = self.attend_proposal(decoder_output, proposals, pad_idx)
 
             diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
             tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
@@ -192,7 +199,8 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             return log_neg
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool, resnet_depth: int = 1, lang_dec: bool = False):
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool, resnet_depth: int = 1, lang_dec: bool = False,
+             use_proposals=False):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             config, checkpoint = pickle.load(fp)
@@ -200,6 +208,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
             mt_model = ImageMassSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder,
                                         output_layer=lm.masked_lm, resnet_depth=resnet_depth,
-                                        text_processor=lm.text_processor, checkpoint=checkpoint, lang_dec=lang_dec)
+                                        text_processor=lm.text_processor, checkpoint=checkpoint, lang_dec=lang_dec,
+                                        use_proposals=use_proposals)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
             return mt_model, lm

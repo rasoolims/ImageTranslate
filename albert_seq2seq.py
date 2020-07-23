@@ -16,7 +16,7 @@ def future_mask(tgt_mask):
 
 class AlbertSeq2Seq(nn.Module):
     def __init__(self, config: AlbertConfig, encoder, decoder, output_layer: AlbertMLMHead,
-                 text_processor: TextProcessor, lang_dec: bool = False, checkpoint: int = 5):
+                 text_processor: TextProcessor, lang_dec: bool = False, checkpoint: int = 5, use_proposals=False):
         super(AlbertSeq2Seq, self).__init__()
         self.text_processor: TextProcessor = text_processor
         self.config: AlbertConfig = config
@@ -42,6 +42,14 @@ class AlbertSeq2Seq(nn.Module):
         self.checkpoint = checkpoint
         self.checkpoint_num = 0
 
+        self.use_proposals = use_proposals
+        if self.use_proposals:
+            self.proposal_embedding = self.encoder.embeddings.word_embeddings
+            self.target_mapper = nn.Linear(config.hidden_size, config.embedding_size)
+            self.embedding_mapper = nn.Linear(config.embedding_size, config.hidden_size)
+            self.lexical_gate = nn.Parameter(torch.zeros(1, config.hidden_size).fill_(0.1), requires_grad=True)
+            self.lexical_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+
     def encode(self, src_inputs, src_mask, src_langs, images=None):
         device = self.encoder.embeddings.word_embeddings.weight.device
         if src_inputs.device != device:
@@ -51,7 +59,44 @@ class AlbertSeq2Seq(nn.Module):
         encoder_states = self.encoder(src_inputs, attention_mask=src_mask, token_type_ids=src_langs)
         return encoder_states
 
-    def forward(self, src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs, log_softmax: bool = False):
+    def attend_proposal(self, decoder_output, proposals, pad_idx):
+        device = self.encoder.embeddings.word_embeddings.weight.device
+        proposals = proposals.to(device)
+        attend_mask = (proposals == pad_idx)
+        mapped_output = self.target_mapper(decoder_output)
+        proposal_embedding = self.proposal_embedding(proposals)
+        if decoder_output.dim() == 3:
+            proposal_embedding = proposal_embedding.unsqueeze(1)
+            proposal_embedding = proposal_embedding.expand(-1, decoder_output.size(1), -1, -1)
+            mapped_output = mapped_output.unsqueeze(2)
+            attend_mask = attend_mask.unsqueeze(1)
+        else:
+            if len(proposals) < len(decoder_output):
+                beam_width = int(len(decoder_output) / len(proposals))
+                proposals = torch.repeat_interleave(proposals, beam_width, 0)
+                attend_mask = torch.repeat_interleave(attend_mask, beam_width, 0)
+                proposal_embedding = torch.repeat_interleave(proposal_embedding, beam_width, 0)
+            mapped_output = mapped_output.unsqueeze(1)
+
+        attend_scores = torch.matmul(mapped_output, proposal_embedding.transpose(-1, -2)).squeeze(-2)
+
+        attend_mask = attend_mask.expand(attend_scores.size())
+        attend_scores[attend_mask].fill_(-10000.0)
+        attend_probs = nn.Softmax(dim=-1)(attend_scores)
+
+        proposal_context = torch.sum(attend_probs.unsqueeze(-1) * proposal_embedding, dim=-2)
+        proposal_values = self.embedding_mapper(proposal_context)
+        final_proposal_mask = torch.all(proposals == pad_idx, dim=-1)
+        proposal_values[final_proposal_mask] = 1e-8
+
+        sig_gate = torch.sigmoid(self.lexical_gate + 1e-8)
+
+        combined_value = sig_gate * decoder_output + (1 - sig_gate) * proposal_values
+        combined_value = self.lexical_layer_norm(combined_value)
+        return combined_value
+
+    def forward(self, src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs, proposals=None,
+                log_softmax: bool = False):
         "Take in and process masked src and target sequences."
         device = self.encoder.embeddings.word_embeddings.weight.device
         batch_lang = int(tgt_langs[0])
@@ -76,6 +121,8 @@ class AlbertSeq2Seq(nn.Module):
 
         decoder_output = decoder(encoder_states, tgt_inputs[:, :-1], tgt_mask[:, :-1], src_mask, subseq_mask,
                                  token_type_ids=tgt_langs[:, :-1])
+        if self.use_proposals:
+            decoder_output = self.attend_proposal(decoder_output, proposals, self.text_processor.pad_token_id())
         diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
         tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
         non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]
@@ -93,7 +140,7 @@ class AlbertSeq2Seq(nn.Module):
         torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool, lang_dec: bool):
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool, lang_dec: bool, use_proposals=False):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
@@ -101,15 +148,16 @@ class AlbertSeq2Seq(nn.Module):
             lm = LM(text_processor=text_processor, config=config)
             decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
             mt_model = AlbertSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
-                                     text_processor=lm.text_processor, lang_dec=lang_dec, checkpoint=checkpoint)
+                                     text_processor=lm.text_processor, lang_dec=lang_dec, checkpoint=checkpoint,
+                                     use_proposals=use_proposals)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
                                      strict=False)
             return mt_model, lm
 
 
 class MassSeq2Seq(AlbertSeq2Seq):
-    def forward(self, src_inputs, src_pads, tgt_inputs, src_langs, tgt_langs=None, pad_idx: int = 1,
-                tgt_positions=None, log_softmax: bool = False):
+    def forward(self, src_inputs, src_pads, tgt_inputs, src_langs, tgt_langs=None, pad_idx: int = 0,
+                tgt_positions=None, log_softmax: bool = False, proposals=None):
         """
         :param mask_pad_mask: # Since MASS also generates MASK tokens, we do not backpropagate them during training.
         :return:
@@ -130,7 +178,7 @@ class MassSeq2Seq(AlbertSeq2Seq):
 
         if tgt_langs is not None:
             # Use back-translation loss
-            return super().forward(src_inputs=src_inputs, src_mask=src_pads, tgt_inputs=tgt_inputs,
+            return super().forward(src_inputs=src_inputs, src_mask=src_pads, tgt_inputs=tgt_inputs, proposals=proposals,
                                    tgt_mask=tgt_mask, src_langs=src_langs, tgt_langs=tgt_langs, log_softmax=log_softmax)
 
         "Take in and process masked src and target sequences."
@@ -153,6 +201,8 @@ class MassSeq2Seq(AlbertSeq2Seq):
                                  tgt_attn_mask=subseq_mask,
                                  position_ids=tgt_positions[:, :-1] if tgt_positions is not None else None,
                                  token_type_ids=tgt_langs[:, :-1])
+        if self.use_proposals:
+            decoder_output = self.attend_proposal(decoder_output, proposals, pad_idx)
         diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
 
         tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
@@ -163,8 +213,8 @@ class MassSeq2Seq(AlbertSeq2Seq):
         return outputs
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool, lang_dec: bool):
-        mt_model, lm = AlbertSeq2Seq.load(out_dir, tok_dir, sep_decoder, lang_dec)
+    def load(out_dir: str, tok_dir: str, sep_decoder: bool, lang_dec: bool, use_proposals=False):
+        mt_model, lm = AlbertSeq2Seq.load(out_dir, tok_dir, sep_decoder, lang_dec, use_proposals)
         mt_model.__class__ = MassSeq2Seq
         return mt_model, lm
 

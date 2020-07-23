@@ -44,7 +44,7 @@ class BeamDecoder(nn.Module):
         return length_penalty.unsqueeze(-1)
 
     def forward(self, src_inputs, src_sizes, first_tokens, src_mask, src_langs, tgt_langs, pad_idx, max_len: int = None,
-                unpad_output: bool = True, beam_width: int = None, images=None):
+                unpad_output: bool = True, beam_width: int = None, images=None, proposals=None):
         """
 
         :param device:
@@ -63,6 +63,8 @@ class BeamDecoder(nn.Module):
             src_sizes = src_sizes[0]
         if isinstance(images, list):
             images = images[0]
+        if isinstance(proposals, list):
+            proposals = proposals[0]
 
         if beam_width is None:
             beam_width = self.beam_width
@@ -138,7 +140,11 @@ class BeamDecoder(nn.Module):
                 sig_gate = torch.sigmoid(self.seq2seq_model.multimodal_attention_gate + eps)
                 decoder_states = sig_gate * text_decoder_output + (1 - sig_gate) * image_decoder_output
 
-            output = F.log_softmax(output_layer(decoder_states[:, -1, :]), dim=-1)
+            decoder_states = decoder_states[:, -1, :]
+            if self.seq2seq_model.use_proposals:
+                decoder_states = self.seq2seq_model.attend_proposal(decoder_states, proposals, pad_idx)
+
+            output = F.log_softmax(output_layer(decoder_states), dim=-1)
             output[eos_mask] = 0  # Disregard those items with EOS in them!
             if i > 1:
                 output[reached_eos_limit.contiguous().view(-1)] = 0  # Disregard those items over size limt!

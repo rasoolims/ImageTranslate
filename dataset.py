@@ -5,6 +5,7 @@ import marshal
 import math
 import os
 import random
+from itertools import chain
 from typing import Dict, List, Tuple
 
 import torch
@@ -16,6 +17,13 @@ from torchvision import transforms
 from textprocessor import TextProcessor
 
 logger = logging.getLogger(__name__)
+
+
+def get_lex_suggestions(lex_dict, input_tensor, pad_idx):
+    lst = list(set(chain(*map(lambda w: lex_dict[w], input_tensor))))
+    if len(lst) == 0:
+        lst = [pad_idx]  # Make sure there is at least one item
+    return torch.LongTensor(lst)
 
 
 class TextDataset(Dataset):
@@ -64,7 +72,8 @@ class TextDataset(Dataset):
 class MTDataset(Dataset):
     def __init__(self, max_batch_capacity: int, max_batch: int,
                  pad_idx: int, max_seq_len: int = 175, batch_pickle_dir: str = None,
-                 examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = None):
+                 examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = None, lex_dict=None):
+        self.lex_dict = lex_dict
         if examples is None:
             self.build_batches(batch_pickle_dir, max_batch_capacity, max_batch, pad_idx, max_seq_len)
         else:
@@ -87,7 +96,7 @@ class MTDataset(Dataset):
     def batch_examples(self, examples, max_batch, max_batch_capacity, max_seq_len, num_gpu, pad_idx):
         self.batches = []
         cur_src_batch, cur_dst_batch, cur_max_src_len, cur_max_dst_len = [], [], 0, 0
-        cur_src_langs, cur_dst_langs = [], []
+        cur_src_langs, cur_dst_langs, cur_lex_cand_batch = [], [], []
         for example in examples:
             src = torch.LongTensor(example[0][:max_seq_len])  # trim if longer than expected!
             dst = torch.LongTensor(example[1][:max_seq_len])  # trim if longer than expected!
@@ -97,6 +106,9 @@ class MTDataset(Dataset):
             cur_max_dst_len = max(cur_max_dst_len, int(dst.size(0)))
 
             cur_src_batch.append(src)
+            if self.lex_dict is not None:
+                lex_cands = get_lex_suggestions(self.lex_dict, src, pad_idx)
+                cur_lex_cand_batch.append(lex_cands)
             cur_dst_batch.append(dst)
 
             batch_capacity_size = (cur_max_src_len ** 2 + cur_max_dst_len ** 2) * len(
@@ -109,9 +121,14 @@ class MTDataset(Dataset):
                 dst_batch = pad_sequence(cur_dst_batch[:-1], batch_first=True, padding_value=pad_idx)
                 src_pad_mask = (src_batch != pad_idx)
                 dst_pad_mask = (dst_batch != pad_idx)
+                lex_cand_batch = "None"
+                if self.lex_dict is not None:
+                    lex_cand_batch = pad_sequence(cur_lex_cand_batch[:-1], batch_first=True, padding_value=pad_idx)
+                    cur_lex_cand_batch = [cur_lex_cand_batch[-1]]
+
                 entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                          "dst_pad_mask": dst_pad_mask, "src_langs": torch.LongTensor(cur_src_langs[:-1]),
-                         "dst_langs": torch.LongTensor(cur_dst_langs[:-1])}
+                         "dst_langs": torch.LongTensor(cur_dst_langs[:-1]), "proposal": lex_cand_batch}
                 self.batches.append(entry)
                 cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
                 cur_src_langs, cur_dst_langs = [cur_src_langs[-1]], [cur_dst_langs[-1]]
@@ -119,11 +136,14 @@ class MTDataset(Dataset):
         if len(cur_src_batch) > 0 and len(cur_src_batch) >= num_gpu:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
             dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
+            lex_cand_batch = "None"
+            if self.lex_dict is not None:
+                lex_cand_batch = pad_sequence(cur_lex_cand_batch, batch_first=True, padding_value=pad_idx)
             src_pad_mask = (src_batch != pad_idx)
             dst_pad_mask = (dst_batch != pad_idx)
             entry = {"src_texts": src_batch, "src_pad_mask": src_pad_mask, "dst_texts": dst_batch,
                      "dst_pad_mask": dst_pad_mask, "src_langs": torch.LongTensor(cur_src_langs),
-                     "dst_langs": torch.LongTensor(cur_dst_langs)}
+                     "dst_langs": torch.LongTensor(cur_dst_langs), "proposal": lex_cand_batch}
             self.batches.append(entry)
         for b in self.batches:
             pads = b["src_pad_mask"]
@@ -143,7 +163,9 @@ class MTDataset(Dataset):
 
 class MassDataset(Dataset):
     def __init__(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
-                 pad_idx: int, max_seq_len: int = 512, keep_examples: bool = False, example_list: List = None):
+                 pad_idx: int, max_seq_len: int = 512, keep_examples: bool = False, example_list: List = None,
+                 lex_dict=None):
+        self.lex_dict = lex_dict
         if example_list is None:
             self.build_batches(batch_pickle_dir, max_batch_capacity, max_batch, pad_idx, max_seq_len, keep_examples)
         else:
@@ -182,6 +204,7 @@ class MassDataset(Dataset):
         self.lang_ids = set()
         num_gpu = torch.cuda.device_count()
         cur_src_batch, cur_langs, cur_max_src_len = [], [], 0
+        cur_lex_cand_batch = []
         for examples in self.examples_list:
             for example in examples:
                 if len(example[0]) > max_seq_len:
@@ -193,30 +216,37 @@ class MassDataset(Dataset):
                 cur_max_src_len = max(cur_max_src_len, len(src))
 
                 cur_src_batch.append(src)
+                if self.lex_dict is not None:
+                    lex_cands = get_lex_suggestions(self.lex_dict, src, pad_idx)
+                    cur_lex_cand_batch.append(lex_cands)
 
                 batch_capacity_size = 2 * (cur_max_src_len ** 3) * len(cur_src_batch)
                 batch_size = 2 * cur_max_src_len * len(cur_src_batch)
 
                 if (batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000) and \
                         len(cur_src_batch[:-1]) >= num_gpu and len(cur_langs) > 1:
-                    batches.append(cur_src_batch[:-1])
+                    batches.append((cur_src_batch[:-1], cur_lex_cand_batch[:-1] if self.lex_dict is not None else None))
                     langs.append(cur_langs[:-1])
                     cur_src_batch = [cur_src_batch[-1]]
                     cur_langs = [cur_langs[-1]]
+                    if self.lex_dict is not None:
+                        cur_lex_cand_batch = [cur_lex_cand_batch[-1]]
                     cur_max_src_len = len(cur_src_batch[0])
 
         if len(cur_src_batch) > 0:
             if len(cur_src_batch) < num_gpu:
                 print("skipping", len(cur_src_batch))
             else:
-                batches.append(cur_src_batch)
+                batches.append((cur_src_batch, cur_lex_cand_batch if self.lex_dict is not None else None))
                 langs.append(cur_langs)
 
         padder = lambda b: pad_sequence(b, batch_first=True, padding_value=pad_idx)
         tensorfier = lambda b: list(map(torch.LongTensor, b))
-        entry = lambda b, l: {"src_texts": padder(tensorfier(b)), "langs": torch.LongTensor(l)}
+        entry = lambda b, l: {"src_texts": padder(tensorfier(b[0])),
+                              "proposal": padder(tensorfier(b[1])) if b[1] is not None else None,
+                              "langs": torch.LongTensor(l)}
         pad_entry = lambda e: {"src_pad_mask": e["src_texts"] != pad_idx, "src_texts": e["src_texts"],
-                               "langs": e["langs"]}
+                               "langs": e["langs"], "proposal": e["proposal"]}
 
         self.batches = list(map(lambda b, l: pad_entry(entry(b, l)), batches, langs))
 
@@ -241,7 +271,8 @@ class MassDataset(Dataset):
 
 class ImageCaptionDataset(Dataset):
     def __init__(self, root_img_dir: str, data_bin_file: str, max_capacity: int, text_processor: TextProcessor,
-                 max_img_per_batch: int):
+                 max_img_per_batch: int, lex_dict=None):
+        self.lex_dict = lex_dict
         self.size_transform = transforms.Resize(256)
         self.crop = transforms.CenterCrop(224)
         self.to_tensor = transforms.ToTensor()
@@ -261,7 +292,7 @@ class ImageCaptionDataset(Dataset):
         self.all_captions = []
 
         print("Start", datetime.datetime.now())
-        cur_batch, cur_imgs = [], []
+        cur_batch, cur_imgs, cur_lex_cand_batch = [], [], []
         cur_max_len = 0
         with open(data_bin_file, "rb") as fp:
             self.unique_images, captions = marshal.load(fp)
@@ -270,22 +301,31 @@ class ImageCaptionDataset(Dataset):
             self.lang = text_processor.languages[lang_id] if lang_id in text_processor.languages else 0
             for caption_info in captions:
                 image_id, caption = caption_info
+                caption = torch.LongTensor(caption)
                 cur_batch.append(caption)
-                self.all_captions.append(torch.LongTensor(caption))
+                self.all_captions.append(caption)
+                if self.lex_dict is not None:
+                    lex_cands = get_lex_suggestions(self.lex_dict, caption, text_processor.pad_token_id())
+                    cur_lex_cand_batch.append(lex_cands)
+
                 cur_imgs.append(image_id)
                 cur_max_len = max(cur_max_len, len(caption))
                 batch_capacity_size = 2 * (cur_max_len ** 3) * len(cur_batch)
                 if (len(cur_imgs) > max_img_per_batch or batch_capacity_size > max_capacity) and len(
                         cur_batch[:-1]) >= num_gpu and len(cur_batch) > 1:
-                    batch_tensor = pad_sequence(list(map(lambda t: torch.LongTensor(t), cur_batch[:-1])),
-                                                batch_first=True, padding_value=self.pad_idx)
+                    batch_tensor = pad_sequence(cur_batch[:-1], batch_first=True, padding_value=self.pad_idx)
+                    lex_cand_batch = None
+                    if self.lex_dict is not None:
+                        lex_cand_batch = pad_sequence(cur_lex_cand_batch[:-1], batch_first=True,
+                                                      padding_value=self.pad_idx)
+                        cur_lex_cand_batch = [cur_lex_cand_batch[-1]]
                     pads = batch_tensor != self.pad_idx
                     pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
                     pindices = torch.nonzero(~pads)
                     for (r, c) in pindices:
                         pad_indices[r] = min(pad_indices[r], int(c))
 
-                    self.batches.append((batch_tensor, pads, torch.LongTensor(pad_indices)))
+                    self.batches.append((batch_tensor, pads, torch.LongTensor(pad_indices), lex_cand_batch))
                     self.image_batches.append(cur_imgs[:-1])
 
                     cur_batch = [cur_batch[-1]]
@@ -293,15 +333,18 @@ class ImageCaptionDataset(Dataset):
                     cur_max_len = len(cur_batch[0])
 
             if len(cur_batch) > 0:
-                batch_tensor = pad_sequence(list(map(lambda t: torch.LongTensor(t), cur_batch)), batch_first=True,
-                                            padding_value=self.pad_idx)
+                batch_tensor = pad_sequence(cur_batch, batch_first=True, padding_value=self.pad_idx)
                 pads = batch_tensor != self.pad_idx
                 pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
+                lex_cand_batch = None
+                if self.lex_dict is not None:
+                    lex_cand_batch = pad_sequence(cur_lex_cand_batch, batch_first=True, padding_value=self.pad_idx)
+
                 pindices = torch.nonzero(~pads)
                 for (r, c) in pindices:
                     pad_indices[r] = min(pad_indices[r], int(c))
 
-                self.batches.append((batch_tensor, pads, torch.LongTensor(pad_indices)))
+                self.batches.append((batch_tensor, pads, torch.LongTensor(pad_indices), lex_cand_batch))
                 self.image_batches.append(cur_imgs)
 
         print("Loaded %d image batches of %d unique images and %d all captions!" % (
@@ -312,7 +355,7 @@ class ImageCaptionDataset(Dataset):
         return len(self.batches)
 
     def __getitem__(self, item):
-        batch, caption_mask, pad_indices = self.batches[item]
+        batch, caption_mask, pad_indices, lex_cand_batch = self.batches[item]
         image_batch = []
         for image_id in self.image_batches[item]:
             if image_id not in self.image_cache:
@@ -340,7 +383,8 @@ class ImageCaptionDataset(Dataset):
                                    padding_value=self.pad_idx)
         neg_mask = (neg_samples != self.pad_idx)
         return {"images": img_tensors, "captions": batch, "pad_idx": pad_indices, "neg": neg_samples,
-                "langs": torch.LongTensor([self.lang] * len(batch)), "caption_mask": caption_mask, "neg_mask": neg_mask}
+                "langs": torch.LongTensor([self.lang] * len(batch)), "caption_mask": caption_mask, "neg_mask": neg_mask,
+                "proposal": lex_cand_batch}
 
 
 class TextCollator(object):

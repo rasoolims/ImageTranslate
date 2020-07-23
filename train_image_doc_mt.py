@@ -97,7 +97,7 @@ class ImageDocTrainer:
                 is_img_batch = isinstance(batch, list) and "captions" in batch[0]
                 is_mass_batch = not is_img_batch and "dst_texts" not in batch
                 is_contrastive = False
-                if True:  # try:
+                try:
                     if fine_tune and (is_img_batch or is_mass_batch):
                         id2lid = lambda r: model.text_processor.languages[
                             model.text_processor.id2token(lang_directions[int(r)])]
@@ -288,7 +288,7 @@ class ImageDocTrainer:
                     if not is_contrastive and is_img_batch and not fine_tune:
                         map(lambda m: mass_unmask(m["src_text"], m["src_mask"], m["mask_idx"]), masked_info)
 
-                else:  # except RuntimeError as err:
+                except RuntimeError as err:
                     print(repr(err))
                     print("Error processing", is_img_batch)
                     if (isinstance(model, ImageMassSeq2Seq)) and is_img_batch:

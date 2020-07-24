@@ -63,8 +63,9 @@ class Seq2Seq(nn.Module):
         self.use_proposals = use_proposals
         if self.use_proposals:
             self.proposal_embedding = self.encoder.embeddings.word_embeddings
-            self.target_mapper = nn.Linear(self.config.hidden_size, self.config.embedding_size)
-            self.embedding_mapper = nn.Linear(self.config.embedding_size, self.config.hidden_size)
+            if not self.is_bert:
+                self.target_mapper = nn.Linear(self.config.hidden_size, self.config.embedding_size)
+                self.embedding_mapper = nn.Linear(self.config.embedding_size, self.config.hidden_size)
             self.lexical_gate = nn.Parameter(torch.zeros(1, self.config.hidden_size).fill_(0.1), requires_grad=True)
             self.lexical_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
 
@@ -94,7 +95,7 @@ class Seq2Seq(nn.Module):
         device = self.encoder.embeddings.word_embeddings.weight.device
         proposals = proposals.to(device)
         attend_mask = (proposals == pad_idx)
-        mapped_output = self.target_mapper(decoder_output)
+        mapped_output = self.target_mapper(decoder_output) if not self.is_bert else decoder_output
         proposal_embedding = self.proposal_embedding(proposals)
         if decoder_output.dim() == 3:
             proposal_embedding = proposal_embedding.unsqueeze(1)
@@ -116,7 +117,7 @@ class Seq2Seq(nn.Module):
         attend_probs = nn.Softmax(dim=-1)(attend_scores)
 
         proposal_context = torch.sum(attend_probs.unsqueeze(-1) * proposal_embedding, dim=-2)
-        proposal_values = self.embedding_mapper(proposal_context)
+        proposal_values = self.embedding_mapper(proposal_context) if not self.is_bert else proposal_context
         final_proposal_mask = torch.all(proposals == pad_idx, dim=-1)
         proposal_values[final_proposal_mask] = 1e-8
 

@@ -20,8 +20,6 @@ def get_lm_option_parser():
     parser.add_option("--cache_size", dest="cache_size", help="Number of blocks in cache", type="int", default=300)
     parser.add_option("--model", dest="model_path", metavar="FILE", default=None)
     parser.add_option("--verbose", action="store_true", dest="verbose", help="Include input!", default=False)
-    parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Disjoint encoder/decoder", default=False)
-    parser.add_option("--ldec", action="store_true", dest="lang_decoder", help="Lang-specific decoder", default=False)
     parser.add_option("--beam", dest="beam_width", type="int", default=4)
     parser.add_option("--max_len_a", dest="max_len_a", help="a for beam search (a*l+b)", type="float", default=1.3)
     parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)
@@ -76,8 +74,7 @@ def build_data_loader(options, text_processor):
 
 
 def build_model(options):
-    model, lm = AlbertSeq2Seq.load(options.model_path, tok_dir=options.tokenizer_path,
-                                   sep_decoder=options.sep_encoder, lang_dec=options.lang_decoder)
+    model = AlbertSeq2Seq.load(options.model_path, tok_dir=options.tokenizer_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     num_gpu = torch.cuda.device_count()

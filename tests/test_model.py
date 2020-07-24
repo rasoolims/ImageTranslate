@@ -58,9 +58,7 @@ class TestModel(unittest.TestCase):
             processor = TextProcessor()
             processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname,
                                       languages={"<en>": 0, "<fa>": 1})
-            lm = LM(text_processor=processor, size=4)
-
-            seq2seq = AlbertSeq2Seq(lm.config, lm.encoder, lm.encoder, lm.masked_lm, processor)
+            seq2seq = AlbertSeq2Seq(text_processor=processor, size=4)
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             src_inputs = torch.tensor([[1, 2, 3, 4, 5, processor.pad_token_id(), processor.pad_token_id()],
                                        [1, 2, 3, 4, 5, 6, processor.pad_token_id()]])

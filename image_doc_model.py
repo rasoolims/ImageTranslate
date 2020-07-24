@@ -67,17 +67,18 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
 
 
 class ImageMassSeq2Seq(MassSeq2Seq):
-    def __init__(self, config: AlbertConfig, encoder: AlbertModel, decoder, output_layer: AlbertMLMHead,
-                 text_processor: TextProcessor, checkpoint: int = 5, freeze_image: bool = False,
+    def __init__(self, size: int, text_processor: TextProcessor, freeze_image: bool = False,
                  resnet_depth: int = 1, lang_dec: bool = False, use_proposals=False):
-        super(ImageMassSeq2Seq, self).__init__(config, encoder, decoder, output_layer, text_processor, lang_dec,
-                                               checkpoint, use_proposals=use_proposals)
-        self.image_model: ModifiedResnet = init_net(embed_dim=config.hidden_size, dropout=config.hidden_dropout_prob,
+        super(ImageMassSeq2Seq, self).__init__(size=size, text_processor=text_processor, lang_dec=lang_dec,
+                                               sep_decoder=True, use_proposals=use_proposals)
+        self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
+                                                    dropout=self.config.hidden_dropout_prob,
                                                     freeze=freeze_image, depth=resnet_depth)
-        self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, config.hidden_size).fill_(0.1), requires_grad=True)
+        self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, self.config.hidden_size).fill_(0.1),
+                                                      requires_grad=True)
 
-        self.image_attention_w = nn.Linear(config.hidden_size, 1)  # For Constrastive loss
-        self.encoder_attention_w = nn.Linear(config.hidden_size, 1)  # For Constrastive loss
+        self.image_attention_w = nn.Linear(self.config.hidden_size, 1)  # For Constrastive loss
+        self.encoder_attention_w = nn.Linear(self.config.hidden_size, 1)  # For Constrastive loss
 
     def encode(self, src_inputs, src_mask, src_langs, images=None):
         encoder_states = super().encode(src_inputs, src_mask, src_langs)

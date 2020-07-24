@@ -1,4 +1,3 @@
-import copy
 import datetime
 import os
 import pickle
@@ -405,20 +404,17 @@ class ImageDocTrainer:
         num_processors = max(torch.cuda.device_count(), 1)
 
         if options.pretrained_path is not None:
-            mt_model, lm = ImageMassSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path,
-                                                 sep_decoder=options.sep_encoder, resnet_depth=options.resnet_depth,
-                                                 lang_dec=options.lang_decoder, use_proposals=lex_dict is not None)
+            mt_model = ImageMassSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path,
+                                             sep_decoder=options.sep_encoder, resnet_depth=options.resnet_depth,
+                                             lang_dec=options.lang_decoder, use_proposals=lex_dict is not None)
         else:
-            if options.lm_path is None:
-                lm = LM(text_processor=text_processor, size=options.model_size)
-            else:
-                lm = LM.load(options.lm_path)
+            mt_model = ImageMassSeq2Seq(size=options.model_size, use_proposals=lex_dict is not None,
+                                        text_processor=text_processor, resnet_depth=options.resnet_depth,
+                                        lang_dec=options.lang_decoder)
 
-            decoder = copy.deepcopy(lm.encoder) if options.sep_encoder else lm.encoder
-            mt_model = ImageMassSeq2Seq(config=lm.config, encoder=lm.encoder, decoder=decoder,
-                                        output_layer=lm.masked_lm, use_proposals=lex_dict is not None,
-                                        text_processor=lm.text_processor, checkpoint=options.checkpoint,
-                                        resnet_depth=options.resnet_depth, lang_dec=options.lang_decoder)
+        if options.lm_path is not None:
+            lm = LM(text_processor=text_processor, size=options.model_size)
+            mt_model.init_from_lm(lm)
 
         print("Model initialization done!")
 

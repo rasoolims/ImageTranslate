@@ -63,8 +63,8 @@ if __name__ == "__main__":
     num_processors = max(torch.cuda.device_count(), 1)
 
     print("Loading model...")
-    model, _ = AlbertSeq2Seq.load(options.model, tok_dir=options.tokenizer_path,
-                                  sep_decoder=options.sep_encoder, lang_dec=options.lang_decoder)
+    model = AlbertSeq2Seq.load(options.model, tok_dir=options.tokenizer_path,
+                               sep_decoder=options.sep_encoder, lang_dec=options.lang_decoder)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     num_gpu = torch.cuda.device_count()

@@ -4,6 +4,7 @@ import pickle
 import torch.nn.functional as F
 from transformers.modeling_albert import *
 
+import lm_config
 from lm import LM
 from textprocessor import TextProcessor
 
@@ -15,40 +16,57 @@ def future_mask(tgt_mask):
 
 
 class AlbertSeq2Seq(nn.Module):
-    def __init__(self, config: AlbertConfig, encoder, decoder, output_layer: AlbertMLMHead,
-                 text_processor: TextProcessor, lang_dec: bool = False, checkpoint: int = 5, use_proposals=False):
+    def __init__(self, text_processor: TextProcessor, sep_decoder: bool = True, lang_dec: bool = True,
+                 size: int = 6, use_proposals=False):
         super(AlbertSeq2Seq, self).__init__()
         self.text_processor: TextProcessor = text_processor
-        self.config: AlbertConfig = config
-        self.encoder = encoder
-        self.encoder.__class__ = AlbertEncoderModel
+        self.size = size
+        self.sep_decoder = sep_decoder
+        self.config = lm_config.get_config(size=size,
+                                           vocab_size=text_processor.tokenizer.get_vocab_size(),
+                                           pad_token_id=text_processor.pad_token_id(),
+                                           bos_token_id=text_processor.bos_token_id(),
+                                           eos_token_id=text_processor.sep_token_id())
+
+        self.config["type_vocab_size"] = len(text_processor.languages)
+        self.config = AlbertConfig(**self.config)
+
+        self.encoder: AlbertModel = AlbertEncoderModel(self.config)
+        self.encoder.init_weights()
+        self.lang_dec = lang_dec
         if not lang_dec:
-            self.output_layer: AlbertMLMHead = output_layer
-            self.decoder: AlbertDecoderModel = AlbertDecoderModel(decoder) if isinstance(decoder,
-                                                                                         AlbertModel) else decoder
+            self.output_layer = AlbertMLMHead(self.config)
+            dec = copy.deepcopy(self.encoder) if sep_decoder else self.encoder
+            self.decoder: AlbertDecoderModel = AlbertDecoderModel(dec)
             self.decoder._tie_or_clone_weights(self.output_layer.decoder, self.decoder.embeddings.word_embeddings)
         else:
-            if isinstance(decoder, nn.ModuleList):
-                self.decoder = decoder
-                self.output_layer = output_layer
-            else:
-                dec = AlbertDecoderModel(decoder) if isinstance(decoder, AlbertModel) else decoder
-                self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
-                self.output_layer = nn.ModuleList([copy.deepcopy(output_layer) for _ in text_processor.languages])
-                for i, dec in enumerate(self.decoder):
-                    dec._tie_or_clone_weights(self.output_layer[i].decoder, dec.embeddings.word_embeddings)
-
-        self.lang_dec = lang_dec
-        self.checkpoint = checkpoint
-        self.checkpoint_num = 0
+            dec = AlbertDecoderModel(self.encoder)
+            self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
+            self.output_layer = nn.ModuleList([AlbertMLMHead(self.config) for _ in text_processor.languages])
+            for i, dec in enumerate(self.decoder):
+                dec._tie_or_clone_weights(self.output_layer[i].decoder, dec.embeddings.word_embeddings)
 
         self.use_proposals = use_proposals
         if self.use_proposals:
             self.proposal_embedding = self.encoder.embeddings.word_embeddings
-            self.target_mapper = nn.Linear(config.hidden_size, config.embedding_size)
-            self.embedding_mapper = nn.Linear(config.embedding_size, config.hidden_size)
-            self.lexical_gate = nn.Parameter(torch.zeros(1, config.hidden_size).fill_(0.1), requires_grad=True)
-            self.lexical_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+            self.target_mapper = nn.Linear(self.config.hidden_size, self.config.embedding_size)
+            self.embedding_mapper = nn.Linear(self.config.embedding_size, self.config.hidden_size)
+            self.lexical_gate = nn.Parameter(torch.zeros(1, self.config.hidden_size).fill_(0.1), requires_grad=True)
+            self.lexical_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
+
+    def init_from_lm(self, lm: LM):
+        self.encoder = lm.encoder
+        if not self.lang_dec:
+            self.output_layer = lm.masked_lm
+            self.decoder = AlbertDecoderModel(lm.decoder) if not self.sep_decoder else copy.deepcopy(
+                AlbertDecoderModel(lm.decoder))
+            self.decoder._tie_or_clone_weights(self.output_layer.decoder, self.decoder.embeddings.word_embeddings)
+        else:
+            dec = AlbertDecoderModel(self.encoder)
+            self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in self.text_processor.languages])
+            self.output_layer = nn.ModuleList([AlbertMLMHead(self.config) for _ in self.text_processor.languages])
+            for i, dec in enumerate(self.decoder):
+                dec._tie_or_clone_weights(self.output_layer[i].decoder, dec.embeddings.word_embeddings)
 
     def encode(self, src_inputs, src_mask, src_langs, images=None):
         device = self.encoder.embeddings.word_embeddings.weight.device
@@ -135,24 +153,22 @@ class AlbertSeq2Seq(nn.Module):
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         with open(os.path.join(out_dir, "mt_config"), "wb") as fp:
-            pickle.dump((self.config, self.checkpoint), fp)
+            pickle.dump((self.size, self.lang_dec, self.sep_decoder, self.use_proposals), fp)
 
         torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool, lang_dec: bool, use_proposals=False):
+    def load(out_dir: str, tok_dir: str):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
-            config, checkpoint = pickle.load(fp)
-            lm = LM(text_processor=text_processor, config=config)
-            decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
-            mt_model = AlbertSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder, output_layer=lm.masked_lm,
-                                     text_processor=lm.text_processor, lang_dec=lang_dec, checkpoint=checkpoint,
+            size, lang_dec, sep_decoder, use_proposals = pickle.load(fp)
+            mt_model = AlbertSeq2Seq(size=size, sep_decoder=sep_decoder,
+                                     text_processor=text_processor, lang_dec=lang_dec,
                                      use_proposals=use_proposals)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
                                      strict=False)
-            return mt_model, lm
+            return mt_model
 
 
 class MassSeq2Seq(AlbertSeq2Seq):
@@ -213,10 +229,10 @@ class MassSeq2Seq(AlbertSeq2Seq):
         return outputs
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool, lang_dec: bool, use_proposals=False):
-        mt_model, lm = AlbertSeq2Seq.load(out_dir, tok_dir, sep_decoder, lang_dec, use_proposals)
+    def load(out_dir: str, tok_dir: str):
+        mt_model = AlbertSeq2Seq.load(out_dir, tok_dir)
         mt_model.__class__ = MassSeq2Seq
-        return mt_model, lm
+        return mt_model
 
 
 class AlbertDecoderAttention(nn.Module):

@@ -5,7 +5,8 @@ import torch.nn.functional as F
 from torchvision import models
 from transformers.modeling_albert import *
 
-from albert_seq2seq import MassSeq2Seq, future_mask
+from albert_seq2seq import future_mask
+from mass_seq2seq import MassSeq2Seq
 from lm import LM
 from textprocessor import TextProcessor
 

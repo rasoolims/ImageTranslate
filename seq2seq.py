@@ -1,0 +1,176 @@
+import copy
+import os
+import pickle
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+import lm_config
+from lm import LM
+from textprocessor import TextProcessor
+
+
+def future_mask(tgt_mask):
+    attn_shape = (tgt_mask.size(0), tgt_mask.size(1), tgt_mask.size(1))
+    future_mask = torch.triu(torch.ones(attn_shape), diagonal=1).type_as(tgt_mask)
+    return ~future_mask & tgt_mask.unsqueeze(-1)
+
+
+class Seq2Seq(nn.Module):
+    def __init__(self, encoder_cls, decoder_cls, output_cls, config_cls, text_processor: TextProcessor,
+                 sep_decoder: bool = True, lang_dec: bool = True,
+                 size: int = 6, use_proposals=False):
+        super(Seq2Seq, self).__init__()
+        self.decoder_cls = decoder_cls
+        self.text_processor: TextProcessor = text_processor
+        self.size = size
+        self.sep_decoder = sep_decoder
+        self.config = lm_config.get_config(size=size,
+                                           vocab_size=text_processor.tokenizer.get_vocab_size(),
+                                           pad_token_id=text_processor.pad_token_id(),
+                                           bos_token_id=text_processor.bos_token_id(),
+                                           eos_token_id=text_processor.sep_token_id())
+
+        self.config["type_vocab_size"] = len(text_processor.languages)
+        self.config = config_cls(**self.config)
+
+        self.encoder: encoder_cls = encoder_cls(self.config)
+        self.encoder.init_weights()
+        self.lang_dec = lang_dec
+        if not lang_dec:
+            self.output_layer = output_cls(self.config)
+            dec = copy.deepcopy(self.encoder) if sep_decoder else self.encoder
+            self.decoder: decoder_cls = decoder_cls(dec)
+            self.decoder._tie_or_clone_weights(self.output_layer.decoder, self.decoder.embeddings.word_embeddings)
+        else:
+            dec = decoder_cls(self.encoder)
+            self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
+            self.output_layer = nn.ModuleList([output_cls(self.config) for _ in text_processor.languages])
+            for i, dec in enumerate(self.decoder):
+                dec._tie_or_clone_weights(self.output_layer[i].decoder, dec.embeddings.word_embeddings)
+
+        self.use_proposals = use_proposals
+        if self.use_proposals:
+            self.proposal_embedding = self.encoder.embeddings.word_embeddings
+            self.target_mapper = nn.Linear(self.config.hidden_size, self.config.embedding_size)
+            self.embedding_mapper = nn.Linear(self.config.embedding_size, self.config.hidden_size)
+            self.lexical_gate = nn.Parameter(torch.zeros(1, self.config.hidden_size).fill_(0.1), requires_grad=True)
+            self.lexical_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
+
+    def init_from_lm(self, lm: LM):
+        self.encoder = lm.encoder
+        if not self.lang_dec:
+            self.output_layer = lm.masked_lm
+            self.decoder = self.decoder_cls(lm.decoder) if not self.sep_decoder else copy.deepcopy(
+                self.decoder_cls(lm.decoder))
+            self.decoder._tie_or_clone_weights(self.output_layer.decoder, self.decoder.embeddings.word_embeddings)
+        else:
+            dec = self.decoder_cls(self.encoder)
+            self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in self.text_processor.languages])
+            self.output_layer = nn.ModuleList([copy.deepcopy(lm.masked_lm) for _ in self.text_processor.languages])
+            for i, dec in enumerate(self.decoder):
+                dec._tie_or_clone_weights(self.output_layer[i].decoder, dec.embeddings.word_embeddings)
+
+    def encode(self, src_inputs, src_mask, src_langs, images=None):
+        device = self.encoder.embeddings.word_embeddings.weight.device
+        if src_inputs.device != device:
+            src_inputs = src_inputs.to(device)
+            src_mask = src_mask.to(device)
+            src_langs = src_langs.to(device)
+        encoder_states = self.encoder(src_inputs, attention_mask=src_mask, token_type_ids=src_langs)
+        return encoder_states
+
+    def attend_proposal(self, decoder_output, proposals, pad_idx):
+        device = self.encoder.embeddings.word_embeddings.weight.device
+        proposals = proposals.to(device)
+        attend_mask = (proposals == pad_idx)
+        mapped_output = self.target_mapper(decoder_output)
+        proposal_embedding = self.proposal_embedding(proposals)
+        if decoder_output.dim() == 3:
+            proposal_embedding = proposal_embedding.unsqueeze(1)
+            proposal_embedding = proposal_embedding.expand(-1, decoder_output.size(1), -1, -1)
+            mapped_output = mapped_output.unsqueeze(2)
+            attend_mask = attend_mask.unsqueeze(1)
+        else:
+            if len(proposals) < len(decoder_output):
+                beam_width = int(len(decoder_output) / len(proposals))
+                proposals = torch.repeat_interleave(proposals, beam_width, 0)
+                attend_mask = torch.repeat_interleave(attend_mask, beam_width, 0)
+                proposal_embedding = torch.repeat_interleave(proposal_embedding, beam_width, 0)
+            mapped_output = mapped_output.unsqueeze(1)
+
+        attend_scores = torch.matmul(mapped_output, proposal_embedding.transpose(-1, -2)).squeeze(-2)
+
+        attend_mask = attend_mask.expand(attend_scores.size())
+        attend_scores[attend_mask].fill_(-10000.0)
+        attend_probs = nn.Softmax(dim=-1)(attend_scores)
+
+        proposal_context = torch.sum(attend_probs.unsqueeze(-1) * proposal_embedding, dim=-2)
+        proposal_values = self.embedding_mapper(proposal_context)
+        final_proposal_mask = torch.all(proposals == pad_idx, dim=-1)
+        proposal_values[final_proposal_mask] = 1e-8
+
+        sig_gate = torch.sigmoid(self.lexical_gate + 1e-8)
+
+        combined_value = sig_gate * decoder_output + (1 - sig_gate) * proposal_values
+        combined_value = self.lexical_layer_norm(combined_value)
+        return combined_value
+
+    def forward(self, src_inputs, tgt_inputs, src_mask, tgt_mask, src_langs, tgt_langs, proposals=None,
+                log_softmax: bool = False):
+        "Take in and process masked src and target sequences."
+        device = self.encoder.embeddings.word_embeddings.weight.device
+        batch_lang = int(tgt_langs[0])
+        src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
+        tgt_langs = tgt_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
+        src_inputs = src_inputs.to(device)
+        src_langs = src_langs.to(device)
+        if tgt_inputs.device != device:
+            tgt_inputs = tgt_inputs.to(device)
+            tgt_mask = tgt_mask.to(device)
+        if src_mask.device != device:
+            src_mask = src_mask.to(device)
+
+        encoder_states = self.encode(src_inputs, src_mask, src_langs)[0]
+
+        subseq_mask = future_mask(tgt_mask[:, :-1])
+        if subseq_mask.device != tgt_inputs.device:
+            subseq_mask = subseq_mask.to(device)
+
+        decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
+        output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
+
+        decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
+                                 input_ids_mask=tgt_mask[:, :-1], src_attn_mask=src_mask, tgt_attn_mask=subseq_mask,
+                                 token_type_ids=tgt_langs[:, :-1])
+        if self.use_proposals:
+            decoder_output = self.attend_proposal(decoder_output, proposals, self.text_processor.pad_token_id())
+        diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
+        tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
+        non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]
+        outputs = output_layer(non_padded_outputs)
+        if log_softmax:
+            outputs = F.log_softmax(outputs, dim=-1)
+        return outputs
+
+    def save(self, out_dir: str):
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        with open(os.path.join(out_dir, "mt_config"), "wb") as fp:
+            pickle.dump((self.size, self.lang_dec, self.sep_decoder, self.use_proposals), fp)
+
+        torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
+
+    @staticmethod
+    def load(out_dir: str, tok_dir: str):
+        text_processor = TextProcessor(tok_model_path=tok_dir)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
+            size, lang_dec, sep_decoder, use_proposals = pickle.load(fp)
+            mt_model = Seq2Seq(size=size, sep_decoder=sep_decoder,
+                               text_processor=text_processor, lang_dec=lang_dec,
+                               use_proposals=use_proposals)
+            mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
+                                     strict=False)
+            return mt_model

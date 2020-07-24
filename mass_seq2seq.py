@@ -1,6 +1,7 @@
 import torch.nn.functional as F
 
-from albert_seq2seq import AlbertSeq2Seq, future_mask
+from albert_seq2seq import AlbertSeq2Seq
+from seq2seq import Seq2Seq, future_mask
 
 
 class MassSeq2Seq(AlbertSeq2Seq):
@@ -62,6 +63,6 @@ class MassSeq2Seq(AlbertSeq2Seq):
 
     @staticmethod
     def load(out_dir: str, tok_dir: str):
-        mt_model = AlbertSeq2Seq.load(out_dir, tok_dir)
+        mt_model = Seq2Seq.load(out_dir, tok_dir)
         mt_model.__class__ = MassSeq2Seq
         return mt_model

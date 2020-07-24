@@ -70,8 +70,8 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
 class ImageMassSeq2Seq(MassSeq2Seq):
     def __init__(self, size: int, text_processor: TextProcessor, freeze_image: bool = False,
                  resnet_depth: int = 1, lang_dec: bool = False, use_proposals=False):
-        super(ImageMassSeq2Seq, self).__init__(size=size, text_processor=text_processor, lang_dec=lang_dec,
-                                               sep_decoder=True, use_proposals=use_proposals)
+        super(ImageMassSeq2Seq, self).__init__(size=size, text_processor=text_processor,
+                                               lang_dec=lang_dec, sep_decoder=True, use_proposals=use_proposals)
         self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
                                                     dropout=self.config.hidden_dropout_prob,
                                                     freeze=freeze_image, depth=resnet_depth)

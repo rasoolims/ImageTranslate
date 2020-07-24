@@ -1,18 +1,9 @@
 import torch.nn.functional as F
 
-from albert_seq2seq import AlbertEncoderModel, AlbertDecoderModel, AlbertMLMHead, AlbertConfig
 from seq2seq import Seq2Seq, future_mask
-from textprocessor import TextProcessor
 
 
 class MassSeq2Seq(Seq2Seq):
-    def __init__(self, text_processor: TextProcessor, sep_decoder: bool = True, lang_dec: bool = True,
-                 size: int = 6, use_proposals=False):
-        super(MassSeq2Seq, self).__init__(decoder_cls=AlbertDecoderModel, encoder_cls=AlbertEncoderModel,
-                                          output_cls=AlbertMLMHead, config_cls=AlbertConfig,
-                                          text_processor=text_processor, sep_decoder=sep_decoder, lang_dec=lang_dec,
-                                          size=size, use_proposals=use_proposals)
-
     def forward(self, src_inputs, src_pads, tgt_inputs, src_langs, tgt_langs=None, pad_idx: int = 0,
                 tgt_positions=None, log_softmax: bool = False, proposals=None):
         """
@@ -54,8 +45,7 @@ class MassSeq2Seq(Seq2Seq):
         output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
 
         decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
-                                 input_ids_mask=tgt_mask[:, :-1], attention_mask=src_pads,
-                                 tgt_attn_mask=subseq_mask,
+                                 encoder_attention_mask=src_pads, tgt_attention_mask=subseq_mask,
                                  position_ids=tgt_positions[:, :-1] if tgt_positions is not None else None,
                                  token_type_ids=tgt_langs[:, :-1])
         if self.use_proposals:

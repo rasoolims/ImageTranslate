@@ -2,24 +2,6 @@ import copy
 
 from transformers.modeling_albert import *
 
-from seq2seq import Seq2Seq
-from textprocessor import TextProcessor
-
-
-class AlbertSeq2Seq(Seq2Seq):
-    def __init__(self, text_processor: TextProcessor, sep_decoder: bool = True, lang_dec: bool = True,
-                 size: int = 6, use_proposals=False):
-        super(AlbertSeq2Seq, self).__init__(decoder_cls=AlbertDecoderModel, encoder_cls=AlbertEncoderModel,
-                                            output_cls=AlbertMLMHead, config_cls=AlbertConfig,
-                                            text_processor=text_processor, sep_decoder=sep_decoder, lang_dec=lang_dec,
-                                            size=size, use_proposals=use_proposals)
-
-    @staticmethod
-    def load(out_dir: str, tok_dir: str):
-        mt_model = Seq2Seq.load(out_dir, tok_dir)
-        mt_model.__class__ = AlbertSeq2Seq
-        return mt_model
-
 
 class AlbertDecoderAttention(nn.Module):
     def __init__(self, albert_attention: AlbertAttention):
@@ -162,20 +144,18 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
     config_class = AlbertConfig
     base_model_prefix = "albert"
 
-    def __init__(self, encoder_layer: AlbertModel):
-        super().__init__(encoder_layer.config)
-        self.encoder_layer = encoder_layer
-        self.config = encoder_layer.config
-        self.embeddings = encoder_layer.embeddings
-        self.decoder = AlbertDecoderTransformer(encoder_layer.encoder)
+    def __init__(self, config):
+        super().__init__(config)
+        self.config = config
+        self.embeddings = AlbertEmbeddings(config)
+        self.decoder = AlbertDecoderTransformer(AlbertTransformer(config))
 
     def forward(
             self,
             encoder_states,
             input_ids=None,
-            input_ids_mask=None,
-            attention_mask=None,
-            tgt_attn_mask=None,
+            encoder_attention_mask=None,
+            tgt_attention_mask=None,
             token_type_ids=None,
             position_ids=None,
             inputs_embeds=None,
@@ -191,17 +171,13 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
 
         device = input_ids.device if input_ids is not None else inputs_embeds.device
 
-        if input_ids_mask.device != device:
-            input_ids_mask = input_ids_mask.to(device)
-
         if token_type_ids is None:
             token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=device)
 
         embedding_output = self.embeddings(
             input_ids, position_ids=position_ids, token_type_ids=token_type_ids, inputs_embeds=inputs_embeds
         )
-        embedding_output *= input_ids_mask.unsqueeze(-1)
-        outputs = self.decoder(encoder_states, embedding_output, attention_mask, tgt_attn_mask)
+        outputs = self.decoder(encoder_states, embedding_output, encoder_attention_mask, tgt_attention_mask)
         return outputs
 
 
@@ -249,7 +225,4 @@ class AlbertEncoderModel(AlbertPreTrainedModel):
         )
         embedding_output *= attention_mask.unsqueeze(-1)
         encoder_outputs = self.encoder(embedding_output, extended_attention_mask, head_mask=head_mask)
-
-        sequence_output = encoder_outputs[0]
-        outputs = (sequence_output,) + encoder_outputs[1:]
-        return outputs
+        return encoder_outputs[0]

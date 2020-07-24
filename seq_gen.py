@@ -125,17 +125,15 @@ class BeamDecoder(nn.Module):
                 self.seq2seq_model.output_layer[batch_lang]
 
             if images is None:
-                decoder_states = decoder(enc_states, cur_outputs, cur_outputs != pad_idx, cur_src_mask,
-                                         output_mask, token_type_ids=dst_langs)
+                decoder_states = decoder(encoder_states=enc_states, input_ids=cur_outputs,
+                                         encoder_attention_mask=cur_src_mask,
+                                         tgt_attention_mask=output_mask, token_type_ids=dst_langs)
             else:
-                o_mask = cur_outputs != pad_idx
-                text_decoder_output = decoder(encoder_states=encoder_states, input_ids=cur_outputs,
-                                              input_ids_mask=o_mask, attention_mask=cur_src_mask,
-                                              tgt_attn_mask=output_mask,
+                text_decoder_output = decoder(encoder_states=enc_states, input_ids=cur_outputs,
+                                              encoder_attention_mask=cur_src_mask, tgt_attention_mask=output_mask,
                                               token_type_ids=dst_langs)
                 image_decoder_output = decoder(encoder_states=image_embeddings, input_ids=cur_outputs,
-                                               input_ids_mask=o_mask, tgt_attn_mask=output_mask,
-                                               token_type_ids=dst_langs)
+                                               tgt_attention_mask=output_mask, token_type_ids=dst_langs)
                 eps = 1e-7
                 sig_gate = torch.sigmoid(self.seq2seq_model.multimodal_attention_gate + eps)
                 decoder_states = sig_gate * text_decoder_output + (1 - sig_gate) * image_decoder_output

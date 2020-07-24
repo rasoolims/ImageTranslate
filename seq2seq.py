@@ -7,6 +7,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import lm_config
+from albert_seq2seq import AlbertDecoderModel, AlbertEncoderModel, AlbertMLMHead, AlbertConfig
+from bert_seq2seq import BertEncoderModel, BertDecoderModel, BertOutputLayer, BertConfig
 from lm import LM
 from textprocessor import TextProcessor
 
@@ -18,14 +20,17 @@ def future_mask(tgt_mask):
 
 
 class Seq2Seq(nn.Module):
-    def __init__(self, encoder_cls, decoder_cls, output_cls, config_cls, text_processor: TextProcessor,
-                 sep_decoder: bool = True, lang_dec: bool = True,
-                 size: int = 6, use_proposals=False):
+    def __init__(self, is_bert: bool, text_processor: TextProcessor, lang_dec: bool = True, size: int = 6,
+                 use_proposals=False):
         super(Seq2Seq, self).__init__()
-        self.decoder_cls = decoder_cls
+        self.is_bert = is_bert
+        if is_bert:
+            self.dec_cls, self.enc_cls, self.out_cls, self.conf_cls = BertDecoderModel, BertEncoderModel, BertOutputLayer, BertConfig
+        else:
+            self.dec_cls, self.enc_cls, self.out_cls, self.conf_cls = AlbertDecoderModel, AlbertEncoderModel, AlbertMLMHead, AlbertConfig
+
         self.text_processor: TextProcessor = text_processor
         self.size = size
-        self.sep_decoder = sep_decoder
         self.config = lm_config.get_config(size=size,
                                            vocab_size=text_processor.tokenizer.get_vocab_size(),
                                            pad_token_id=text_processor.pad_token_id(),
@@ -33,22 +38,27 @@ class Seq2Seq(nn.Module):
                                            eos_token_id=text_processor.sep_token_id())
 
         self.config["type_vocab_size"] = len(text_processor.languages)
-        self.config = config_cls(**self.config)
+        self.config = self.conf_cls(**self.config)
 
-        self.encoder: encoder_cls = encoder_cls(self.config)
+        self.encoder = self.enc_cls(self.config)
         self.encoder.init_weights()
         self.lang_dec = lang_dec
         if not lang_dec:
-            self.output_layer = output_cls(self.config)
-            dec = copy.deepcopy(self.encoder) if sep_decoder else self.encoder
-            self.decoder: decoder_cls = decoder_cls(dec)
-            self.decoder._tie_or_clone_weights(self.output_layer.decoder, self.decoder.embeddings.word_embeddings)
+            self.output_layer = self.out_cls(self.config)
+            self.decoder = self.dec_cls(self.config)
+            if self.out_cls is AlbertMLMHead:
+                self.decoder._tie_or_clone_weights(self.output_layer.decoder, self.decoder.embeddings.word_embeddings)
+            else:
+                self.decoder._tie_or_clone_weights(self.output_layer, self.decoder.embeddings.word_embeddings)
         else:
-            dec = decoder_cls(self.encoder)
+            dec = self.dec_cls(self.config)
             self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
-            self.output_layer = nn.ModuleList([output_cls(self.config) for _ in text_processor.languages])
+            self.output_layer = nn.ModuleList([self.out_cls(self.config) for _ in text_processor.languages])
             for i, dec in enumerate(self.decoder):
-                dec._tie_or_clone_weights(self.output_layer[i].decoder, dec.embeddings.word_embeddings)
+                if self.out_cls is AlbertMLMHead:
+                    dec._tie_or_clone_weights(self.output_layer[i].decoder, dec.embeddings.word_embeddings)
+                else:
+                    dec._tie_or_clone_weights(self.output_layer[i], dec.embeddings.word_embeddings)
 
         self.use_proposals = use_proposals
         if self.use_proposals:
@@ -62,11 +72,10 @@ class Seq2Seq(nn.Module):
         self.encoder = lm.encoder
         if not self.lang_dec:
             self.output_layer = lm.masked_lm
-            self.decoder = self.decoder_cls(lm.decoder) if not self.sep_decoder else copy.deepcopy(
-                self.decoder_cls(lm.decoder))
+            self.decoder = self.dec_cls(self.config)
             self.decoder._tie_or_clone_weights(self.output_layer.decoder, self.decoder.embeddings.word_embeddings)
         else:
-            dec = self.decoder_cls(self.encoder)
+            dec = self.decoder_cls(self.config)
             self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in self.text_processor.languages])
             self.output_layer = nn.ModuleList([copy.deepcopy(lm.masked_lm) for _ in self.text_processor.languages])
             for i, dec in enumerate(self.decoder):
@@ -79,7 +88,7 @@ class Seq2Seq(nn.Module):
             src_mask = src_mask.to(device)
             src_langs = src_langs.to(device)
         encoder_states = self.encoder(src_inputs, attention_mask=src_mask, token_type_ids=src_langs)
-        return encoder_states
+        return (encoder_states, None)
 
     def attend_proposal(self, decoder_output, proposals, pad_idx):
         device = self.encoder.embeddings.word_embeddings.weight.device
@@ -142,7 +151,7 @@ class Seq2Seq(nn.Module):
         output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
 
         decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
-                                 input_ids_mask=tgt_mask[:, :-1], attention_mask=src_mask, tgt_attn_mask=subseq_mask,
+                                 encoder_attention_mask=src_mask, tgt_attention_mask=subseq_mask,
                                  token_type_ids=tgt_langs[:, :-1])
         if self.use_proposals:
             decoder_output = self.attend_proposal(decoder_output, proposals, self.text_processor.pad_token_id())
@@ -158,7 +167,7 @@ class Seq2Seq(nn.Module):
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         with open(os.path.join(out_dir, "mt_config"), "wb") as fp:
-            pickle.dump((self.size, self.lang_dec, self.sep_decoder, self.use_proposals), fp)
+            pickle.dump((self.is_bert, self.size, self.lang_dec, self.use_proposals, self.is_bert), fp)
 
         torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
 
@@ -167,9 +176,8 @@ class Seq2Seq(nn.Module):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
-            size, lang_dec, sep_decoder, use_proposals = pickle.load(fp)
-            mt_model = Seq2Seq(size=size, sep_decoder=sep_decoder,
-                               text_processor=text_processor, lang_dec=lang_dec,
+            is_bert, size, lang_dec, use_proposals = pickle.load(fp)
+            mt_model = Seq2Seq(is_bert=is_bert, size=size, text_processor=text_processor, lang_dec=lang_dec,
                                use_proposals=use_proposals)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
                                      strict=False)

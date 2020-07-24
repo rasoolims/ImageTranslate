@@ -1,11 +1,9 @@
-import copy
 import pickle
 
 import torch.nn.functional as F
 from torchvision import models
 from transformers.modeling_albert import *
 
-from lm import LM
 from mass_seq2seq import MassSeq2Seq, future_mask
 from textprocessor import TextProcessor
 
@@ -67,10 +65,10 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
 
 
 class ImageMassSeq2Seq(MassSeq2Seq):
-    def __init__(self, size: int, text_processor: TextProcessor, freeze_image: bool = False,
-                 resnet_depth: int = 1, lang_dec: bool = False, use_proposals=False):
-        super(ImageMassSeq2Seq, self).__init__(size=size, text_processor=text_processor,
-                                               lang_dec=lang_dec, sep_decoder=True, use_proposals=use_proposals)
+    def __init__(self, is_bert: bool, size: int, text_processor: TextProcessor, freeze_image: bool = False,
+                 resnet_depth: int = 1, lang_dec: bool = False, use_proposals: bool = False):
+        super(ImageMassSeq2Seq, self).__init__(is_bert=is_bert, size=size, text_processor=text_processor,
+                                               lang_dec=lang_dec, use_proposals=use_proposals)
         self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
                                                     dropout=self.config.hidden_dropout_prob,
                                                     freeze=freeze_image, depth=resnet_depth)
@@ -141,13 +139,12 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             subseq_mask = future_mask(tgt_mask[:, :-1])
 
             text_decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
-                                          input_ids_mask=tgt_mask[:, :-1], attention_mask=src_pads,
-                                          tgt_attn_mask=subseq_mask,
+                                          encoder_attention_mask=src_pads,
+                                          tgt_attention_mask=subseq_mask,
                                           position_ids=tgt_positions,
                                           token_type_ids=tgt_langs[:, :-1])
             image_decoder_output = decoder(encoder_states=image_embeddings, input_ids=tgt_inputs[:, :-1],
-                                           input_ids_mask=tgt_mask[:, :-1],
-                                           tgt_attn_mask=subseq_mask,
+                                           tgt_attention_mask=subseq_mask,
                                            position_ids=tgt_positions,
                                            token_type_ids=tgt_langs[:, :-1])
             eps = 1e-7
@@ -200,16 +197,13 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             return log_neg
 
     @staticmethod
-    def load(out_dir: str, tok_dir: str, sep_decoder: bool, resnet_depth: int = 1, lang_dec: bool = False,
-             use_proposals=False):
+    def load(out_dir: str, tok_dir: str):
         text_processor = TextProcessor(tok_model_path=tok_dir)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
-            config, checkpoint = pickle.load(fp)
-            lm = LM(text_processor=text_processor, config=config)
-            decoder = copy.deepcopy(lm.encoder) if sep_decoder else lm.encoder
-            mt_model = ImageMassSeq2Seq(config=config, encoder=lm.encoder, decoder=decoder,
-                                        output_layer=lm.masked_lm, resnet_depth=resnet_depth,
-                                        text_processor=lm.text_processor, checkpoint=checkpoint, lang_dec=lang_dec,
+            is_bert, size, lang_dec, use_proposals = pickle.load(fp)
+            mt_model = ImageMassSeq2Seq(is_bert=is_bert, size=size, text_processor=text_processor, lang_dec=lang_dec,
                                         use_proposals=use_proposals)
-            mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict")))
-            return mt_model, lm
+            mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
+                                     strict=False)
+            return mt_model

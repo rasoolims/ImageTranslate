@@ -404,11 +404,10 @@ class ImageDocTrainer:
         num_processors = max(torch.cuda.device_count(), 1)
 
         if options.pretrained_path is not None:
-            mt_model = ImageMassSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path,
-                                             sep_decoder=options.sep_encoder, resnet_depth=options.resnet_depth,
-                                             lang_dec=options.lang_decoder, use_proposals=lex_dict is not None)
+            mt_model = ImageMassSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path)
         else:
-            mt_model = ImageMassSeq2Seq(size=options.model_size, use_proposals=lex_dict is not None,
+            mt_model = ImageMassSeq2Seq(is_bert=options.bert, size=options.model_size,
+                                        use_proposals=lex_dict is not None,
                                         text_processor=text_processor, resnet_depth=options.resnet_depth,
                                         lang_dec=options.lang_decoder)
 

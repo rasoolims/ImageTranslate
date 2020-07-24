@@ -68,4 +68,6 @@ def get_img_options_parser():
                       default="")
     parser.add_option("--mmode", dest="mm_mode", help="Option: mixed, masked, contrastive", type="str", default="mixed")
     parser.set_default("model_size", 6)
+    parser.add_option("--bert", action="store_true", dest="bert", help="Use BERT transformer instead of Albert",
+                      default=False)
     return parser

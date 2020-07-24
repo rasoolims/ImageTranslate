@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from apex import amp
 from torch.nn.utils.rnn import pad_sequence
 
-from albert_seq2seq import AlbertSeq2Seq, future_mask
+from seq2seq import Seq2Seq, future_mask
 from textprocessor import TextProcessor
 
 
@@ -16,8 +16,6 @@ def get_option_parser():
     parser = OptionParser()
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--model", dest="model", metavar="FILE", default=None)
-    parser.add_option("--sep", action="store_true", dest="sep_encoder", help="Disjoint encoder/decoder", default=False)
-    parser.add_option("--ldec", action="store_true", dest="lang_decoder", help="Lang-specific decoder", default=False)
     parser.add_option("--fp16", action="store_true", dest="fp16", default=False)
     parser.add_option("--capacity", dest="total_capacity", help="Batch capacity", type="int", default=2000)
     parser.add_option("--data", dest="data", metavar="FILE", default=None)
@@ -63,8 +61,7 @@ if __name__ == "__main__":
     num_processors = max(torch.cuda.device_count(), 1)
 
     print("Loading model...")
-    model = AlbertSeq2Seq.load(options.model, tok_dir=options.tokenizer_path,
-                               sep_decoder=options.sep_encoder, lang_dec=options.lang_decoder)
+    model = Seq2Seq.load(options.model, tok_dir=options.tokenizer_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     num_gpu = torch.cuda.device_count()

@@ -1,6 +1,25 @@
 from typing import Dict
 
 
+def _bert_config(vocab_size: int, pad_token_id: int, bos_token_id: int, eos_token_id: int) -> Dict:
+    config = {
+        "attention_probs_dropout_prob": 0.1,
+        "hidden_act": "gelu",
+        "hidden_dropout_prob": 0.1,
+        "hidden_size": 768,
+        "initializer_range": 0.02,
+        "intermediate_size": 3072,
+        "max_position_embeddings": 512,
+        "num_attention_heads": 12,
+        "num_hidden_layers": 6,
+        "vocab_size": vocab_size,
+        "pad_token_id": pad_token_id,
+        "bos_token_id": bos_token_id,
+        "eos_token_id": eos_token_id,
+    }
+    return config
+
+
 def _image_config(vocab_size: int, pad_token_id: int, bos_token_id: int, eos_token_id: int) -> Dict:
     config = {
         "attention_probs_dropout_prob": 0.1,
@@ -181,6 +200,8 @@ def get_config(size: int, vocab_size: int, pad_token_id: int, bos_token_id: int,
         function = _mass_config
     elif size == 6:
         function = _image_config
+    elif size == 7:
+        function = _bert_config
 
     return function(vocab_size=vocab_size, pad_token_id=pad_token_id, bos_token_id=bos_token_id,
                     eos_token_id=eos_token_id)

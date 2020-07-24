@@ -287,6 +287,23 @@ class ImageDocTrainer:
                     if not is_contrastive and is_img_batch and not fine_tune:
                         map(lambda m: mass_unmask(m["src_text"], m["src_mask"], m["mask_idx"]), masked_info)
 
+                    if step % 50 == 0 and tokens > 0:
+                        elapsed = time.time() - start
+                        print(datetime.datetime.now(),
+                              "Epoch Step: %d Loss: %f Tokens per Sec: %f " % (
+                                  step, cur_loss / tokens, tokens / elapsed))
+
+                        if step % 500 == 0:
+                            if mt_dev_iter is not None and step % 5000 == 0:
+                                bleu = self.eval_bleu(mt_dev_iter, saving_path)
+                                print("BLEU:", bleu)
+
+                            model.save(saving_path + ".latest")
+                            with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                                pickle.dump(self.optimizer, fp)
+
+                        start, tokens, cur_loss = time.time(), 0, 0
+
                 except RuntimeError as err:
                     print(repr(err))
                     print("Error processing", is_img_batch)
@@ -295,33 +312,20 @@ class ImageDocTrainer:
                             print("->", len(b["images"]), b["captions"].size())
                     torch.cuda.empty_cache()
 
-                if step % 50 == 0 and tokens > 0:
-                    elapsed = time.time() - start
-                    print(datetime.datetime.now(),
-                          "Epoch Step: %d Loss: %f Tokens per Sec: %f " % (step, cur_loss / tokens, tokens / elapsed))
-
-                    if step % 500 == 0:
-                        if mt_dev_iter is not None and step % 5000 == 0:
-                            bleu = self.eval_bleu(mt_dev_iter, saving_path)
-                            print("BLEU:", bleu)
-
-                        model.save(saving_path + ".latest")
-                        with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                            pickle.dump(self.optimizer, fp)
-
-                    start, tokens, cur_loss = time.time(), 0, 0
-
             if i == shortest - 1:
                 break
             if step >= max_step:
                 break
 
-        print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-        model.save(saving_path + ".latest")
+        try:
+            print("Total loss in this epoch: %f" % (total_loss / total_tokens))
+            model.save(saving_path + ".latest")
 
-        if mt_dev_iter is not None:
-            bleu = self.eval_bleu(mt_dev_iter, saving_path)
-            print("BLEU:", bleu)
+            if mt_dev_iter is not None:
+                bleu = self.eval_bleu(mt_dev_iter, saving_path)
+                print("BLEU:", bleu)
+        except RuntimeError as err:
+            print(repr(err))
 
         return step
 

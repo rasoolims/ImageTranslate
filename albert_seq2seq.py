@@ -174,7 +174,7 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
             encoder_states,
             input_ids=None,
             input_ids_mask=None,
-            src_attn_mask=None,
+            attention_mask=None,
             tgt_attn_mask=None,
             token_type_ids=None,
             position_ids=None,
@@ -201,7 +201,7 @@ class AlbertDecoderModel(AlbertPreTrainedModel):
             input_ids, position_ids=position_ids, token_type_ids=token_type_ids, inputs_embeds=inputs_embeds
         )
         embedding_output *= input_ids_mask.unsqueeze(-1)
-        outputs = self.decoder(encoder_states, embedding_output, src_attn_mask, tgt_attn_mask)
+        outputs = self.decoder(encoder_states, embedding_output, attention_mask, tgt_attn_mask)
         return outputs
 
 

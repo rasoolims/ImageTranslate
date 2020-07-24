@@ -130,7 +130,7 @@ class BeamDecoder(nn.Module):
             else:
                 o_mask = cur_outputs != pad_idx
                 text_decoder_output = decoder(encoder_states=encoder_states, input_ids=cur_outputs,
-                                              input_ids_mask=o_mask, src_attn_mask=cur_src_mask,
+                                              input_ids_mask=o_mask, attention_mask=cur_src_mask,
                                               tgt_attn_mask=output_mask,
                                               token_type_ids=dst_langs)
                 image_decoder_output = decoder(encoder_states=image_embeddings, input_ids=cur_outputs,

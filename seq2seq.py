@@ -142,7 +142,7 @@ class Seq2Seq(nn.Module):
         output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
 
         decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
-                                 input_ids_mask=tgt_mask[:, :-1], src_attn_mask=src_mask, tgt_attn_mask=subseq_mask,
+                                 input_ids_mask=tgt_mask[:, :-1], attention_mask=src_mask, tgt_attn_mask=subseq_mask,
                                  token_type_ids=tgt_langs[:, :-1])
         if self.use_proposals:
             decoder_output = self.attend_proposal(decoder_output, proposals, self.text_processor.pad_token_id())

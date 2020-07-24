@@ -54,7 +54,7 @@ class MassSeq2Seq(Seq2Seq):
         output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
 
         decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
-                                 input_ids_mask=tgt_mask[:, :-1], src_attn_mask=src_pads,
+                                 input_ids_mask=tgt_mask[:, :-1], attention_mask=src_pads,
                                  tgt_attn_mask=subseq_mask,
                                  position_ids=tgt_positions[:, :-1] if tgt_positions is not None else None,
                                  token_type_ids=tgt_langs[:, :-1])

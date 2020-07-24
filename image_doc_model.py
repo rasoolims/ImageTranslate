@@ -141,7 +141,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             subseq_mask = future_mask(tgt_mask[:, :-1])
 
             text_decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
-                                          input_ids_mask=tgt_mask[:, :-1], src_attn_mask=src_pads,
+                                          input_ids_mask=tgt_mask[:, :-1], attention_mask=src_pads,
                                           tgt_attn_mask=subseq_mask,
                                           position_ids=tgt_positions,
                                           token_type_ids=tgt_langs[:, :-1])

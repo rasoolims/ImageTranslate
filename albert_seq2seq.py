@@ -298,11 +298,11 @@ class AlbertDecoderLayer(nn.Module):
     def __init__(self, albert_layer: AlbertLayer):
         super().__init__()
 
-        self.full_layer_layer_norm = albert_layer.full_layer_layer_norm  # nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps) #todo clone
+        self.full_layer_layer_norm = albert_layer.full_layer_layer_norm
         self.attention = AlbertDecoderAttention(albert_layer.attention)
-        self.ffn = albert_layer.ffn  # nn.Linear(self.config.hidden_size, self.config.intermediate_size) #todo clone
-        self.ffn_output = albert_layer.ffn_output  # nn.Linear(self.config.intermediate_size, self.config.hidden_size) #todo clone
-        self.activation = albert_layer.activation  # ACT2FN[self.config.hidden_act]
+        self.ffn = albert_layer.ffn
+        self.ffn_output = albert_layer.ffn_output
+        self.activation = albert_layer.activation
 
     def forward(self, encoder_states, hidden_states, src_attn_mask=None, tgt_attn_mask=None):
         attention_output = self.attention(encoder_states, hidden_states, src_attn_mask, tgt_attn_mask)
@@ -311,7 +311,7 @@ class AlbertDecoderLayer(nn.Module):
         ffn_output = self.ffn_output(ffn_output)
         hidden_states = self.full_layer_layer_norm(ffn_output + attention_output[0])
 
-        return (hidden_states,) + attention_output[1:]  # add attentions if we output them
+        return (hidden_states,) + attention_output[1:]
 
 
 class AlbertDecoderLayerGroup(nn.Module):
@@ -325,7 +325,7 @@ class AlbertDecoderLayerGroup(nn.Module):
             hidden_states = layer_output[0]
 
         outputs = (hidden_states,)
-        return outputs  # last-layer hidden state, (layer hidden states), (layer attentions)
+        return outputs
 
 
 class AlbertDecoderTransformer(nn.Module):

@@ -169,8 +169,11 @@ class Seq2Seq(nn.Module):
             os.makedirs(out_dir)
         with open(os.path.join(out_dir, "mt_config"), "wb") as fp:
             pickle.dump((self.is_bert, self.size, self.lang_dec, self.use_proposals, self.is_bert), fp)
-
-        torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
+        try:
+            torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
+        except:
+            torch.cuda.empty_cache()
+            torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
 
     @staticmethod
     def load(out_dir: str, tok_dir: str):

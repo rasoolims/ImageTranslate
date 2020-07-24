@@ -406,7 +406,7 @@ class ImageDocTrainer:
         if options.pretrained_path is not None:
             mt_model = ImageMassSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path)
         else:
-            mt_model = ImageMassSeq2Seq(is_bert=options.bert, size=options.model_size,
+            mt_model = ImageMassSeq2Seq(is_bert=not options.albert, size=options.model_size,
                                         use_proposals=lex_dict is not None,
                                         text_processor=text_processor, resnet_depth=options.resnet_depth,
                                         lang_dec=options.lang_decoder)

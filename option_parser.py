@@ -67,7 +67,7 @@ def get_img_options_parser():
                       help="Languages for back-translation (should be two, sepearated by comma)", type="str",
                       default="")
     parser.add_option("--mmode", dest="mm_mode", help="Option: mixed, masked, contrastive", type="str", default="mixed")
-    parser.set_default("model_size", 6)
-    parser.add_option("--bert", action="store_true", dest="bert", help="Use BERT transformer instead of Albert",
+    parser.set_default("model_size", 7)
+    parser.add_option("--albert", action="store_true", dest="albert", help="Use ALBERT transformer instead of BERT",
                       default=False)
     return parser

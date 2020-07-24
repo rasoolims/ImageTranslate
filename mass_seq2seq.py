@@ -1,6 +1,7 @@
-from albert_seq2seq import AlbertSeq2Seq, future_mask
-import torch.nn as nn
 import torch.nn.functional as F
+
+from albert_seq2seq import AlbertSeq2Seq, future_mask
+
 
 class MassSeq2Seq(AlbertSeq2Seq):
     def forward(self, src_inputs, src_pads, tgt_inputs, src_langs, tgt_langs=None, pad_idx: int = 0,

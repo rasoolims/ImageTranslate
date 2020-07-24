@@ -64,7 +64,7 @@ class AlbertSeq2Seq(nn.Module):
         else:
             dec = AlbertDecoderModel(self.encoder)
             self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in self.text_processor.languages])
-            self.output_layer = nn.ModuleList([AlbertMLMHead(self.config) for _ in self.text_processor.languages])
+            self.output_layer = nn.ModuleList([copy.deepcopy(lm.masked_lm) for _ in self.text_processor.languages])
             for i, dec in enumerate(self.decoder):
                 dec._tie_or_clone_weights(self.output_layer[i].decoder, dec.embeddings.word_embeddings)
 
@@ -169,8 +169,6 @@ class AlbertSeq2Seq(nn.Module):
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
                                      strict=False)
             return mt_model
-
-
 
 
 class AlbertDecoderAttention(nn.Module):
@@ -403,5 +401,5 @@ class AlbertEncoderModel(AlbertPreTrainedModel):
         encoder_outputs = self.encoder(embedding_output, extended_attention_mask, head_mask=head_mask)
 
         sequence_output = encoder_outputs[0]
-        outputs = (sequence_output, ) + encoder_outputs[1:]
+        outputs = (sequence_output,) + encoder_outputs[1:]
         return outputs

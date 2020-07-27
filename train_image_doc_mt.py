@@ -17,7 +17,7 @@ from apex import amp
 from torch.nn.utils.rnn import pad_sequence
 
 import dataset
-from image_doc_model import ImageMassSeq2Seq
+from image_model import ImageMassSeq2Seq
 from lm import LM
 from loss import SmoothedNLLLoss
 from option_parser import get_img_options_parser

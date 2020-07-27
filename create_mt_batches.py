@@ -53,26 +53,22 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
                     if line_num % 1000 == 0:
                         print(line_num, "\r", end="")
 
-        print("\nSorting")
-        sorted_lens = sorted(lens.items(), key=lambda item: item[1])
-        sorted_examples = []
-        print("Sorted examples")
-        for len_item in sorted_lens:
-            line_num = len(sorted_examples)
-            sorted_examples.append(examples[len_item[0]])
+                if len(examples) >= 4000000:
+                    print(datetime.datetime.now(), "Sorting and writing", part_num)
+                    sorted_lens = sorted(lens.items(), key=lambda item: item[1])
+                    sorted_examples = list(map(lambda len_item: examples[len_item[0]], sorted_lens))
+                    with open(output_file + "." + str(part_num), "wb") as fw:
+                        marshal.dump(sorted_examples, fw)
+                    examples = {}
+                    lens = {}
+                    part_num += 1
 
-            if len(sorted_examples) >= 4000000:
-                print("Dumping")
-                with open(output_file + "." + str(part_num), "wb") as fw:
-                    marshal.dump(sorted_examples, fw)
-                sorted_examples = []
-                part_num += 1
-
-        if len(sorted_examples) > 0:
+        if len(examples) > 0:
+            print(datetime.datetime.now(), "Sorting and writing", part_num)
+            sorted_lens = sorted(lens.items(), key=lambda item: item[1])
+            sorted_examples = list(map(lambda len_item: examples[len_item[0]], sorted_lens))
             with open(output_file + "." + str(part_num), "wb") as fw:
                 marshal.dump(sorted_examples, fw)
-
-    print(f"Dumped {line_num + 1} vectors!")
 
 
 def get_options():
@@ -92,7 +88,7 @@ if __name__ == "__main__":
     options = get_options()
     tokenizer = TextProcessor(options.tokenizer_path)
 
-    print(datetime.datetime.now(), "writing batch")
+    print(datetime.datetime.now(), "Writing batches")
     write(text_processor=tokenizer, output_file=options.output_path, src_txt_file=options.src_data_path,
           dst_txt_file=options.dst_data_path)
-    print(datetime.datetime.now(), "finished")
+    print(datetime.datetime.now(), "Finished")

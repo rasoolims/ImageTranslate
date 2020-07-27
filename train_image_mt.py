@@ -488,6 +488,8 @@ class ImageDocTrainer:
             img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
                                                               mt_model, num_batches, options, pin_memory, denom=2,
                                                               lex_dict=lex_dict)
+        if options.ignore_mt_mass:
+            mt_train_loader = None
         print("Reloading image train data with new batch size done!")
 
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:

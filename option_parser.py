@@ -69,4 +69,6 @@ def get_img_options_parser():
     parser.add_option("--albert", action="store_true", dest="albert", help="Use ALBERT transformer instead of BERT",
                       default=False)
     parser.add_option("--dec", dest="decoder_layer", help="# decoder layers", type="int", default=3)
+    parser.add_option("--ignore-mt-mass", action="store_true", dest="ignore_mt_mass",
+                      help="Ignore MT data in backtranslation loss of MASS model", default=False)
     return parser

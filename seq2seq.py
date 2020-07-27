@@ -168,7 +168,7 @@ class Seq2Seq(nn.Module):
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         with open(os.path.join(out_dir, "mt_config"), "wb") as fp:
-            pickle.dump((self.is_bert, self.size, self.lang_dec, self.use_proposals, self.is_bert), fp)
+            pickle.dump((self.is_bert, self.size, self.lang_dec, self.use_proposals), fp)
         try:
             torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
         except:
@@ -180,7 +180,11 @@ class Seq2Seq(nn.Module):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
-            is_bert, size, lang_dec, use_proposals = pickle.load(fp)
+            try:
+                is_bert, size, lang_dec, use_proposals, _ = pickle.load(fp)
+            except:  # for old use.
+                is_bert, size, lang_dec, use_proposals, _ = pickle.load(fp)
+
             mt_model = Seq2Seq(is_bert=is_bert, size=size, text_processor=text_processor, lang_dec=lang_dec,
                                use_proposals=use_proposals)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),

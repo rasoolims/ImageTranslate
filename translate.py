@@ -59,6 +59,7 @@ def build_data_loader(options, text_processor):
     assert options.src_lang is not None
     assert options.target_lang is not None
     src_lang = "<" + options.src_lang + ">"
+    src_lang_id = text_processor.languages[src_lang]
     dst_lang = "<" + options.target_lang + ">"
     target_lang = text_processor.languages[dst_lang]
     fixed_output = [text_processor.token_id(dst_lang)]
@@ -68,8 +69,7 @@ def build_data_loader(options, text_processor):
             if len(src_line.strip()) == 0: continue
             src_line = " ".join([src_lang, src_line, "</s>"])
             src_tok_line = text_processor.tokenize_one_sentence(src_line.strip().replace(" </s> ", " "))
-            src_lang = text_processor.languages[text_processor.id2token(src_tok_line[0])]
-            examples.append((src_tok_line, fixed_output, src_lang, target_lang))
+            examples.append((src_tok_line, fixed_output, src_lang_id, target_lang))
     print(datetime.datetime.now(), "Loaded %f examples", (len(examples)))
     test_data = dataset.MTDataset(examples=examples,
                                   max_batch_capacity=options.total_capacity, max_batch=options.batch,

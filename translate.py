@@ -3,6 +3,7 @@ from optparse import OptionParser
 
 import torch
 import torch.utils.data as data_utils
+from apex import amp
 
 import dataset
 from parallel import DataParallelModel
@@ -26,6 +27,7 @@ def get_lm_option_parser():
     parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)
     parser.add_option("--len-penalty", dest="len_penalty_ratio", help="Length penalty", type="float", default=0.8)
     parser.add_option("--capacity", dest="total_capacity", help="Batch capacity", type="int", default=150)
+    parser.add_option("--fp16", action="store_true", dest="fp16", default=False)
     return parser
 
 
@@ -85,6 +87,8 @@ def build_model(options):
     num_gpu = torch.cuda.device_count()
     generator = BeamDecoder(model, beam_width=options.beam_width, max_len_a=options.max_len_a,
                             max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio)
+    if options.fp16:
+        generator = amp.initialize(generator, opt_level="O2")
     if num_gpu > 1:
         generator = DataParallelModel(generator)
     return generator, model.text_processor

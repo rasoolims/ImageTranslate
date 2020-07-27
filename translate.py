@@ -5,7 +5,7 @@ import torch
 import torch.utils.data as data_utils
 
 import dataset
-from albert_seq2seq import AlbertSeq2Seq
+from seq2seq import Seq2Seq
 from parallel import DataParallelModel
 from seq_gen import BeamDecoder, get_outputs_until_eos
 
@@ -74,7 +74,7 @@ def build_data_loader(options, text_processor):
 
 
 def build_model(options):
-    model = AlbertSeq2Seq.load(options.model_path, tok_dir=options.tokenizer_path)
+    model = Seq2Seq.load(options.model_path, tok_dir=options.tokenizer_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     num_gpu = torch.cuda.device_count()

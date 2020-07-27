@@ -5,15 +5,16 @@ import torch
 import torch.utils.data as data_utils
 
 import dataset
-from seq2seq import Seq2Seq
 from parallel import DataParallelModel
+from seq2seq import Seq2Seq
 from seq_gen import BeamDecoder, get_outputs_until_eos
 
 
 def get_lm_option_parser():
     parser = OptionParser()
     parser.add_option("--input", dest="input_path", metavar="FILE", default=None)
-    parser.add_option("--lang", dest="target_lang", type="str", default=None)
+    parser.add_option("--src", dest="src_lang", type="str", default=None)
+    parser.add_option("--target", dest="target_lang", type="str", default=None)
     parser.add_option("--output", dest="output_path", metavar="FILE", default=None)
     parser.add_option("--batch", dest="batch", help="Batch size", type="int", default=512)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
@@ -55,13 +56,17 @@ def translate_batch(batch, generator, text_processor, verbose=False):
 
 def build_data_loader(options, text_processor):
     print(datetime.datetime.now(), "Binarizing test data")
-    lang = "<" + options.target_lang + ">"
-    target_lang = text_processor.languages[lang]
-    fixed_output = [text_processor.token_id(lang)]
+    assert options.src_lang is not None
+    assert options.target_lang is not None
+    src_lang = "<" + options.src_lang + ">"
+    dst_lang = "<" + options.target_lang + ">"
+    target_lang = text_processor.languages[dst_lang]
+    fixed_output = [text_processor.token_id(dst_lang)]
     examples = []
     with open(options.input_path, "r") as s_fp:
         for src_line in s_fp:
             if len(src_line.strip()) == 0: continue
+            src_line = " ".join([src_lang, src_line, "</s>"])
             src_tok_line = text_processor.tokenize_one_sentence(src_line.strip().replace(" </s> ", " "))
             src_lang = text_processor.languages[text_processor.id2token(src_tok_line[0])]
             examples.append((src_tok_line, fixed_output, src_lang, target_lang))

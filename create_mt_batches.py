@@ -53,7 +53,7 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
                     if line_num % 1000 == 0:
                         print(line_num, "\r", end="")
 
-                if len(examples) >= 10000000:
+                if len(examples) >= 30000000:
                     print(datetime.datetime.now(), "Sorting and writing", part_num)
                     sorted_lens = sorted(lens.items(), key=lambda item: item[1])
                     sorted_examples = list(map(lambda len_item: examples[len_item[0]], sorted_lens))

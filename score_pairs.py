@@ -61,7 +61,7 @@ if __name__ == "__main__":
     num_processors = max(torch.cuda.device_count(), 1)
 
     print("Loading model...")
-    model = Seq2Seq.load(options.model, tok_dir=options.tokenizer_path)
+    model = Seq2Seq.load(Seq2Seq, options.model, tok_dir=options.tokenizer_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     num_gpu = torch.cuda.device_count()

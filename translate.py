@@ -81,7 +81,7 @@ def build_data_loader(options, text_processor):
 
 
 def build_model(options):
-    model = Seq2Seq.load(options.model_path, tok_dir=options.tokenizer_path)
+    model = Seq2Seq.load(Seq2Seq, options.model_path, tok_dir=options.tokenizer_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     num_gpu = torch.cuda.device_count()

@@ -58,9 +58,3 @@ class MassSeq2Seq(Seq2Seq):
         if log_softmax:
             outputs = F.log_softmax(outputs, dim=-1)
         return outputs
-
-    @staticmethod
-    def load(out_dir: str, tok_dir: str):
-        mt_model = Seq2Seq.load(out_dir, tok_dir)
-        mt_model.__class__ = MassSeq2Seq
-        return mt_model

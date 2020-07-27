@@ -22,6 +22,7 @@ from lm import LM
 from loss import SmoothedNLLLoss
 from option_parser import get_img_options_parser
 from parallel import DataParallelModel, DataParallelCriterion
+from seq2seq import Seq2Seq
 from seq_gen import BeamDecoder, get_outputs_until_eos
 from textprocessor import TextProcessor
 from utils import build_optimizer, mass_mask, mass_unmask, backward
@@ -408,15 +409,17 @@ class ImageDocTrainer:
         num_processors = max(torch.cuda.device_count(), 1)
 
         if options.pretrained_path is not None:
-            mt_model = ImageMassSeq2Seq.load(options.pretrained_path, tok_dir=options.tokenizer_path)
+            mt_model = Seq2Seq.load(ImageMassSeq2Seq, options.pretrained_path, tok_dir=options.tokenizer_path)
         else:
-            mt_model = ImageMassSeq2Seq(is_bert=not options.albert, size=options.model_size,
-                                        use_proposals=lex_dict is not None,
+            mt_model = ImageMassSeq2Seq(is_bert=not options.albert, use_proposals=lex_dict is not None,
                                         text_processor=text_processor, resnet_depth=options.resnet_depth,
-                                        lang_dec=options.lang_decoder)
+                                        lang_dec=options.lang_decoder, enc_layer=options.encoder_layer,
+                                        dec_layer=options.decoder_layer, embed_dim=options.embed_dim,
+                                        intermediate_dim=options.intermediate_layer_dim)
 
         if options.lm_path is not None:
-            lm = LM(text_processor=text_processor, size=options.model_size)
+            lm = LM(text_processor=text_processor, enc_layer=options.encoder_layer,
+                    embed_dim=options.embed_dim, intermediate_dim=options.intermediate_layer_dim)
             mt_model.init_from_lm(lm)
 
         print("Model initialization done!")

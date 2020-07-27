@@ -17,7 +17,6 @@ def get_lm_option_parser():
     parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
     parser.add_option("--batch", dest="batch", help="Batch size", type="int", default=512)
     parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
-    parser.add_option("--embed", dest="d_model", help="Embedding of contextual word vectors", type="int", default=768)
     parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.0025)
     parser.add_option("--warmup", dest="warmup", help="Number of warmup steps", type="int", default=12500)
     parser.add_option("--step", dest="step", help="Number of training steps", type="int", default=125000)
@@ -26,10 +25,11 @@ def get_lm_option_parser():
                       help="Continue training from pretrained model", default=False)
     parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)
     parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
-    parser.add_option("--size", dest="model_size", help="Model size: 3 (base), 2 (medium), 1 (small)", type="int",
-                      default=1)
     parser.add_option("--reformer", action="store_true", dest="reformer",
                       help="Use Reformer instead of Albert", default=False)
+    parser.add_option("--enc", dest="encoder_layer", help="# encoder layers", type="int", default=6)
+    parser.add_option("--embed", dest="embed_dim", help="Embedding dimension", type="int", default=768)
+    parser.add_option("--intermediate", dest="intermediate_layer_dim", type="int", default=3072)
     return parser
 
 
@@ -67,7 +67,7 @@ def get_img_options_parser():
                       help="Languages for back-translation (should be two, sepearated by comma)", type="str",
                       default="")
     parser.add_option("--mmode", dest="mm_mode", help="Option: mixed, masked, contrastive", type="str", default="mixed")
-    parser.set_default("model_size", 7)
     parser.add_option("--albert", action="store_true", dest="albert", help="Use ALBERT transformer instead of BERT",
                       default=False)
+    parser.add_option("--dec", dest="decoder_layer", help="# decoder layers", type="int", default=3)
     return parser

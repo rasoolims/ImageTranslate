@@ -14,21 +14,19 @@ from textprocessor import TextProcessor
 
 class LM(nn.Module):
     def __init__(self, text_processor: TextProcessor, config: AlbertConfig = None, encoder: AlbertModel = None,
-                 size: int = 1):
-        """
-        :param size: config size: 1 big, 2 medium, 3 small.
-        """
+                 enc_layer: int = 6, embed_dim: int = 768, intermediate_dim: int = 3072):
         super(LM, self).__init__()
         self.text_processor: TextProcessor = text_processor
 
         if config is not None:
             self.config = config
         else:
-            self.config = lm_config.get_config(size=size,
-                                               vocab_size=text_processor.tokenizer.get_vocab_size(),
+            self.config = lm_config.get_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
                                                pad_token_id=text_processor.pad_token_id(),
                                                bos_token_id=text_processor.bos_token_id(),
-                                               eos_token_id=text_processor.sep_token_id())
+                                               eos_token_id=text_processor.sep_token_id(),
+                                               enc_layer=enc_layer, embed_dim=embed_dim,
+                                               intermediate_dim=intermediate_dim)
 
             self.config["type_vocab_size"] = len(text_processor.languages)
             self.config = AlbertConfig(**self.config)

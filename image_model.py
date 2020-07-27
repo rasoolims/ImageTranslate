@@ -1,5 +1,3 @@
-import pickle
-
 import torch.nn.functional as F
 from torchvision import models
 from transformers.modeling_albert import *
@@ -65,10 +63,13 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
 
 
 class ImageMassSeq2Seq(MassSeq2Seq):
-    def __init__(self, is_bert: bool, size: int, text_processor: TextProcessor, freeze_image: bool = False,
-                 resnet_depth: int = 1, lang_dec: bool = False, use_proposals: bool = False):
-        super(ImageMassSeq2Seq, self).__init__(is_bert=is_bert, size=size, text_processor=text_processor,
-                                               lang_dec=lang_dec, use_proposals=use_proposals)
+    def __init__(self, is_bert: bool, text_processor: TextProcessor, freeze_image: bool = False,
+                 resnet_depth: int = 1, lang_dec: bool = False, use_proposals: bool = False, enc_layer: int = 6,
+                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072):
+        super(ImageMassSeq2Seq, self).__init__(is_bert=is_bert, text_processor=text_processor,
+                                               lang_dec=lang_dec, use_proposals=use_proposals, enc_layer=enc_layer,
+                                               dec_layer=dec_layer, embed_dim=embed_dim,
+                                               intermediate_dim=intermediate_dim)
         self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
                                                     dropout=self.config.hidden_dropout_prob,
                                                     freeze=freeze_image, depth=resnet_depth)
@@ -195,15 +196,3 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             nominator = torch.diagonal(cross_dot[:, :len(encoder_state_attended)], 0) + 1e-8
             log_neg = torch.sum(denom - nominator) / len(encoder_state_attended)
             return log_neg
-
-    @staticmethod
-    def load(out_dir: str, tok_dir: str):
-        text_processor = TextProcessor(tok_model_path=tok_dir)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
-            is_bert, size, lang_dec, use_proposals = pickle.load(fp)
-            mt_model = ImageMassSeq2Seq(is_bert=is_bert, size=size, text_processor=text_processor, lang_dec=lang_dec,
-                                        use_proposals=use_proposals)
-            mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
-                                     strict=False)
-            return mt_model

@@ -34,7 +34,7 @@ class BertDecoderModel(BertPreTrainedModel):
         # encoder_extended_attention_mask = (encoder_extended_attention_mask ==
         # encoder_extended_attention_mask.transpose(-1, -2))
         encoder_extended_attention_mask = encoder_extended_attention_mask.to(dtype=self.dtype)  # fp16 compatibility
-        encoder_extended_attention_mask = (1.0 - encoder_extended_attention_mask) *  -10000.0
+        encoder_extended_attention_mask = (1.0 - encoder_extended_attention_mask) * -10000.0
         return encoder_extended_attention_mask
 
     def forward(

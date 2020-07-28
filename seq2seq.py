@@ -99,7 +99,7 @@ class Seq2Seq(nn.Module):
         device = self.encoder.embeddings.word_embeddings.weight.device
         proposals = proposals.to(device)
         attend_mask = (proposals == pad_idx)
-        mapped_output = self.target_mapper(decoder_output) if not self.is_bert else decoder_output
+        mapped_output = decoder_output
         proposal_embedding = self.proposal_embedding(proposals)
         if decoder_output.dim() == 3:
             proposal_embedding = proposal_embedding.unsqueeze(1)

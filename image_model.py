@@ -63,10 +63,10 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
 
 
 class ImageMassSeq2Seq(MassSeq2Seq):
-    def __init__(self, is_bert: bool, text_processor: TextProcessor, freeze_image: bool = False,
+    def __init__(self, text_processor: TextProcessor, freeze_image: bool = False,
                  resnet_depth: int = 1, lang_dec: bool = False, use_proposals: bool = False, enc_layer: int = 6,
                  dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072):
-        super(ImageMassSeq2Seq, self).__init__(is_bert=is_bert, text_processor=text_processor,
+        super(ImageMassSeq2Seq, self).__init__(text_processor=text_processor,
                                                lang_dec=lang_dec, use_proposals=use_proposals, enc_layer=enc_layer,
                                                dec_layer=dec_layer, embed_dim=embed_dim,
                                                intermediate_dim=intermediate_dim)

@@ -368,20 +368,20 @@ class ImageCaptionDataset(Dataset):
 
     def __getitem__(self, item):
         batch, caption_mask, pad_indices, lex_cand_batch = self.batches[item]
-        image_batch = list(map(lambda image_id: self.get_img(self.unique_images[image_id]),self.image_batches[item]))
+        image_batch = list(map(lambda image_id: self.get_img(self.unique_images[image_id]), self.image_batches[item]))
         # image_batch = []
         # for image_id in self.image_batches[item]:
         #     image_path = self.unique_images[image_id]
-            # if image_id not in self.image_cache:
-            #     if len(self.image_cache) >= 30000:
-            #         k = self.image_queue.pop(0)
-            #         del self.image_cache[k]
-            #     image_path = self.unique_images[image_id]
-            #
-            #     self.image_cache[image_id] = img
-            #     self.image_queue.append(image_id)
-            # image_batch.append(self.image_cache[image_id])
-            # image_batch.append(img)
+        # if image_id not in self.image_cache:
+        #     if len(self.image_cache) >= 30000:
+        #         k = self.image_queue.pop(0)
+        #         del self.image_cache[k]
+        #     image_path = self.unique_images[image_id]
+        #
+        #     self.image_cache[image_id] = img
+        #     self.image_queue.append(image_id)
+        # image_batch.append(self.image_cache[image_id])
+        # image_batch.append(img)
 
         # We choose fixed negative samples for all batch items.
         img_tensors = torch.stack(list(map(lambda im: self.img_normalize(self.to_tensor(im)), image_batch)))

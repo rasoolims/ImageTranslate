@@ -5,9 +5,9 @@ import unittest
 import torch
 
 import create_batches
-from albert_seq2seq import AlbertSeq2Seq
 from dataset import TextDataset
 from lm import LM
+from seq2seq import Seq2Seq
 from textprocessor import TextProcessor
 
 
@@ -58,8 +58,7 @@ class TestModel(unittest.TestCase):
             processor = TextProcessor()
             processor.train_tokenizer([data_path], vocab_size=1000, to_save_dir=tmpdirname,
                                       languages={"<en>": 0, "<fa>": 1})
-            seq2seq = AlbertSeq2Seq(text_processor=processor, size=4)
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            seq2seq = Seq2Seq(text_processor=processor)
             src_inputs = torch.tensor([[1, 2, 3, 4, 5, processor.pad_token_id(), processor.pad_token_id()],
                                        [1, 2, 3, 4, 5, 6, processor.pad_token_id()]])
             tgt_inputs = torch.tensor(

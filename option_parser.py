@@ -25,8 +25,8 @@ def get_lm_option_parser():
                       help="Continue training from pretrained model", default=False)
     parser.add_option("--dropout", dest="dropout", help="Dropout probability", type="float", default=0.1)
     parser.add_option("--dff", dest="d_ff", help="Position-wise feed-forward dimensions", type="int", default=2048)
-    parser.add_option("--reformer", action="store_true", dest="reformer",
-                      help="Use Reformer instead of Albert", default=False)
+    parser.add_option("--reformer", action="store_true", dest="reformer", help="Use Reformer instead of BERT",
+                      default=False)
     parser.add_option("--enc", dest="encoder_layer", help="# encoder layers", type="int", default=6)
     parser.add_option("--embed", dest="embed_dim", help="Embedding dimension", type="int", default=768)
     parser.add_option("--intermediate", dest="intermediate_layer_dim", type="int", default=3072)
@@ -66,8 +66,6 @@ def get_img_options_parser():
                       help="Languages for back-translation (should be two, sepearated by comma)", type="str",
                       default="")
     parser.add_option("--mmode", dest="mm_mode", help="Option: mixed, masked, contrastive", type="str", default="mixed")
-    parser.add_option("--albert", action="store_true", dest="albert", help="Use ALBERT transformer instead of BERT",
-                      default=False)
     parser.add_option("--dec", dest="decoder_layer", help="# decoder layers", type="int", default=6)
     parser.add_option("--ignore-mt-mass", action="store_true", dest="ignore_mt_mass",
                       help="Ignore MT data in backtranslation loss of MASS model", default=False)

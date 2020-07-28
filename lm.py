@@ -5,15 +5,15 @@ from typing import List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import AlbertModel, AlbertConfig
-from transformers.modeling_albert import AlbertMLMHead
+from transformers import BertModel, BertConfig
 
 import lm_config
+from bert_seq2seq import BertOutputLayer
 from textprocessor import TextProcessor
 
 
 class LM(nn.Module):
-    def __init__(self, text_processor: TextProcessor, config: AlbertConfig = None, encoder: AlbertModel = None,
+    def __init__(self, text_processor: TextProcessor, config: BertConfig = None, encoder: BertModel = None,
                  enc_layer: int = 6, embed_dim: int = 768, intermediate_dim: int = 3072):
         super(LM, self).__init__()
         self.text_processor: TextProcessor = text_processor
@@ -29,11 +29,11 @@ class LM(nn.Module):
                                                intermediate_dim=intermediate_dim)
 
             self.config["type_vocab_size"] = len(text_processor.languages)
-            self.config = AlbertConfig(**self.config)
+            self.config = BertConfig(**self.config)
 
-        self.masked_lm = AlbertMLMHead(self.config)
+        self.masked_lm = BertOutputLayer(self.config)
         if encoder is None:
-            self.encoder: AlbertModel = AlbertModel(self.config)
+            self.encoder: BertModel = BertModel(self.config)
             self.encoder.init_weights()
         else:
             self.encoder = encoder
@@ -70,7 +70,7 @@ class LM(nn.Module):
             config = pickle.load(fp)
             if isinstance(config, dict):
                 # For older configs
-                config = AlbertConfig(**config)
+                config = BertConfig(**config)
             lm = LM(text_processor=text_processor, config=config)
             lm.load_state_dict(torch.load(os.path.join(out_dir, "model.state_dict")))
             return lm

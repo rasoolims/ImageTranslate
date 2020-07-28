@@ -83,7 +83,7 @@ def write(output_file: str, input_file: str, ref_file=None):
         pmis = Counter()
         for si, src_word in enumerate(cooc):
             p_x = math.log(src_word_counts[src_word]) - sum_src_count
-            denom = math.log(sum(cooc[src_word].values()))
+            denom = math.log(cooc_sum[src_word])
             for dst_word in cooc[src_word]:
                 p_y = math.log(dst_word_counts[dst_word]) - sum_dst_count
                 p_x_y = math.log(cooc[src_word][dst_word]) - denom

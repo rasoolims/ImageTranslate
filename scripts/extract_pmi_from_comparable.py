@@ -89,7 +89,7 @@ def write(output_file: str, input_file: str, ref_file=None):
                 p_x_y = math.log(cooc[src_word][dst_word]) - denom
                 pmis[src_word + "\t" + dst_word] = p_x_y - (p_x + p_y)
             print(si, "/", len(cooc), end="\r")
-        most_probable = pmis.most_common(10000)
+        most_probable = pmis.most_common(1000000)
         output = "\n".join(list(map(lambda m: m[0] + "\t" + str(m[1]), most_probable)))
         writer.write(output)
         print("\nFinished PMI calculations!")

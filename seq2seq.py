@@ -19,7 +19,7 @@ def future_mask(tgt_mask):
 
 
 class Seq2Seq(nn.Module):
-    def __init__(self, text_processor: TextProcessor, lang_dec: bool = True, use_proposals=False,
+    def __init__(self, text_processor: TextProcessor, lang_dec: bool = True, use_proposals=False, tie_embed=False,
                  enc_layer: int = 6, dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072):
         super(Seq2Seq, self).__init__()
 
@@ -42,23 +42,25 @@ class Seq2Seq(nn.Module):
         self.encoder = BertEncoderModel(self.config)
         self.encoder.init_weights()
         self.lang_dec = lang_dec
+        self.tie_embed = tie_embed
         if not lang_dec:
             self.output_layer = BertOutputLayer(dec_config)
             self.decoder = BertDecoderModel(dec_config)
             self.decoder._tie_or_clone_weights(self.output_layer, self.decoder.embeddings.word_embeddings)
+            if tie_embed:
+                self.encoder._tie_or_clone_weights(self.output_layer, self.encoder.embeddings.word_embeddings)
         else:
             dec = BertDecoderModel(dec_config)
             self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
             self.output_layer = nn.ModuleList([BertOutputLayer(dec_config) for _ in text_processor.languages])
             for i, dec in enumerate(self.decoder):
                 dec._tie_or_clone_weights(self.output_layer[i], dec.embeddings.word_embeddings)
+                if tie_embed:
+                    self.encoder._tie_or_clone_weights(self.output_layer[i], self.encoder.embeddings.word_embeddings)
 
         self.use_proposals = use_proposals
         if self.use_proposals:
             self.proposal_embedding = self.encoder.embeddings.word_embeddings
-            if not self.is_bert:
-                self.target_mapper = nn.Linear(self.config.hidden_size, self.config.embedding_size)
-                self.embedding_mapper = nn.Linear(self.config.embedding_size, self.config.hidden_size)
             self.lexical_gate = nn.Parameter(torch.zeros(1, self.config.hidden_size).fill_(0.1), requires_grad=True)
             self.lexical_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
 
@@ -161,8 +163,9 @@ class Seq2Seq(nn.Module):
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         with open(os.path.join(out_dir, "mt_config"), "wb") as fp:
-            pickle.dump((self.lang_dec, self.use_proposals, self.enc_layer, self.dec_layer, self.embed_dim,
-                         self.intermediate_dim), fp)
+            pickle.dump(
+                (self.lang_dec, self.use_proposals, self.enc_layer, self.dec_layer, self.embed_dim,
+                 self.intermediate_dim, self.tie_embed), fp)
         try:
             torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
         except:
@@ -174,9 +177,11 @@ class Seq2Seq(nn.Module):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
-            lang_dec, use_proposals, enc_layer, dec_layer, embed_dim, intermediate_dim = pickle.load(fp)
+            lang_dec, use_proposals, enc_layer, dec_layer, embed_dim, intermediate_dim, tie_embed = pickle.load(fp)
 
-            mt_model = Seq2Seq(text_processor=text_processor, lang_dec=lang_dec, use_proposals=use_proposals)
+            mt_model = Seq2Seq(text_processor=text_processor, lang_dec=lang_dec, use_proposals=use_proposals,
+                               tie_embed=tie_embed, enc_layer=enc_layer, dec_layer=dec_layer, embed_dim=embed_dim,
+                               intermediate_dim=intermediate_dim)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
                                      strict=False)
             mt_model.__class__ = cls

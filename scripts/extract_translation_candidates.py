@@ -42,7 +42,7 @@ def extract_sentence_pairs(v, ref_images, ref_captions, output_image):
     return sentence_pairs
 
 
-def write(output_file: str, input_file: str, ref_file=None, output_image=False):
+def write(output_file: str, input_file: str, ref_file=None, output_image=False, txt=False):
     with open(ref_file, "rb") as fp:
         ref_doc_dicts = json.load(fp)
         ref_images = set(chain(*map(lambda v: list(map(lambda im: im["img_path"], v["images"])), ref_doc_dicts)))
@@ -55,7 +55,7 @@ def write(output_file: str, input_file: str, ref_file=None, output_image=False):
     sen_ids = dict()
     src2dst_dict = defaultdict(set)
     dst2src_dict = defaultdict(set)
-    with open(input_file, "rb") as fp, open(output_file, "wb") as writer:
+    with open(input_file, "rb") as fp, open(output_file, "w" if txt else "wb") as writer:
         doc_dicts = json.load(fp)
         for i, doc_dict in enumerate(doc_dicts):
             sentence_pairs = extract_sentence_pairs(doc_dict, ref_images, ref_caption_dict, output_image)
@@ -67,11 +67,16 @@ def write(output_file: str, input_file: str, ref_file=None, output_image=False):
                 if dst not in sen_ids:
                     sen_ids[dst] = len(sen_ids)
 
-                src2dst_dict[sen_ids[src]].add(sen_ids[dst])
-                dst2src_dict[sen_ids[dst]].add(sen_ids[src])
+                src_sen = " ".join(src.strip().split(" ")[1:-1])
+                dst_sen = " ".join(dst.strip().split(" ")[1:-1])
+                writer.write(" ".join([src_sen, "|||", dst_sen])+"\n")
+                if not txt:
+                    src2dst_dict[sen_ids[src]].add(sen_ids[dst])
+                    dst2src_dict[sen_ids[dst]].add(sen_ids[src])
 
             print(i, "/", len(doc_dicts), end="\r")
-        marshal.dump((sen_ids, dict(src2dst_dict), dict(dst2src_dict)), writer)
+        if not txt:
+            marshal.dump((sen_ids, dict(src2dst_dict), dict(dst2src_dict)), writer)
 
 
 def get_options():
@@ -82,6 +87,7 @@ def get_options():
     parser.add_option("--output", dest="output_file", help="Output pickle file.", metavar="FILE", default=None)
     parser.add_option("--image", action="store_true", dest="output_image", help="Output image path as well",
                       default=False)
+    parser.add_option("--txt", action="store_true", dest="txt", help="Output text in fastalign format", default=False)
     (options, args) = parser.parse_args()
     return options
 
@@ -93,5 +99,6 @@ if __name__ == "__main__":
     write(output_file=options.output_file,
           input_file=options.file,
           ref_file=options.ref,
-          output_image=options.output_image)
+          output_image=options.output_image,
+          txt=options.txt)
     print("\nFinished")

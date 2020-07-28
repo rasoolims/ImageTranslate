@@ -6,8 +6,8 @@ from optparse import OptionParser
 
 sen_chooser = lambda sens, img: list(map(lambda s: (img, s), sens))
 img_sen_collect = lambda image, sens: [(image["img_path"], image["caption"])] + sen_chooser(sens, image["img_path"])
-len_condition = lambda words1, words2: True if .8 <= len(words1) / len(words2) <= 1.1 or abs(
-    len(words1) - len(words2)) <= 5 else False
+len_condition = lambda words1, words2: True if .9 <= len(words1) / len(words2) <= 1.1 or abs(
+    len(words1) - len(words2)) <= 3 else False
 img_sen_pair_collect = lambda image, rs, sens, output_image: list(filter(lambda x: x is not None, map(
     lambda s: ((image, s, rs) if output_image else (s, rs)) if len_condition(s.split(" "), rs.split(
         " ")) else None, sens)))

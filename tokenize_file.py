@@ -11,6 +11,7 @@ def write(text_processor: TextProcessor, output_file: str, txt_file: str, output
 
             if output_txt:
                 tokenized = [text_processor.id2token(tok) for tok in tok_line][1:-1]
+                tokenized = list(map(lambda tok: tok if tok != "<unk>" else "unk", tokenized))
             else:
                 tokenized = [str(tok) for tok in tok_line]
             writer.write(" ".join(tokenized) + "\n")

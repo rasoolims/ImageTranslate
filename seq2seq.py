@@ -47,16 +47,25 @@ class Seq2Seq(nn.Module):
             self.output_layer = BertOutputLayer(dec_config)
             self.decoder = BertDecoderModel(dec_config)
             self.decoder._tie_or_clone_weights(self.output_layer, self.decoder.embeddings.word_embeddings)
+            self.decoder._tie_or_clone_weights(self.encoder.embeddings.token_type_embeddings,
+                                               self.decoder.embeddings.token_type_embeddings)
+
             if tie_embed:
                 self.encoder._tie_or_clone_weights(self.output_layer, self.encoder.embeddings.word_embeddings)
+                self.encoder._tie_or_clone_weights(self.encoder.embeddings.position_embeddings,
+                                                   self.encoder.embeddings.position_embeddings)
         else:
             dec = BertDecoderModel(dec_config)
             self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
             self.output_layer = nn.ModuleList([BertOutputLayer(dec_config) for _ in text_processor.languages])
             for i, dec in enumerate(self.decoder):
                 dec._tie_or_clone_weights(self.output_layer[i], dec.embeddings.word_embeddings)
+                dec._tie_or_clone_weights(self.encoder.embeddings.token_type_embeddings,
+                                          dec.embeddings.token_type_embeddings)
                 if tie_embed:
                     self.encoder._tie_or_clone_weights(self.output_layer[i], self.encoder.embeddings.word_embeddings)
+                    dec._tie_or_clone_weights(self.encoder.embeddings.position_embeddings,
+                                              dec.embeddings.position_embeddings)
 
         self.use_proposals = use_proposals
         if self.use_proposals:

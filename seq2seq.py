@@ -121,7 +121,7 @@ class Seq2Seq(nn.Module):
         attend_probs = nn.Softmax(dim=-1)(attend_scores)
 
         proposal_context = torch.sum(attend_probs.unsqueeze(-1) * proposal_embedding, dim=-2)
-        proposal_values = self.embedding_mapper(proposal_context) if not self.is_bert else proposal_context
+        proposal_values = proposal_context
         final_proposal_mask = torch.all(proposals == pad_idx, dim=-1)
         proposal_values[final_proposal_mask] = 1e-8
 

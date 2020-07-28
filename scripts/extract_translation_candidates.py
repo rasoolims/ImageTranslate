@@ -59,18 +59,25 @@ def write(output_file: str, input_file: str, ref_file=None, output_image=False, 
         doc_dicts = json.load(fp)
         for i, doc_dict in enumerate(doc_dicts):
             sentence_pairs = extract_sentence_pairs(doc_dict, ref_images, ref_caption_dict, output_image)
+
             if len(sentence_pairs) == 0:
                 continue
-            for src, dst in sentence_pairs:
-                if src not in sen_ids:
-                    sen_ids[src] = len(sen_ids)
-                if dst not in sen_ids:
-                    sen_ids[dst] = len(sen_ids)
+            if txt:
+                f = list(map(
+                    lambda sp: " ".join([" ".join(sp[0].split(" ")[1:-1]), "|||", " ".join(sp[1].split(" ")[1:-1])]),
+                    sentence_pairs))
+                writer.write("\n".join(f))
+                writer.write("\n")
+            else:
+                for src, dst in sentence_pairs:
+                    if src not in sen_ids:
+                        sen_ids[src] = len(sen_ids)
+                    if dst not in sen_ids:
+                        sen_ids[dst] = len(sen_ids)
 
-                src_sen = " ".join(src.strip().split(" ")[1:-1])
-                dst_sen = " ".join(dst.strip().split(" ")[1:-1])
-                writer.write(" ".join([src_sen, "|||", dst_sen])+"\n")
-                if not txt:
+                    src_sen = " ".join(src.strip().split(" ")[1:-1])
+                    dst_sen = " ".join(dst.strip().split(" ")[1:-1])
+                    writer.write(" ".join([src_sen, "|||", dst_sen]) + "\n")
                     src2dst_dict[sen_ids[src]].add(sen_ids[dst])
                     dst2src_dict[sen_ids[dst]].add(sen_ids[src])
 

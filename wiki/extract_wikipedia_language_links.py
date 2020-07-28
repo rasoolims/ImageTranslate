@@ -43,8 +43,8 @@ def get_options():
     global options
     parser = OptionParser()
     parser.add_option("--file", dest="file", help="Which files to use", metavar="FILE", default=None)
-    parser.add_option("--lang", dest="lang", help="Ref files to use for overlap", metavar="FILE", default=None)
-    parser.add_option("--output", dest="output_file", help="Output pickle file.", metavar="FILE", default=None)
+    parser.add_option("--lang", dest="lang", metavar="FILE", default=None)
+    parser.add_option("--output", dest="output_file", help="Output file.", metavar="FILE", default=None)
     parser.add_option("--output_folder", dest="output_folder", help="Output pickle file.", metavar="FILE", default=None)
     parser.add_option("--resume", dest="resume", type="int", default=0)
     parser.add_option("--end", dest="end", type="int", default=100000000)

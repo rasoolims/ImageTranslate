@@ -59,10 +59,9 @@ class Seq2Seq(nn.Module):
             self.output_layer = nn.ModuleList([BertOutputLayer(dec_config) for _ in text_processor.languages])
             for i, dec in enumerate(self.decoder):
                 if tie_embed:
-                    self.encoder._tie_or_clone_weights(self.encoder.embeddings.word_embeddings, self.output_layer[i])
-                    dec._tie_or_clone_weights(self.encoder.embeddings.position_embeddings,
-                                              dec.embeddings.position_embeddings)
-                dec._tie_or_clone_weights(dec.embeddings.word_embeddings, self.output_layer[i])
+                    self.encoder._tie_or_clone_weights(self.output_layer[i], self.encoder.embeddings.word_embeddings)
+                    dec.embeddings.position_embeddings = self.encoder.embeddings.position_embeddings
+                dec._tie_or_clone_weights(self.output_layer[i], dec.embeddings.word_embeddings)
                 dec._tie_or_clone_weights(self.encoder.embeddings.token_type_embeddings,
                                           dec.embeddings.token_type_embeddings)
 

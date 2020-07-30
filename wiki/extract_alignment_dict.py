@@ -16,10 +16,14 @@ with open(input_path, "r") as reader, open(alignment_path, "r") as areader, open
         src_words = spl[0].strip().split(" ")
         dst_words = spl[1].strip().split(" ")
 
+        src_word_counts += Counter(src_words)
+
         for a in aline.strip().split(" "):
-            s, t = int(a.split("-")[0]), int(a.split("-")[1])
-            src_word_counts[src_words[s]] += 1
-            src2dst_count[src_words[s]][dst_words[t]] += 1
+            try:
+                s, t = int(a.split("-")[0]), int(a.split("-")[1])
+                src2dst_count[src_words[s]][dst_words[t]] += 1
+            except:
+                pass
 
         if (i + 1) % 1000 == 0:
             print(i + 1, end="\r")

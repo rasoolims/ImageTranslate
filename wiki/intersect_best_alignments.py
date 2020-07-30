@@ -23,6 +23,7 @@ with open(rev_path, "r") as rev_reader, open(output_path, "w") as w:
         reverse, fprob = forward_dict[spl[1]]
         if reverse.strip() == spl[0]:
             prob = str(float(backward[1]) * fprob)
+            w.write(spl[1] + " ||| " + spl[0] + "\t" + str(prob) + "\n")
             found += 1
         if (i + 1) % 1000 == 0:
             print(found, "/", i + 1, end="\r")

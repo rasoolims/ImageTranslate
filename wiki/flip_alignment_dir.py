@@ -8,7 +8,6 @@ a_output_path = os.path.abspath(sys.argv[4])
 
 with open(input_path, "r") as reader, open(alignment_path, "r") as areader, open(output_path, "w") as w, open(
         a_output_path, "w") as aw:
-    used = 0
     for i, (line, aline) in enumerate(zip(reader, areader)):
         spl = line.strip().split(" ||| ")
         outputline = spl[1] + " ||| " + spl[0]

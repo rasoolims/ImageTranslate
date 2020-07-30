@@ -8,7 +8,7 @@ output_path = os.path.abspath(sys.argv[4])
 
 with open(input_path, "r") as reader, open(alignment_path, "r") as areader, open(output_path, "w") as w:
     used = 0
-    for i, line, aline in enumerate(zip(reader, areader)):
+    for i, (line, aline) in enumerate(zip(reader, areader)):
         spl = line.strip().split(" ||| ")
         src_len = len(spl[0].strip().split(" "))
         dst_len = len(spl[1].strip().split(" "))

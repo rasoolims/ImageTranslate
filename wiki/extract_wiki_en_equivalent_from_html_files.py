@@ -1,5 +1,6 @@
 import os
 import sys
+import urllib.parse
 
 from bs4 import BeautifulSoup
 
@@ -21,6 +22,9 @@ with open(output_file, "w") as fp:
             en_link = en_nav.find("a")
             en_title, en_href = en_link["title"], en_link["href"]
             translation = en_href[en_href.find("wiki/") + 5:].strip().replace("_", " ")
+            title = urllib.parse.unquote(title)
+            translation = urllib.parse.unquote(translation)
+
             fp.write(title + "\t" + translation + "\n")
             num_written += 1
             if (f + 1) % 10 == 0:

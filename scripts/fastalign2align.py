@@ -10,4 +10,4 @@ with open(input_path, "r") as reader, open(output_path1, "w") as w1, open(output
         spl = line.strip().split(" ||| ")
         if len(spl) != 2: continue
         w1.write(spl[0] + "\n")
-        w2.write(spl[1].replace(" ||| ", " ") + "\n")
+        w2.write(" ".join(spl[1:]).strip() + "\n")

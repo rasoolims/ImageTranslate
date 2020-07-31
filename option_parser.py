@@ -69,6 +69,6 @@ def get_img_options_parser():
     parser.add_option("--dec", dest="decoder_layer", help="# decoder layers", type="int", default=6)
     parser.add_option("--ignore-mt-mass", action="store_true", dest="ignore_mt_mass",
                       help="Ignore MT data in backtranslation loss of MASS model", default=False)
-    parser.add_option("--untie", action="store_true", dest="untie_embed", help="Tie encoder and decoder embeddings",
+    parser.add_option("--untie", action="store_true", dest="untie_embed", help="Untie encoder and decoder embeddings",
                       default=False)
     return parser

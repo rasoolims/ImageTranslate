@@ -40,7 +40,7 @@ def get_lex_dict(dict_path):
     return lex_dict
 
 
-class ImageDocTrainer:
+class ImageMTTrainer:
     def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None,
                  beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
                  len_penalty_ratio: float = 0.8, nll_loss: bool = False, fp16: bool = False, mm_mode="mixed"):
@@ -433,39 +433,39 @@ class ImageDocTrainer:
                 optimizer = pickle.load(fp)
         else:
             optimizer = build_optimizer(mt_model, options.learning_rate, warump_steps=options.warmup)
-        trainer = ImageDocTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
-                                  beam_width=options.beam_width, max_len_a=options.max_len_a,
-                                  max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
-                                  fp16=options.fp16, mm_mode=options.mm_mode)
+        trainer = ImageMTTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
+                                 beam_width=options.beam_width, max_len_a=options.max_len_a,
+                                 max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
+                                 fp16=options.fp16, mm_mode=options.mm_mode)
 
         pin_memory = torch.cuda.is_available()
         img_train_loader = None
-        img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
-                                                          mt_model, num_batches, options, pin_memory, lex_dict=lex_dict)
+        img_train_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
+                                                         mt_model, num_batches, options, pin_memory, lex_dict=lex_dict)
 
         mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
         if options.mass_train_path is not None:
             mass_train_paths = options.mass_train_path.strip().split(",")
             if options.step > 0:
-                mass_train_data, mass_train_loader = ImageDocTrainer.get_mass_loader(mass_train_paths, mt_model,
-                                                                                     num_processors, options,
-                                                                                     pin_memory, lex_dict=lex_dict)
+                mass_train_data, mass_train_loader = ImageMTTrainer.get_mass_loader(mass_train_paths, mt_model,
+                                                                                    num_processors, options,
+                                                                                    pin_memory, lex_dict=lex_dict)
 
             if options.finetune_step > 0:
-                finetune_loader, finetune_data = ImageDocTrainer.get_mass_finetune_data(mass_train_data,
-                                                                                        mass_train_paths, mt_model,
-                                                                                        num_processors, options,
-                                                                                        pin_memory, lex_dict=lex_dict)
+                finetune_loader, finetune_data = ImageMTTrainer.get_mass_finetune_data(mass_train_data,
+                                                                                       mass_train_paths, mt_model,
+                                                                                       num_processors, options,
+                                                                                       pin_memory, lex_dict=lex_dict)
 
         mt_train_loader = None
         if options.mt_train_path is not None:
-            mt_train_loader = ImageDocTrainer.get_mt_train_data(mt_model, num_processors, options, pin_memory,
-                                                                lex_dict=lex_dict)
+            mt_train_loader = ImageMTTrainer.get_mt_train_data(mt_model, num_processors, options, pin_memory,
+                                                               lex_dict=lex_dict)
 
         mt_dev_loader = None
         if options.mt_dev_path is not None:
-            mt_dev_loader = ImageDocTrainer.get_mt_dev_data(mt_model, options, pin_memory, text_processor, trainer,
-                                                            lex_dict=lex_dict)
+            mt_dev_loader = ImageMTTrainer.get_mt_dev_data(mt_model, options, pin_memory, text_processor, trainer,
+                                                           lex_dict=lex_dict)
 
         step, train_epoch = 0, 1
         while options.step > 0 and step < options.step:
@@ -480,14 +480,14 @@ class ImageDocTrainer:
         # Resetting the optimizer for the purpose of finetuning.
         trainer.optimizer.reset()
 
-        lang_directions = ImageDocTrainer.get_lang_dirs(options.bt_langs, text_processor)
+        lang_directions = ImageMTTrainer.get_lang_dirs(options.bt_langs, text_processor)
         print("lang dirs", lang_directions)
 
         print("Reloading image train data with new batch size...")
         if options.finetune_step > 0 and img_train_loader is not None:
-            img_train_loader = ImageDocTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
-                                                              mt_model, num_batches, options, pin_memory, denom=2,
-                                                              lex_dict=lex_dict)
+            img_train_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
+                                                             mt_model, num_batches, options, pin_memory, denom=2,
+                                                             lex_dict=lex_dict)
         if options.ignore_mt_mass:
             mt_train_loader = None
         print("Reloading image train data with new batch size done!")
@@ -613,5 +613,5 @@ if __name__ == "__main__":
     parser = get_img_options_parser()
     (options, args) = parser.parse_args()
     print(options)
-    ImageDocTrainer.train(options=options)
+    ImageMTTrainer.train(options=options)
     print("Finished Training!")

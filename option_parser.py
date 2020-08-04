@@ -17,7 +17,7 @@ def get_lm_option_parser():
     parser.add_option("--clip", dest="clip", help="For gradient clipping", type="int", default=1)
     parser.add_option("--batch", dest="batch", help="Batch size", type="int", default=6000)
     parser.add_option("--mask", dest="mask_prob", help="Random masking probability", type="float", default=0.15)
-    parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.0025)
+    parser.add_option("--lr", dest="learning_rate", help="Learning rate", type="float", default=0.0001)
     parser.add_option("--warmup", dest="warmup", help="Number of warmup steps", type="int", default=12500)
     parser.add_option("--step", dest="step", help="Number of training steps", type="int", default=125000)
     parser.add_option("--max_grad_norm", dest="max_grad_norm", help="Max grad norm", type="float", default=1.0)

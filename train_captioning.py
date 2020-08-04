@@ -124,7 +124,8 @@ class ImageCaptionTrainer(ImageMTTrainer):
                     dst_langs = [b["langs"] for b in batch]
                     captions = [b["captions"] for b in batch]
                     max_len = max([c.size(1) for c in captions])
-                    outputs = self.generator(batch=batch,
+                    images = [b["images"] for b in batch]
+                    outputs = self.generator(images=images,
                                              first_tokens=[c[:, 0] for c in captions],
                                              tgt_langs=dst_langs,
                                              pad_idx=model.text_processor.pad_token_id(), proposals=proposals,

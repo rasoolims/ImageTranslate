@@ -595,7 +595,7 @@ class ImageMTTrainer:
                                      data_bin_file=pth,
                                      max_capacity=int(options.img_capacity / denom),
                                      text_processor=mt_model.text_processor,
-                                     max_img_per_batch=options.max_image, lex_dict=lex_dict)
+                                     max_img_per_batch=options.max_image / denom, lex_dict=lex_dict)
                 print(pth, "Length of training data", len(data))
                 tl = data_utils.DataLoader(data, batch_size=num_batches, shuffle=shuffle,
                                            pin_memory=pin_memory,

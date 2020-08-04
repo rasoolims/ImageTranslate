@@ -207,7 +207,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
 
         img_dev_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, options.dev_path,
                                                        mt_model, num_batches, options, pin_memory, lex_dict=lex_dict,
-                                                       shuffle=False)
+                                                       shuffle=False, denom=2)
 
         trainer.reference = None
         if img_dev_loader is not None:

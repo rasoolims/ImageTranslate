@@ -79,6 +79,10 @@ class BeamDecoder(nn.Module):
         else:
             batch_size = images.size(0)
 
+        images = images.to(device)
+        if self.seq2seq_model.encoder.embeddings.word_embeddings.weight.dtype == torch.float16:
+            images = images.half()
+            
         if src_inputs is not None and images is None:
             src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
             encoder_states = self.seq2seq_model.encode(src_inputs, src_mask, src_langs)[0]

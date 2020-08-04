@@ -83,7 +83,6 @@ class BeamDecoder(nn.Module):
             src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
             encoder_states = self.seq2seq_model.encode(src_inputs, src_mask, src_langs)[0]
         elif src_inputs is None:
-            images = images.to(device)
             encoder_states = self.seq2seq_model.encode(images=images)  # = image embeddings
         else:
             images = images.to(device)

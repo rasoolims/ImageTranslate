@@ -38,70 +38,74 @@ class ImageCaptionTrainer(ImageMTTrainer):
         )
         for i, batches in enumerate(batch_zip):
             for batch in batches:
-                self.optimizer.zero_grad()
-                captions = [b["captions"] for b in batch]
-                caption_pad_mask = [b["caption_mask"] for b in batch]
-                proposals = [b["proposal"] for b in batch] if lex_dict is not None else None
-                langs = [b["langs"] for b in batch]
-                if len(batch) < self.num_gpu:
-                    continue
+                try:
+                    self.optimizer.zero_grad()
+                    captions = [b["captions"] for b in batch]
+                    caption_pad_mask = [b["caption_mask"] for b in batch]
+                    proposals = [b["proposal"] for b in batch] if lex_dict is not None else None
+                    langs = [b["langs"] for b in batch]
+                    if len(batch) < self.num_gpu:
+                        continue
 
-                predictions = self.model(tgt_inputs=captions,
-                                         tgt_mask=caption_pad_mask,
-                                         pad_idx=model.text_processor.pad_token_id(),
-                                         src_langs=langs, batch=batch, proposals=proposals,
-                                         log_softmax=True)
-                targets = torch.cat(list(map(lambda c: c[:, 1:].contiguous().view(-1), captions)))
-                tgt_mask_flat = torch.cat(list(map(lambda c: c[:, 1:].contiguous().view(-1), caption_pad_mask)))
-                targets = targets[tgt_mask_flat]
+                    predictions = self.model(tgt_inputs=captions,
+                                             tgt_mask=caption_pad_mask,
+                                             pad_idx=model.text_processor.pad_token_id(),
+                                             src_langs=langs, batch=batch, proposals=proposals,
+                                             log_softmax=True)
+                    targets = torch.cat(list(map(lambda c: c[:, 1:].contiguous().view(-1), captions)))
+                    tgt_mask_flat = torch.cat(list(map(lambda c: c[:, 1:].contiguous().view(-1), caption_pad_mask)))
+                    targets = targets[tgt_mask_flat]
 
-                ntokens = targets.size(0)
+                    ntokens = targets.size(0)
 
-                if ntokens > 0:
-                    if self.num_gpu == 1:
-                        targets = targets.to(predictions.device)
+                    if ntokens > 0:
+                        if self.num_gpu == 1:
+                            targets = targets.to(predictions.device)
 
-                    loss = self.criterion(predictions, targets).mean()
-                    backward(loss, self.optimizer, self.fp16)
+                        loss = self.criterion(predictions, targets).mean()
+                        backward(loss, self.optimizer, self.fp16)
 
-                    loss = float(loss.data) * ntokens
-                    tokens += ntokens
-                    total_tokens += ntokens
-                    total_loss += loss
-                    cur_loss += loss
+                        loss = float(loss.data) * ntokens
+                        tokens += ntokens
+                        total_tokens += ntokens
+                        total_loss += loss
+                        cur_loss += loss
 
-                    # We accumulate the gradients for both tasks!
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
-                    self.optimizer.step()
-                    step += 1
+                        # We accumulate the gradients for both tasks!
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
+                        self.optimizer.step()
+                        step += 1
 
-                    if step % 50 == 0 and tokens > 0:
-                        elapsed = time.time() - start
-                        print(datetime.datetime.now(),
-                              "Epoch Step: %d Loss: %f Tokens per Sec: %f " % (
-                                  step, cur_loss / tokens, tokens / elapsed))
+                        if step % 50 == 0 and tokens > 0:
+                            elapsed = time.time() - start
+                            print(datetime.datetime.now(),
+                                  "Epoch Step: %d Loss: %f Tokens per Sec: %f " % (
+                                      step, cur_loss / tokens, tokens / elapsed))
 
-                        if step % 500 == 0:
-                            if img_dev_data_iter is not None and step % 5000 == 0:
-                                bleu = self.eval_bleu(img_dev_data_iter, saving_path)
-                                print("BLEU:", bleu)
+                            if step % 500 == 0:
+                                if img_dev_data_iter is not None and step % 5000 == 0:
+                                    bleu = self.eval_bleu(img_dev_data_iter, saving_path)
+                                    print("BLEU:", bleu)
 
-                            model.save(saving_path + ".latest")
-                            with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                                pickle.dump(self.optimizer, fp)
+                                model.save(saving_path + ".latest")
+                                with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                                    pickle.dump(self.optimizer, fp)
 
-                        start, tokens, cur_loss = time.time(), 0, 0
+                            start, tokens, cur_loss = time.time(), 0, 0
 
-                    if step >= max_step:
-                        break
-                    if i == shortest - 1:
-                        break
-
-        if img_dev_data_iter is not None:
-            bleu = self.eval_bleu(img_dev_data_iter, saving_path)
-            print("BLEU:", bleu)
+                        if step >= max_step:
+                            break
+                        if i == shortest - 1:
+                            break
+                except RuntimeError as err:
+                    print(repr(err))
+                    torch.cuda.empty_cache()
 
         try:
+            if img_dev_data_iter is not None:
+                bleu = self.eval_bleu(img_dev_data_iter, saving_path)
+                print("BLEU:", bleu)
+
             print("Total loss in this epoch: %f" % (total_loss / total_tokens))
             model.save(saving_path + ".latest")
         except RuntimeError as err:

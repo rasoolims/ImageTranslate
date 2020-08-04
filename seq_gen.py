@@ -44,7 +44,7 @@ class BeamDecoder(nn.Module):
         return length_penalty.unsqueeze(-1)
 
     def forward(self, src_inputs=None, src_sizes=None, first_tokens=None, src_mask=None, src_langs=None, tgt_langs=None,
-                pad_idx=None, max_len: int = None, unpad_output: bool = True, beam_width: int = None, images=None,
+                pad_idx=None, max_len: int = None, unpad_output: bool = True, beam_width: int = None, batch=None,
                 proposals=None):
         """
 
@@ -54,6 +54,8 @@ class BeamDecoder(nn.Module):
         :param src_mask:
         :return:
         """
+        device = self.seq2seq_model.encoder.embeddings.word_embeddings.weight.device
+        images = None
         if isinstance(tgt_langs, list):
             assert len(tgt_langs) == 1
             tgt_langs = tgt_langs[0]
@@ -64,14 +66,13 @@ class BeamDecoder(nn.Module):
             src_mask = src_mask[0]
             src_sizes = src_sizes[0]
             src_inputs = src_inputs[0]
-        if isinstance(images, list):
-            images = images[0]
+        if isinstance(batch, list):
+            images = batch[0]["images"].to(device)
         if isinstance(proposals, list):
             proposals = proposals[0]
 
         if beam_width is None:
             beam_width = self.beam_width
-        device = self.seq2seq_model.encoder.embeddings.word_embeddings.weight.device
         batch_lang = int(tgt_langs[0])
         if src_inputs is not None:
             batch_size = src_inputs.size(0)

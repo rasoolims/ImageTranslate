@@ -124,16 +124,13 @@ class ImageMTTrainer:
                         model.eval()
                         with torch.no_grad():
                             # We do not backpropagate the data generator following the MASS paper.
-                            images = None
-                            if is_img_batch:
-                                images = [b["images"] for b in batch]
                             outputs = self.generator(src_inputs=src_inputs,
                                                      src_sizes=pad_indices,
                                                      first_tokens=target_langs,
                                                      src_langs=langs, tgt_langs=dst_langs,
                                                      pad_idx=model.text_processor.pad_token_id(),
                                                      src_mask=src_pad_mask, unpad_output=False, beam_width=1,
-                                                     images=images, proposals=proposal)
+                                                     batch=batch if is_img_batch else None, proposals=proposal)
                             if self.num_gpu > 1:
                                 if is_mass_batch:
                                     new_outputs = []

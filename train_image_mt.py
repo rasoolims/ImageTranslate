@@ -439,8 +439,7 @@ class ImageMTTrainer:
                                  fp16=options.fp16, mm_mode=options.mm_mode)
 
         pin_memory = torch.cuda.is_available()
-        img_train_loader = None
-        img_train_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
+        img_train_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, options.train_path,
                                                          mt_model, num_batches, options, pin_memory, lex_dict=lex_dict)
 
         mass_train_data, mass_train_loader, finetune_loader, mt_dev_loader = None, None, None, None
@@ -484,8 +483,9 @@ class ImageMTTrainer:
         print("lang dirs", lang_directions)
 
         print("Reloading image train data with new batch size...")
+
         if options.finetune_step > 0 and img_train_loader is not None:
-            img_train_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, img_train_loader,
+            img_train_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, options.train_path,
                                                              mt_model, num_batches, options, pin_memory, denom=2,
                                                              lex_dict=lex_dict)
         if options.ignore_mt_mass:
@@ -589,24 +589,24 @@ class ImageMTTrainer:
         return mass_train_data, mass_train_loader
 
     @staticmethod
-    def get_img_loader(collator, dataset_class, img_train_loader, mt_model, num_batches, options, pin_memory, denom=1,
-                       lex_dict=None):
-        if options.train_path is not None:
-            img_train_loader = []
-            train_paths = options.train_path.split(",")
-            for train_path in train_paths:
-                train_data = dataset_class(root_img_dir=options.image_dir,
-                                           data_bin_file=train_path,
-                                           max_capacity=int(options.img_capacity / denom),
-                                           text_processor=mt_model.text_processor,
-                                           max_img_per_batch=options.max_image, lex_dict=lex_dict)
-                print(train_path, "Length of training data", len(train_data))
-                tl = data_utils.DataLoader(train_data, batch_size=num_batches, shuffle=True,
+    def get_img_loader(collator, dataset_class, paths, mt_model, num_batches, options, pin_memory, denom=1,
+                       lex_dict=None, shuffle=True):
+        if paths is not None:
+            img_loader = []
+            for pth in paths.strip().split(","):
+                data = dataset_class(root_img_dir=options.image_dir,
+                                     data_bin_file=pth,
+                                     max_capacity=int(options.img_capacity / denom),
+                                     text_processor=mt_model.text_processor,
+                                     max_img_per_batch=options.max_image, lex_dict=lex_dict)
+                print(pth, "Length of training data", len(data))
+                tl = data_utils.DataLoader(data, batch_size=num_batches, shuffle=shuffle,
                                            pin_memory=pin_memory,
                                            collate_fn=collator)
-                img_train_loader.append(tl)
+                img_loader.append(tl)
+            return img_loader
 
-        return img_train_loader
+        return None
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ caption_format = lambda caption: " ".join(["<en>", caption, "</s>"])
 caption_data = lambda annotation: (id2path(str(annotation["image_id"])), caption_format(annotation["caption"]))
 
 
-def write(text_processor: TextProcessor, output_file: str, input_file: str, max_len: int):
+def write(text_processor: TextProcessor, output_file: str, input_file: str, max_len: int, sample_size: int):
     with open(input_file, "r") as r:
         obj = json.load(r)
 
@@ -43,6 +43,9 @@ def write(text_processor: TextProcessor, output_file: str, input_file: str, max_
         tok_captions[caption_id] = tok_sen
         image_ids[caption_id] = image_id
 
+        if (ci + 1) >= sample_size and sample_size > 0:
+            break
+
     print("Skipped long sentences:", skipped_long_sens, "from", len(captions))
     tok_captions_sorted = sorted(tok_captions.items(), key=lambda item: len(item[1]))
     caption_sorted = list(map(lambda e: (image_ids[e[0]], e[1]), tok_captions_sorted))
@@ -59,6 +62,7 @@ def get_options():
     parser.add_option("--output", dest="output_file", help="Output pickle file.", metavar="FILE", default=None)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--max-len", dest="max_len", help="Maximum tokenized caption length", type="int", default=256)
+    parser.add_option("--sample", dest="sample_size", type="int", default=-1)
     (options, args) = parser.parse_args()
     return options
 
@@ -71,5 +75,6 @@ if __name__ == "__main__":
     write(text_processor=tokenizer,
           output_file=options.output_file,
           input_file=options.file,
-          max_len=options.max_len)
+          max_len=options.max_len,
+          sample_size=options.sample_size)
     print("Finished")

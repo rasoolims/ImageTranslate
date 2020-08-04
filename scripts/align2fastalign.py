@@ -9,13 +9,13 @@ l1 = r1.readline()
 count = 0
 while l1:
     l2 = r2.readline()
-    if len(l1.strip())>1 and len(l2.strip().lower())>1:
+    if len(l1.strip()) > 1 and len(l2.strip().lower()) > 1:
         w.write(l1.strip().lower() + ' ||| ' + l2.strip().lower() + '\n')
     else:
-        print("\nSkipped", count+1, l1.strip().lower() + ' ||| ' + l2.strip().lower())
+        print("\nSkipped", count + 1, l1.strip().lower() + ' ||| ' + l2.strip().lower())
     l1 = r1.readline()
-    count+=1
-    if count %10000==0:
+    count += 1
+    if count % 10000 == 0:
         print(count, end="\r")
 w.close()
 print('\nDone')

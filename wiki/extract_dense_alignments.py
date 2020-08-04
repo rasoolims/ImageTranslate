@@ -17,6 +17,6 @@ with open(input_path, "r") as reader, open(alignment_path, "r") as areader, open
         if alen / sen_len >= proportion:
             w.write(line.strip() + "\n")
             used += 1
-        if i%1000==0:
+        if i % 1000 == 0:
             print(used, "/", i + 1, end="\r")
 print("\nDone!")

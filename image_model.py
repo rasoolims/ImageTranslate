@@ -3,6 +3,7 @@ from torchvision import models
 from transformers.modeling_albert import *
 
 from mass_seq2seq import MassSeq2Seq, future_mask
+from seq2seq import Seq2Seq
 from textprocessor import TextProcessor
 
 
@@ -196,3 +197,91 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             nominator = torch.diagonal(cross_dot[:, :len(encoder_state_attended)], 0) + 1e-4
             log_neg = torch.sum(denom - nominator) / len(encoder_state_attended)
             return log_neg
+
+
+class ImageCaptioning(Seq2Seq):
+    def __init__(self, text_processor: TextProcessor, freeze_image: bool = False, resnet_depth: int = 1,
+                 lang_dec: bool = False, use_proposals: bool = False, tie_embed: bool = False, enc_layer: int = 6,
+                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072):
+        super(ImageCaptioning, self).__init__(text_processor=text_processor, tie_embed=tie_embed,
+                                              lang_dec=lang_dec, use_proposals=use_proposals, enc_layer=enc_layer,
+                                              dec_layer=dec_layer, embed_dim=embed_dim,
+                                              intermediate_dim=intermediate_dim)
+        self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
+                                                    dropout=self.config.hidden_dropout_prob,
+                                                    freeze=freeze_image, depth=resnet_depth)
+        self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, self.config.hidden_size).fill_(0.1),
+                                                      requires_grad=True)
+
+    def encode(self, src_inputs=None, src_mask=None, src_langs=None, images=None):
+        if images is not None:
+            device = self.encoder.embeddings.word_embeddings.weight.device
+            if isinstance(images, list):
+                images = images[0]
+            if images.device != device:
+                images = images.to(device)
+            image_embeddings = self.image_model(images)
+            return image_embeddings
+        else:
+            encoder_states = super().encode(src_inputs, src_mask, src_langs)
+            return encoder_states
+
+    def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, tgt_mask=None,
+                pad_idx: int = 0,
+                tgt_positions=None, batch=None, proposals=None, log_softmax: bool = False, **kwargs):
+        device = self.encoder.embeddings.word_embeddings.weight.device
+        if isinstance(batch, list):
+            assert len(batch) == 1
+            batch = batch[0]
+        if isinstance(src_langs, list):
+            src_langs = src_langs[0]
+        if isinstance(src_pads, list):
+            src_pads = src_pads[0]
+        if isinstance(src_inputs, list):
+            src_inputs = src_inputs[0]
+        if isinstance(tgt_positions, list):
+            tgt_positions = tgt_positions[0]
+        if isinstance(tgt_inputs, list):
+            tgt_inputs = tgt_inputs[0]
+        if isinstance(proposals, list):
+            proposals = proposals[0]
+        if isinstance(tgt_mask, list):
+            tgt_mask = tgt_mask[0]
+
+        if batch is None:
+            return super().forward(src_inputs=src_inputs, src_mask=src_pads, tgt_inputs=tgt_inputs, src_langs=src_langs,
+                                   tgt_langs=tgt_langs, proposals=proposals, log_softmax=log_softmax)
+
+        images = batch["images"].to(device)
+        image_embeddings = self.encode(images=images)
+
+        assert tgt_inputs is not None
+        tgt_inputs = tgt_inputs.to(device)
+        tgt_mask = tgt_mask.to(device)
+
+        batch_lang = int(src_langs[0])
+
+        decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
+        output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
+        tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
+        if tgt_positions is not None:
+            tgt_positions = tgt_positions[:, :-1].to(device)
+
+        subseq_mask = future_mask(tgt_mask[:, :-1])
+
+        decoder_output = decoder(encoder_states=image_embeddings, input_ids=tgt_inputs[:, :-1],
+                                 encoder_attention_mask=src_pads,
+                                 tgt_attention_mask=subseq_mask,
+                                 position_ids=tgt_positions,
+                                 token_type_ids=tgt_langs[:, :-1])
+
+        if self.use_proposals:
+            decoder_output = self.attend_proposal(decoder_output, proposals, pad_idx)
+
+        diag_outputs_flat = decoder_output.view(-1, decoder_output.size(-1))
+        tgt_non_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
+        non_padded_outputs = diag_outputs_flat[tgt_non_mask_flat]
+        outputs = output_layer(non_padded_outputs)
+        if log_softmax:
+            outputs = F.log_softmax(outputs, dim=-1)
+        return outputs

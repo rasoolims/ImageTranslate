@@ -43,8 +43,9 @@ class BeamDecoder(nn.Module):
         length_penalty = torch.pow((lengths + 6.0) / 6.0, self.len_penalty_ratio)
         return length_penalty.unsqueeze(-1)
 
-    def forward(self, src_inputs, src_sizes, first_tokens, src_mask, src_langs, tgt_langs, pad_idx, max_len: int = None,
-                unpad_output: bool = True, beam_width: int = None, images=None, proposals=None):
+    def forward(self, src_inputs=None, src_sizes=None, first_tokens=None, src_mask=None, src_langs=None, tgt_langs=None,
+                pad_idx=None, max_len: int = None, unpad_output: bool = True, beam_width: int = None, images=None,
+                proposals=None):
         """
 
         :param device:
@@ -56,11 +57,13 @@ class BeamDecoder(nn.Module):
         if isinstance(tgt_langs, list):
             assert len(tgt_langs) == 1
             tgt_langs = tgt_langs[0]
+
+            first_tokens = first_tokens[0]
+        if isinstance(src_langs, list):
             src_langs = src_langs[0]
             src_mask = src_mask[0]
-            src_inputs = src_inputs[0]
-            first_tokens = first_tokens[0]
             src_sizes = src_sizes[0]
+            src_inputs = src_inputs[0]
         if isinstance(images, list):
             images = images[0]
         if isinstance(proposals, list):
@@ -70,25 +73,36 @@ class BeamDecoder(nn.Module):
             beam_width = self.beam_width
         device = self.seq2seq_model.encoder.embeddings.word_embeddings.weight.device
         batch_lang = int(tgt_langs[0])
-        batch_size = src_inputs.size(0)
-        src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
+        if src_inputs is not None:
+            batch_size = src_inputs.size(0)
+            src_mask = src_mask.to(device)
+        else:
+            batch_size = images.size(0)
+
         if images is None:
+            src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
             encoder_states = self.seq2seq_model.encode(src_inputs, src_mask, src_langs)[0]
+        elif src_inputs is None:
+            images = images.to(device)
+            encoder_states = self.seq2seq_model.encode(images=images)  # = image embeddings
         else:
             images = images.to(device)
             encoder_states, image_embeddings = self.seq2seq_model.encode(src_inputs, src_mask, src_langs, images)
         eos = self.seq2seq_model.text_processor.sep_token_id()
 
-        src_mask = src_mask.to(device)
         first_position_output = first_tokens.unsqueeze(1).to(device)
         top_beam_outputs = first_position_output
         top_beam_scores = torch.zeros(first_position_output.size()).to(first_position_output.device)
 
         max_len_func = lambda s: min(int(self.max_len_a * s + self.max_len_b),
                                      self.seq2seq_model.encoder.embeddings.position_embeddings.num_embeddings)
+
         if max_len is None:
             max_len = max_len_func(src_inputs.size(1))
-        max_lens = torch.LongTensor(list(map(lambda x: max_len_func(x), src_sizes))).to(device)
+        if src_inputs is None:
+            max_lens = torch.LongTensor([max_len] * batch_size).to(device)
+        else:
+            max_lens = torch.LongTensor(list(map(lambda x: max_len_func(x), src_sizes))).to(device)
 
         cur_size = torch.zeros(top_beam_outputs.size(0)).to(device) if beam_width > 1 else None
 
@@ -117,14 +131,17 @@ class BeamDecoder(nn.Module):
             dst_langs = tgt_langs.unsqueeze(-1).expand(-1, cur_outputs.size(1)).to(device)
             if i > 1:
                 dst_langs = torch.repeat_interleave(dst_langs, beam_width, 0)
-            cur_src_mask = src_mask if i == 1 else torch.repeat_interleave(src_mask, beam_width, 0)
+            if src_inputs is not None:
+                cur_src_mask = src_mask if i == 1 else torch.repeat_interleave(src_mask, beam_width, 0)
+            else:
+                cur_src_mask = None
 
             decoder = self.seq2seq_model.decoder if not self.seq2seq_model.lang_dec else self.seq2seq_model.decoder[
                 batch_lang]
             output_layer = self.seq2seq_model.output_layer if not self.seq2seq_model.lang_dec else \
                 self.seq2seq_model.output_layer[batch_lang]
 
-            if images is None:
+            if images is None or src_inputs is None:
                 decoder_states = decoder(encoder_states=enc_states, input_ids=cur_outputs,
                                          encoder_attention_mask=cur_src_mask,
                                          tgt_attention_mask=output_mask, token_type_ids=dst_langs)

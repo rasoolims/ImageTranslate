@@ -29,6 +29,7 @@ annotations = obj["annotations"]
 
 caption_dict = defaultdict(list)
 min_len = 100
+max_len = -100
 for annotation in annotations:
     caption = annotation["caption"].strip()
     image_path = str(annotation["image_id"])
@@ -39,15 +40,17 @@ for annotation in annotations:
 print(len(annotations))
 for path in caption_dict.keys():
     min_len = min(len(caption_dict[path]), min_len)
+    max_len = max(len(caption_dict[path]), max_len)
 
 sys_out = []
-gold = [[] for _ in range(min_len)]
+gold = [[] for _ in range(max_len)]
 
 print(len(output), len(caption_dict))
 for path in caption_dict.keys():
     sys_out.append(output[path])
     for i in range(len(gold)):
-        gold[i].append(caption_dict[path][i])
+        gold[i].append(
+            caption_dict[path][i] if len(caption_dict[path]) > i else caption_dict[path][i % len(caption_dict[path])])
 print(len(sys_out), len(gold))
 
 print("Cased Detokenized BLEU")

@@ -36,6 +36,7 @@ for annotation in annotations:
     image_path = "".join([added_zeros, image_path, ".jpg"])
     caption_dict[image_path].append(caption)
 
+print(len(annotations))
 for path in caption_dict.keys():
     min_len = min(len(caption_dict[path]), min_len)
 

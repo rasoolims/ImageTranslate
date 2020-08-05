@@ -189,7 +189,7 @@ class Seq2Seq(nn.Module):
             mt_model = Seq2Seq(text_processor=text_processor, lang_dec=lang_dec, use_proposals=use_proposals,
                                tie_embed=tie_embed, enc_layer=enc_layer, dec_layer=dec_layer, embed_dim=embed_dim,
                                intermediate_dim=intermediate_dim)
+            mt_model.__class__ = cls
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
                                      strict=False)
-            mt_model.__class__ = cls
             return mt_model

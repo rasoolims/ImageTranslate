@@ -28,6 +28,7 @@ with open(options.gold, "r") as r:
 annotations = obj["annotations"]
 
 caption_dict = defaultdict(list)
+min_len = 100
 for annotation in annotations:
     caption = annotation["caption"].strip()
     image_path = str(annotation["image_id"])
@@ -35,15 +36,18 @@ for annotation in annotations:
     image_path = "".join([added_zeros, image_path, ".jpg"])
     caption_dict[image_path].append(caption)
 
+for path in caption_dict.keys():
+    min_len = min(caption_dict[path], min_len)
+
 sys_out = []
-gold = []
+gold = [[], [], [], []]
 
 print(len(output), len(caption_dict))
 for path in caption_dict.keys():
     sys_out.append(output[path])
-    gold.append(caption_dict[path])
+    for i in range(len(gold)):
+        gold[i].append(caption_dict[path][i])
 print(len(sys_out), len(gold))
-
 
 print("Cased Detokenized BLEU")
 bleu = sacrebleu.corpus_bleu(sys_out, gold)

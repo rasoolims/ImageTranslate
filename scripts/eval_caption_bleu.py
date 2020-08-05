@@ -42,6 +42,7 @@ print(len(output), len(caption_dict))
 for path in caption_dict.keys():
     sys_out.append(output[path])
     gold.append(caption_dict[path])
+print(len(sys_out), len(gold))
 
 
 print("Cased Detokenized BLEU")

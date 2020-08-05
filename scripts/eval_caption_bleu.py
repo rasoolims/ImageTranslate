@@ -37,7 +37,7 @@ for annotation in annotations:
     caption_dict[image_path].append(caption)
 
 for path in caption_dict.keys():
-    min_len = min(caption_dict[path], min_len)
+    min_len = min(len(caption_dict[path]), min_len)
 
 sys_out = []
 gold = [[], [], [], []]

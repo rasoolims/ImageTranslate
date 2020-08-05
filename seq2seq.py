@@ -187,7 +187,8 @@ class Seq2Seq(nn.Module):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
-            lang_dec, use_proposals, enc_layer, dec_layer, embed_dim, intermediate_dim, tie_embed, resnet_depth, freeze_image = pickle.load(fp)
+            lang_dec, use_proposals, enc_layer, dec_layer, embed_dim, intermediate_dim, tie_embed, resnet_depth, freeze_image = pickle.load(
+                fp)
 
             mt_model = cls(text_processor=text_processor, lang_dec=lang_dec, use_proposals=use_proposals,
                            tie_embed=tie_embed, enc_layer=enc_layer, dec_layer=dec_layer, embed_dim=embed_dim,

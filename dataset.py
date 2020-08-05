@@ -393,8 +393,9 @@ class ImageCaptionDataset(Dataset):
                 "langs": torch.LongTensor([self.lang] * len(batch)), "caption_mask": caption_mask, "neg_mask": neg_mask,
                 "proposal": lex_cand_batch}
 
+
 class ImageDataset(Dataset):
-    def __init__(self, root_img_dir: str, max_img_per_batch: int, target_lang:int, first_token: int):
+    def __init__(self, root_img_dir: str, max_img_per_batch: int, target_lang: int, first_token: int):
         self.target_lang = target_lang
         self.first_token = first_token
         self.size_transform = transforms.Resize(256)
@@ -414,7 +415,7 @@ class ImageDataset(Dataset):
             if len(cur_imgs) >= max_img_per_batch:
                 self.image_batches.append(cur_imgs)
                 cur_imgs = []
-        if len(cur_imgs)>0:
+        if len(cur_imgs) > 0:
             self.image_batches.append(cur_imgs)
 
         print("Loaded %d image batches of %d unique images!" % (len(self.image_batches), len(image_dir)))
@@ -437,10 +438,12 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, item):
         image_batch = list(map(lambda path: self.get_img(path), self.image_batches[item]))
-        first_tokens = torch.LongTensor([self.first_token]*len(image_batch))
-        target_lang = torch.LongTensor([self.target_lang]*len(image_batch))
+        first_tokens = torch.LongTensor([self.first_token] * len(image_batch))
+        target_lang = torch.LongTensor([self.target_lang] * len(image_batch))
         img_tensors = torch.stack(list(map(lambda im: self.img_normalize(self.to_tensor(im)), image_batch)))
-        return {"images": img_tensors, "tgt_langs":target_lang, "first_tokens":first_tokens}
+        return {"images": img_tensors, "tgt_langs": target_lang, "first_tokens": first_tokens,
+                "paths": self.image_batches[item]}
+
 
 class TextCollator(object):
     def __init__(self, pad_idx):

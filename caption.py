@@ -32,6 +32,7 @@ def translate_batch(batch, generator, text_processor):
     tgt_langs = batch["tgt_langs"].squeeze(0)
     first_tokens = batch["first_tokens"].squeeze(0)
     images = batch["images"].squeeze(0)
+    paths = batch["paths"]
 
     outputs = generator(first_tokens=first_tokens, images=images,
                         tgt_langs=tgt_langs, pad_idx=text_processor.pad_token_id(), max_len=256)
@@ -41,7 +42,7 @@ def translate_batch(batch, generator, text_processor):
             new_outputs += output
         outputs = new_outputs
     mt_output = list(map(lambda x: text_processor.tokenizer.decode(x[1:].numpy()), outputs))
-    return mt_output
+    return mt_output, paths
 
 
 def build_data_loader(options, text_processor):
@@ -81,10 +82,10 @@ if __name__ == "__main__":
     with open(options.output_path, "w") as writer:
         with torch.no_grad():
             for batch in test_loader:
-                mt_output = translate_batch(batch, generator, text_processor)
+                mt_output, paths = translate_batch(batch, generator, text_processor)
                 sen_count += len(mt_output)
                 print(datetime.datetime.now(), "Translated", sen_count, "sentences", end="\r")
-                writer.write("\n".join(mt_output))
+                writer.write("\n".join([x[0] + "\t" + y for x, y in zip(paths, mt_output)]))
                 writer.write("\n")
 
     print(datetime.datetime.now(), "Translated", sen_count, "sentences")

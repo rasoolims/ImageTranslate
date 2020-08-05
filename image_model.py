@@ -70,7 +70,8 @@ class ImageMassSeq2Seq(MassSeq2Seq):
         super(ImageMassSeq2Seq, self).__init__(text_processor=text_processor, tie_embed=tie_embed,
                                                lang_dec=lang_dec, use_proposals=use_proposals, enc_layer=enc_layer,
                                                dec_layer=dec_layer, embed_dim=embed_dim,
-                                               intermediate_dim=intermediate_dim)
+                                               intermediate_dim=intermediate_dim, freeze_image=freeze_image,
+                                               resnet_depth=resnet_depth)
         self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
                                                     dropout=self.config.hidden_dropout_prob,
                                                     freeze=freeze_image, depth=resnet_depth)
@@ -206,7 +207,8 @@ class ImageCaptioning(Seq2Seq):
         super(ImageCaptioning, self).__init__(text_processor=text_processor, tie_embed=tie_embed,
                                               lang_dec=lang_dec, use_proposals=use_proposals, enc_layer=enc_layer,
                                               dec_layer=dec_layer, embed_dim=embed_dim,
-                                              intermediate_dim=intermediate_dim)
+                                              intermediate_dim=intermediate_dim, freeze_image=freeze_image,
+                                              resnet_depth=resnet_depth)
         self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
                                                     dropout=self.config.hidden_dropout_prob,
                                                     freeze=freeze_image, depth=resnet_depth)

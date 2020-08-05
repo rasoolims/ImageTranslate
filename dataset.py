@@ -393,6 +393,54 @@ class ImageCaptionDataset(Dataset):
                 "langs": torch.LongTensor([self.lang] * len(batch)), "caption_mask": caption_mask, "neg_mask": neg_mask,
                 "proposal": lex_cand_batch}
 
+class ImageDataset(Dataset):
+    def __init__(self, root_img_dir: str, max_img_per_batch: int, target_lang:int, first_token: int):
+        self.target_lang = target_lang
+        self.first_token = first_token
+        self.size_transform = transforms.Resize(256)
+        self.crop = transforms.CenterCrop(224)
+        self.to_tensor = transforms.ToTensor()
+        self.img_normalize = transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225]
+        )
+        self.image_batches = []
+        print("Start", datetime.datetime.now())
+        cur_imgs = []
+
+        image_dir = os.listdir(root_img_dir)
+        for img_path in image_dir:
+            cur_imgs.append(os.path.join(root_img_dir, img_path))
+            if len(cur_imgs) >= max_img_per_batch:
+                self.image_batches.append(cur_imgs)
+                cur_imgs = []
+        if len(cur_imgs)>0:
+            self.image_batches.append(cur_imgs)
+
+        print("Loaded %d image batches of %d unique images!" % (len(self.image_batches), len(image_dir)))
+        print("End", datetime.datetime.now())
+
+    def __len__(self):
+        return len(self.image_batches)
+
+    def get_img(self, path):
+        try:
+            with Image.open(path) as im:
+                # make sure not to deal with rgba or grayscale images.
+                img = im.convert("RGB")
+                img = self.crop(self.size_transform(img))
+                im.close()
+        except:
+            print("Corrupted image", path)
+            img = Image.new('RGB', (224, 224))
+        return img
+
+    def __getitem__(self, item):
+        image_batch = list(map(lambda path: self.get_img(path), self.image_batches[item]))
+        first_tokens = torch.LongTensor([self.first_token]*len(image_batch))
+        target_lang = torch.LongTensor([self.target_lang]*len(image_batch))
+        img_tensors = torch.stack(list(map(lambda im: self.img_normalize(self.to_tensor(im)), image_batch)))
+        return {"images": img_tensors, "tgt_langs":target_lang, "first_tokens":first_tokens}
 
 class TextCollator(object):
     def __init__(self, pad_idx):

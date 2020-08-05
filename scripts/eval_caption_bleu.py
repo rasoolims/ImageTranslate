@@ -41,7 +41,7 @@ for path in caption_dict.keys():
     min_len = min(len(caption_dict[path]), min_len)
 
 sys_out = []
-gold = [[], [], [], []]
+gold = [[] for _ in range(min_len)]
 
 print(len(output), len(caption_dict))
 for path in caption_dict.keys():

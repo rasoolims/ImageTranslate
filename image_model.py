@@ -10,16 +10,16 @@ from textprocessor import TextProcessor
 class ModifiedResnet(models.ResNet):
     def _forward_impl(self, x):
         input = x
-        x = self.conv1(input)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
+        x1 = self.conv1(input)
+        x2 = self.bn1(x1)
+        x3 = self.relu(x2)
+        x4 = self.maxpool(x3)
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        grid_hidden = self.layer4(x)
-        grid_hidden = grid_hidden.view(grid_hidden.size(0), grid_hidden.size(1), -1)
+        x5 = self.layer1(x4)
+        x6 = self.layer2(x5)
+        x7 = self.layer3(x6)
+        x8 = self.layer4(x7)
+        grid_hidden = x8.view(x8.size(0), x8.size(1), -1)
         grid_hidden = grid_hidden.permute((0, 2, 1))
         if self.dropout > 0:
             grid_hidden = F.dropout(grid_hidden, p=self.dropout)

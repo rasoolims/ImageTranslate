@@ -16,14 +16,14 @@ with open(output_path, "w") as w:
     for annotation in annotations:
         caption = annotation["caption"].strip()
         image_path = str(annotation["image_id"])
-        added_zeros = "".join((12-len(image_path))*["0"])
+        added_zeros = "".join((12 - len(image_path)) * ["0"])
         image_path = "".join([added_zeros, image_path, ".jpg"])
         caption_dict[image_path].append(caption)
     print(len(caption_dict))
     max_len = 0
     min_len = 1000
     for image_path in caption_dict.keys():
-        output = [image_path]+caption_dict[image_path]
+        output = [image_path] + caption_dict[image_path]
         w.write("\t".join(output))
         w.write("\n")
         max_len = max(len(caption_dict[image_path]), max_len)

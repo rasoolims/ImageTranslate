@@ -1,15 +1,17 @@
 import os
+import re
 import sys
 
 from bs4 import BeautifulSoup
-import re
 
 en_chars = set(list("abcdefghijklmnopqrstuvwxyz"))
 banned_words = {"blog", "thumb", "logo", "small", "banner"}
 banned_puncts = {"–", ":", "_", "-", "\"", "»", "«", "…", "ـ", "‌", ",", "?", "؟", "،", ";", "؛", "!", "!"}
 
+
 def has_english(inputString):
     return any(map(lambda x: x in en_chars, list(inputString.lower())))
+
 
 def good_size(src):
     # Find if size is hidden in text
@@ -17,8 +19,9 @@ def good_size(src):
     if result is None:
         return True
     sizes = result.group(0).split("x")
-    x,y = int(sizes[0]), int(sizes[1])
-    return x>=256 and y>=256
+    x, y = int(sizes[0]), int(sizes[1])
+    return x >= 256 and y >= 256
+
 
 def contains_number(inputString):
     return any(char.isdigit() for char in inputString)
@@ -27,8 +30,9 @@ def contains_number(inputString):
 def contains_english(inputString):
     return any(char.isalphanum() for char in inputString)
 
+
 alt_condition = lambda alt: len(alt.strip().split(" ")) > 5 and not contains_number(alt) and not has_english(
-    alt) and "." not in  alt[:-1] and "." not in  alt[:-1] and all(map(lambda x: x not in alt, banned_puncts))
+    alt) and "." not in alt[:-1] and "." not in alt[:-1] and all(map(lambda x: x not in alt, banned_puncts))
 src_condition = lambda src: src.strip().lower().endswith(".jpg") and good_size(src) and all(
     map(lambda x: x not in src.lower(), banned_words))
 img_con = lambda im: im["alt"] is not None and len(im["alt"].strip()) > 1 and src_condition(im["src"])

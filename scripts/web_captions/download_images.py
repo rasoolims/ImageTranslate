@@ -6,6 +6,7 @@ import sys
 import time
 import urllib.request
 from functools import wraps
+
 from PIL import Image
 
 
@@ -44,34 +45,32 @@ if not os.path.exists(output_folder):
 
 file_indices = []
 
-image_list = [line.strip().split("\t") for line in open(input_file, 'r').read().strip().split("\n") if
-              len(line.strip().split("\t")) == 2]
-print("loaded image_list", len(image_list))
 file_number = 1
 default_set = {"png", "jpg", "jpeg"}
 url_count = 0
 start_time = time.time()
 file_path = os.path.join(output_folder, "index.txt")
-with open(file_path, "w") as writer:
-    for text, url in image_list:
-        url_count += 1
-        fixed_url = url
-        if "?" in fixed_url:
-            fixed_url = fixed_url[:fixed_url.find("?")]
-        extension = "jpg"
-        if extension not in default_set:
-            continue
-        else:
-            file_extension = "." + extension
-
-        file_path = os.path.join(output_folder, str(file_number) + file_extension)
-
+with open(file_path, "w") as writer, open(input_file, 'r') as reader:
+    for line in reader:
         try:
+            text, url = line.strip().split("\t")
+            url_count += 1
+            fixed_url = url
+            if "?" in fixed_url:
+                fixed_url = fixed_url[:fixed_url.find("?")]
+            extension = "jpg"
+            if extension not in default_set:
+                continue
+            else:
+                file_extension = "." + extension
+
+            file_path = os.path.join(output_folder, str(file_number) + file_extension)
+
             download_one_image(fixed_url, file_path)
             try:
                 im = Image.open(os.path.abspath(file_path))
                 x, y = im.size
-                if x>=256 and y>=256:
+                if x >= 256 and y >= 256:
                     new_im = im.resize((256, 256))
                     new_im.save(file_path)
                     file_indices.append(str(file_number) + "\t" + fixed_url + "\t" + text)
@@ -83,9 +82,9 @@ with open(file_path, "w") as writer:
             pass
 
         if url_count % 1 == 0:
-            print(datetime.datetime.now(), url_count, "/", len(image_list), "->", (file_number-1), end="\r")
+            print(datetime.datetime.now(), url_count, "->", (file_number - 1), end="\r")
             start_time = time.time()
-            if len(file_indices)>0:
+            if len(file_indices) > 0:
                 writer.write("\n".join(file_indices))
                 writer.write("\n")
                 file_indices = []

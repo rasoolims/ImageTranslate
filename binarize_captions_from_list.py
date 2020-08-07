@@ -20,28 +20,31 @@ def write(text_processor: TextProcessor, output_file: str, input_file: str, max_
     image_ids = {}
     with open(input_file, "r") as r:
         for ci, line in enumerate(r):
-            path, caption = line.strip().split("\t")
-            if lang is not None and not caption.startswith(lang):
-                caption = " ".join([lang, caption, eos])
-            tok_sen = text_processor.tokenize_one_sentence(caption)
-            if len(tok_sen) > max_len:
-                skipped_long_sens += 1
-                continue
+            try:
+                path, caption = line.strip().split("\t")
+                if lang is not None and not caption.startswith(lang):
+                    caption = " ".join([lang, caption, eos])
+                tok_sen = text_processor.tokenize_one_sentence(caption)
+                if len(tok_sen) > max_len:
+                    skipped_long_sens += 1
+                    continue
 
-            if path not in image_path_dict:
-                image_id = len(unique_images)
-                unique_images[image_id] = path
-                image_path_dict[path] = image_id
-            elif path in image_path_dict:
-                image_id = image_path_dict[path]
-                unique_images[image_id] = path
+                if path not in image_path_dict:
+                    image_id = len(unique_images)
+                    unique_images[image_id] = path
+                    image_path_dict[path] = image_id
+                elif path in image_path_dict:
+                    image_id = image_path_dict[path]
+                    unique_images[image_id] = path
 
-            caption_id = len(tok_captions)
-            tok_captions[caption_id] = tok_sen
-            image_ids[caption_id] = image_id
+                caption_id = len(tok_captions)
+                tok_captions[caption_id] = tok_sen
+                image_ids[caption_id] = image_id
 
-            if (ci + 1) >= sample_size and sample_size > 0:
-                break
+                if (ci + 1) >= sample_size and sample_size > 0:
+                    break
+            except:
+                print(line.strip())
 
     print("Skipped long sentences:", skipped_long_sens)
     tok_captions_sorted = sorted(tok_captions.items(), key=lambda item: len(item[1]))

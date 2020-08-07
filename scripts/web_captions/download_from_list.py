@@ -11,7 +11,8 @@ log_file = os.path.join(output_folder, "log.txt")
 
 for i, url in enumerate(input_list[begin:end]):
     try:
-        command = ["wget -k --tries=1 --timeout=5", url, "-O", os.path.join(output_folder, str(i+begin)), "-o", log_file]
+        command = ["wget -k --tries=1 --timeout=5", url, "-O", os.path.join(output_folder, str(i + begin)), "-o",
+                   log_file]
         if (i + begin + 1) % 100 != 0:
             command.append("&")
         else:

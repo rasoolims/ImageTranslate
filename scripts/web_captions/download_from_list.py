@@ -4,13 +4,14 @@ import sys
 input_list = open(os.path.abspath(sys.argv[1]), "r").read().strip().split("\n")
 output_folder = os.path.abspath(sys.argv[2])
 begin = int(sys.argv[3])
+end = int(sys.argv[4])
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 log_file = os.path.join(output_folder, "log.txt")
 
-for i, url in enumerate(input_list[begin:]):
+for i, url in enumerate(input_list[begin:end]):
     try:
-        command = ["wget -k --tries=1 --timeout=5", url, "-O", os.path.join(output_folder, str(i)), "-o", log_file]
+        command = ["wget -k --tries=1 --timeout=5", url, "-O", os.path.join(output_folder, str(i+begin)), "-o", log_file]
         if (i + begin + 1) % 100 != 0:
             command.append("&")
         else:

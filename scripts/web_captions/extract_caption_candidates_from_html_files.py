@@ -2,11 +2,12 @@ import os
 import re
 import sys
 
+import fasttext
 from bs4 import BeautifulSoup
 
 en_chars = set(list("abcdefghijklmnopqrstuvwxyz"))
-banned_words = {"blog", "thumb", "logo", "small", "banner"}
-banned_puncts = {"–", ":", "_", "-", "\"", "»", "«", "…", "ـ", "‌", ",", "?", "؟", "،", ";", "؛", "!", "!"}
+banned_words = {"blog", "thumb", "logo", "small", "banner", "slide"}
+banned_puncts = {"–", ":", "_", "-", "\"", "»", "«", "…", "ـ", "?", "؟", "!", "!", "+", ")", "(", "[", "]"}
 
 
 def has_english(inputString):
@@ -30,15 +31,26 @@ def contains_number(inputString):
 def contains_english(inputString):
     return any(char.isalphanum() for char in inputString)
 
+def is_title(inputString, title_set):
+    for title in title_set:
+        if title in inputString:
+            return True
+    return False
 
-alt_condition = lambda alt: len(alt.strip().split(" ")) > 5 and not contains_number(alt) and not has_english(
-    alt) and "." not in alt[:-1] and "." not in alt[:-1] and all(map(lambda x: x not in alt, banned_puncts))
-src_condition = lambda src: src.strip().lower().endswith(".jpg") and good_size(src) and all(
+lang_condition = lambda alt, lang: fasttext_model.predict(alt)[0][0] == lang
+alt_condition = lambda alt, lang, titles: len(alt.strip().split(" ")) > 5 and not contains_number(alt) and not has_english(
+    alt) and "." not in alt[:-1] and "." not in alt[:-1] and all(
+    map(lambda x: x not in alt, banned_puncts)) and lang_condition(alt, lang)
+good_format = lambda src: src.endswith(".jpg") or src.endswith(".png") or src.endswith(".jpeg")
+src_condition = lambda src: good_format(src.strip().lower()) and good_size(src) and all(
     map(lambda x: x not in src.lower(), banned_words))
 img_con = lambda im: im["alt"] is not None and len(im["alt"].strip()) > 1 and src_condition(im["src"])
-img_info = lambda im: (im["src"].strip(), im["alt"]) if img_con(im) and alt_condition(im["alt"]) else None
+img_info = lambda im, lang, titles: (im["src"].strip(), im["alt"]) if img_con(im) and alt_condition(im["alt"], lang, titles) else None
 input_folder = os.path.abspath(sys.argv[1])
-output_file = os.path.abspath(sys.argv[2])
+fasttext_model = fasttext.load_model(os.path.abspath(sys.argv[2]))
+lang = "__label__" + sys.argv[3]
+titles = set(filter(lambda x:len(x.split(" "))>=2, map(lambda x: x[:x.find("(")+1].strip().lower() if "(" in x else x.strip().lower(), open(os.path.abspath(sys.argv[4]), "r").read().strip().split("\n"))))
+output_file = os.path.abspath(sys.argv[5])
 
 num_written = 0
 
@@ -53,7 +65,7 @@ with open(output_file, "w") as fp:
             soup = BeautifulSoup(content, 'html.parser')
             images = soup.find_all("img")
             if len(images) == 0: continue
-            image_info = list(filter(lambda x: x is not None, map(lambda im: img_info(im), images)))
+            image_info = list(filter(lambda x: x is not None, map(lambda im: img_info(im, lang, titles), images)))
             if len(image_info) == 0: continue
 
             alt_text = []
@@ -63,6 +75,8 @@ with open(output_file, "w") as fp:
                         alt = alt[alt.rfind("|") + 1:].strip()
                         if len(alt.split(" ")) < 5:
                             continue
+                    if is_title(alt, titles):
+                        continue
                     alt_text.append(alt + "\t" + src)
                     image_dict[src] = alt
 

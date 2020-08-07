@@ -39,26 +39,30 @@ def download_one_image(fixed_url, file_path):
 
 
 input_file = os.path.abspath(sys.argv[1])
-output_folder = os.path.abspath(sys.argv[2])
+start_index = int(sys.argv[2])
+end_index = int(sys.argv[3])
+output_folder = os.path.abspath(sys.argv[4])
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
 file_indices = []
 
-file_number = 1
+file_number = 1 + start_index
 default_set = {"png", "jpg", "jpeg"}
 url_count = 0
 start_time = time.time()
-file_path = os.path.join(output_folder, "index.txt")
+file_path = os.path.join(output_folder, "index." + str(start_index) + ".txt")
 with open(file_path, "w") as writer, open(input_file, 'r') as reader:
     for line in reader:
         try:
+            if start_index > url_count or url_count > end_index:
+                continue
             text, url = line.strip().split("\t")
             url_count += 1
             fixed_url = url
             if "?" in fixed_url:
                 fixed_url = fixed_url[:fixed_url.find("?")]
-            extension = "jpg"
+            extension = fixed_url[fixed_url.rfind(".") + 1:].lower()
             if extension not in default_set:
                 continue
             else:
@@ -82,7 +86,7 @@ with open(file_path, "w") as writer, open(input_file, 'r') as reader:
             pass
 
         if url_count % 1 == 0:
-            print(datetime.datetime.now(), url_count, "->", (file_number - 1), end="\r")
+            print(datetime.datetime.now(), url_count, "->", (file_number - 1))  # end="\r")
             start_time = time.time()
             if len(file_indices) > 0:
                 writer.write("\n".join(file_indices))

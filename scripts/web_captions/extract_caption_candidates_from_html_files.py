@@ -39,13 +39,13 @@ def is_title(inputString, title_set):
     return False
 
 
-def download(titles, image_dict, file_path, fp, num_written):
+def download(titles, image_dict, file_path, fp, num_written, fasttext_model):
     try:
         content = open(file_path, "r").read()
         soup = BeautifulSoup(content, 'html.parser')
         images = soup.find_all("img")
         if len(images) == 0: return num_written
-        image_info = list(filter(lambda x: x is not None, map(lambda im: img_info(im, lang, titles), images)))
+        image_info = list(filter(lambda x: x is not None, map(lambda im: img_info(im, lang, titles, fasttext_model), images)))
         if len(image_info) == 0: return num_written
 
         alt_text = []
@@ -69,37 +69,39 @@ def download(titles, image_dict, file_path, fp, num_written):
     return num_written
 
 
-lang_condition = lambda alt, lang: fasttext_model.predict(alt)[0][0] == lang
-alt_condition = lambda alt, lang, titles: len(alt.strip().split(" ")) > 5 and not contains_number(
+lang_condition = lambda alt, lang, fasttext_model: fasttext_model.predict(alt)[0][0] == lang
+alt_condition = lambda alt, lang, titles, fasttext_model: len(alt.strip().split(" ")) > 5 and not contains_number(
     alt) and not has_english(
     alt) and "." not in alt[:-1] and "." not in alt[:-1] and all(
-    map(lambda x: x not in alt, banned_puncts)) and lang_condition(alt, lang)
+    map(lambda x: x not in alt, banned_puncts)) and lang_condition(alt, lang, fasttext_model)
 good_format = lambda src: src.endswith(".jpg") or src.endswith(".png") or src.endswith(".jpeg")
 src_condition = lambda src: good_format(src.strip().lower()) and good_size(src) and all(
     map(lambda x: x not in src.lower(), banned_words))
 img_con = lambda im: im["alt"] is not None and len(im["alt"].strip()) > 1 and src_condition(im["src"])
-img_info = lambda im, lang, titles: (im["src"].strip(), im["alt"]) if img_con(im) and alt_condition(im["alt"], lang,
-                                                                                                    titles) else None
+img_info = lambda im, lang, titles, fasttext_model: (im["src"].strip(), im["alt"]) if img_con(im) and alt_condition(im["alt"], lang,
+                                                                                                    titles, fasttext_model) else None
 get_titles = lambda path: set(filter(lambda x: len(x.split(" ")) >= 2,
                                      map(lambda x: x[
                                                    :x.find("(") + 1].strip().lower() if "(" in x else x.strip().lower(),
                                          open(path, "r").read().strip().split("\n"))))
 
-input_folder = os.path.abspath(sys.argv[1])
-fasttext_model = fasttext.load_model(os.path.abspath(sys.argv[2]))
-lang = "__label__" + sys.argv[3]
-titles = get_titles(os.path.abspath(sys.argv[4]))
-output_file = os.path.abspath(sys.argv[5])
 
-num_written = 0
 
-image_dict = {}
+if __name__ == "__main__":
+    input_folder = os.path.abspath(sys.argv[1])
+    fasttext_model = fasttext.load_model(os.path.abspath(sys.argv[2]))
+    lang = "__label__" + sys.argv[3]
+    titles = get_titles(os.path.abspath(sys.argv[4]))
+    output_file = os.path.abspath(sys.argv[5])
 
-with open(output_file, "w") as fp:
-    dirs = os.listdir(input_folder)
-    for f, file in enumerate(dirs):
-        file_path = os.path.join(input_folder, file)
-        num_written = download(titles, image_dict, file_path, fp, num_written)
-        if (f + 1) % 100 == 0:
-            print(f + 1, "/", len(dirs), "-> wrote", num_written , end="\r")
-print("\nWrote", num_written)
+    num_written = 0
+    image_dict = {}
+
+    with open(output_file, "w") as fp:
+        dirs = os.listdir(input_folder)
+        for f, file in enumerate(dirs):
+            file_path = os.path.join(input_folder, file)
+            num_written = download(titles, image_dict, file_path, fp, num_written, fasttext_model)
+            if (f + 1) % 100 == 0:
+                print(f + 1, "/", len(dirs), "-> wrote", num_written , end="\r")
+    print("\nWrote", num_written)

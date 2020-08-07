@@ -11,21 +11,21 @@ num_written = 0
 image_dict = {}
 
 
-def download_dir(titles, image_dict, fp, num_written, input_folder):
+def download_dir(titles, image_dict, fp, num_written, input_folder, fasttext_model):
     print(input_folder)
     dirs = os.listdir(input_folder)
     for f, file in enumerate(dirs):
         file_path = os.path.join(input_folder, file)
         if file_path.endswith(".html") or file_path.endswith(".htm"):
-            num_written = download(titles, image_dict, file_path, fp, num_written)
+            num_written = download(titles, image_dict, file_path, fp, num_written, fasttext_model)
             if (f + 1) % 100 == 0:
                 print(input_folder, f + 1, "/", len(dirs), "-> wrote", num_written)  # , end="\r")
         elif os.path.isdir(file_path):
-            num_written = download_dir(titles, image_dict, fp, num_written, file_path)
+            num_written = download_dir(titles, image_dict, fp, num_written, file_path, fasttext_model)
     return num_written
 
 
 image_dict = {}
 with open(output_file, "w") as fp:
-    num_written = download_dir(titles, image_dict, fp, num_written, input_folder)
+    num_written = download_dir(titles, image_dict, fp, num_written, input_folder, fasttext_model)
 print("\nWrote", num_written)

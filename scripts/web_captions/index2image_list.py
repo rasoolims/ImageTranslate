@@ -5,7 +5,7 @@ index_file = os.path.abspath(sys.argv[1])
 dir = os.path.abspath(sys.argv[2])
 output_file = os.path.abspath(sys.argv[3])
 
-extensions = {".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG"}
+extensions = {".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG", ""}
 with open(index_file, "r") as r, open(output_file, "w") as w:
     for line in r:
         spl = line.strip().split("\t")

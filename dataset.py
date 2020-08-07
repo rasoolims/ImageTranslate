@@ -396,6 +396,8 @@ class ImageDataset(Dataset):
 
         image_dir = os.listdir(root_img_dir)
         for img_path in image_dir:
+            if img_path.lower().endswith(".png"):
+                continue
             cur_imgs.append(os.path.join(root_img_dir, img_path))
             if len(cur_imgs) >= max_img_per_batch:
                 self.image_batches.append(cur_imgs)

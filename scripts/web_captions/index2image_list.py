@@ -14,4 +14,4 @@ with open(index_file, "r") as r, open(output_file, "w") as w:
             if os.path.exists(file_name + extension):
                 file_name = file_name + extension
                 break
-        w.write(file_name + "\t" + spl[-1] + "\t")
+        w.write(file_name + "\t" + spl[-1] + "\n")

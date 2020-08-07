@@ -74,7 +74,7 @@ with open(file_path, "w") as writer, open(input_file, 'r') as reader:
             try:
                 im = Image.open(os.path.abspath(file_path))
                 x, y = im.size
-                if x >= 256 and y >= 256:
+                if x >= 256 or y >= 256:
                     new_im = im.resize((256, 256))
                     new_im.save(file_path)
                     file_indices.append(str(file_number) + "\t" + fixed_url + "\t" + text)
@@ -86,7 +86,7 @@ with open(file_path, "w") as writer, open(input_file, 'r') as reader:
             pass
 
         if url_count % 1 == 0:
-            print(datetime.datetime.now(), url_count, "->", (file_number - 1), end="\r")
+            print(datetime.datetime.now(), url_count, "->", (file_number - 1)), end="\r")
             start_time = time.time()
             if len(file_indices) > 0:
                 writer.write("\n".join(file_indices))

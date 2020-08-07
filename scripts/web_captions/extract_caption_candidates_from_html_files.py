@@ -101,5 +101,5 @@ with open(output_file, "w") as fp:
         file_path = os.path.join(input_folder, file)
         num_written = download(titles, image_dict, file_path, fp, num_written)
         if (f + 1) % 100 == 0:
-            print(f + 1, "/", len(dirs), "-> wrote", num_written)  # , end="\r")
+            print(f + 1, "/", len(dirs), "-> wrote", num_written , end="\r")
 print("\nWrote", num_written)

@@ -86,7 +86,7 @@ with open(file_path, "w") as writer, open(input_file, 'r') as reader:
             pass
 
         if url_count % 1 == 0:
-            print(datetime.datetime.now(), url_count, "->", (file_number - 1)), end="\r")
+            print(datetime.datetime.now(), url_count, "->", (file_number - 1), end="\r")
             start_time = time.time()
             if len(file_indices) > 0:
                 writer.write("\n".join(file_indices))

@@ -77,7 +77,7 @@ with open(file_path, "w") as writer, open(input_file, 'r') as reader:
                 if x >= 256 or y >= 256:
                     new_im = im.resize((256, 256))
                     new_im.save(file_path)
-                    file_indices.append(str(file_number) + "\t" + fixed_url + "\t" + text)
+                    file_indices.append(str(file_number) + file_extension + "\t" + fixed_url + "\t" + text)
                     file_number += 1
             except:
                 pass

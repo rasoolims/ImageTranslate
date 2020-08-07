@@ -28,10 +28,6 @@ def contains_number(inputString):
     return any(char.isdigit() for char in inputString)
 
 
-def contains_english(inputString):
-    return any(char.isalphanum() for char in inputString)
-
-
 def is_title(inputString, title_set):
     for title in title_set:
         if title in inputString:
@@ -71,8 +67,7 @@ def download(titles, image_dict, file_path, fp, num_written, fasttext_model):
 
 lang_condition = lambda alt, lang, fasttext_model: fasttext_model.predict(alt)[0][0] == lang
 alt_condition = lambda alt, lang, titles, fasttext_model: len(alt.strip().split(" ")) > 5 and not contains_number(
-    alt) and not has_english(
-    alt) and "." not in alt[:-1] and "." not in alt[:-1] and all(
+    alt) and (not has_english(alt) or lang=="en") and "." not in alt[:-1] and "." not in alt[:-1] and all(
     map(lambda x: x not in alt, banned_puncts)) and lang_condition(alt, lang, fasttext_model)
 good_format = lambda src: src.endswith(".jpg") or src.endswith(".png") or src.endswith(".jpeg")
 src_condition = lambda src: good_format(src.strip().lower()) and good_size(src) and all(

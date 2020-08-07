@@ -24,11 +24,9 @@ with open(output_path, "w") as w:
     max_len = 0
     min_len = 1000
     for image_path in caption_dict.keys():
-        output = [image_path] + caption_dict[image_path]
-        w.write("\t".join(output))
-        w.write("\n")
-        max_len = max(len(caption_dict[image_path]), max_len)
-        min_len = min(len(caption_dict[image_path]), min_len)
+        for caption in caption_dict[image_path]:
+            w.write("\t".join([image_path, caption]))
+            w.write("\n")
 print(len(annotations))
 print(max_len)
 print(min_len)

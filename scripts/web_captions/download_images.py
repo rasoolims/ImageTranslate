@@ -55,10 +55,10 @@ file_path = os.path.join(output_folder, "index." + str(start_index) + ".txt")
 with open(file_path, "w") as writer, open(input_file, 'r') as reader:
     for line in reader:
         try:
+            url_count += 1
             if start_index > url_count or url_count > end_index:
                 continue
             text, url = line.strip().split("\t")
-            url_count += 1
             fixed_url = url
             if "?" in fixed_url:
                 fixed_url = fixed_url[:fixed_url.find("?")]

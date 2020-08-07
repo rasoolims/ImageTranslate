@@ -21,7 +21,7 @@ def write(text_processor: TextProcessor, output_file: str, input_file: str, max_
     with open(input_file, "r") as r:
         for ci, line in enumerate(r):
             path, caption = line.strip().split("\t")
-            if lang is not None:
+            if lang is not None and not caption.startswith(lang):
                 caption = " ".join([lang, caption, eos])
             tok_sen = text_processor.tokenize_one_sentence(caption)
             if len(tok_sen) > max_len:

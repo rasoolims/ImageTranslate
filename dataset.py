@@ -299,6 +299,8 @@ class ImageCaptionDataset(Dataset):
             self.lang = text_processor.languages[lang_id] if lang_id in text_processor.languages else 0
             for caption_info in captions:
                 image_id, caption = caption_info
+                if self.unique_images[image_id].lower().endswith(".png"):
+                    continue
                 caption = torch.LongTensor(caption)
                 cur_batch.append(caption)
                 self.all_captions.append(caption)

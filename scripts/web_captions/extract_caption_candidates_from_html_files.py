@@ -51,30 +51,63 @@ def download(titles, image_dict, file_path, fp, num_written, fasttext_model, lan
                 pass
         images = alt_images
 
-        if len(images) == 0: return num_written
+        if len(images) > 0:
+            image_info = list(
+                filter(lambda x: x is not None, map(lambda im: img_info(im, lang, titles, fasttext_model), images)))
+            if len(image_info) == 0: return num_written
 
-        image_info = list(
-            filter(lambda x: x is not None, map(lambda im: img_info(im, lang, titles, fasttext_model), images)))
-        if len(image_info) == 0: return num_written
-
-        if len(soup.find_all("meida-caption__text")) > 0:
-            print("HI!")
-        alt_text = []
-        for src, alt in image_info:
-            if src not in image_dict:
-                if "|" in alt:
-                    alt = alt[alt.rfind("|") + 1:].strip()
-                    if len(alt.split(" ")) < 5:
+            alt_text = []
+            for src, alt in image_info:
+                if src not in image_dict:
+                    if "|" in alt:
+                        alt = alt[alt.rfind("|") + 1:].strip()
+                        if len(alt.split(" ")) < 5:
+                            continue
+                    if is_title(alt, titles):
                         continue
-                if is_title(alt, titles):
-                    continue
-                alt_text.append(alt + "\t" + src)
-                image_dict[src] = alt
+                    alt_text.append(alt + "\t" + src)
+                    image_dict[src] = alt
 
-        if len(alt_text) == 0: return num_written
-        fp.write("\n".join(alt_text))
-        fp.write("\n")
-        num_written += len(alt_text)
+            if len(alt_text) == 0: return num_written
+            fp.write("\n".join(alt_text))
+            fp.write("\n")
+            num_written += len(alt_text)
+        figures = soup.find_all("figure")
+        for fig in figures:
+            try:
+                try:
+                    src = fig.find_all("img")[0]["src"]
+                except:
+                    try:
+                        src = fig.find_all("amp-img")[0]["src"]
+                    except:
+                        src = fig.find("div", {"class": "js-delayed-image-load"})["data-src"].strip()
+                try:
+                    try:
+                        caption = fig.find("figcaption").find_all("span", {"class": "media-caption__text"})[
+                            0].text.strip()
+                    except:
+                        caption = fig.find("figcaption").text.strip()
+                except:
+                    try:
+                        caption = fig.find_all("img")[0]["alt"]
+                    except:
+                        try:
+                            caption = fig.find_all("amp-img")[0]["alt"]
+                        except:
+                            caption = fig.find("div", {"class": "js-delayed-image-load"})["data-alt"].strip()
+
+                if "|" in caption:
+                    caption = caption[caption.rfind("|") + 1:].strip()
+                    if len(caption.split(" ")) < 5:
+                        continue
+                    if is_title(caption, titles):
+                        continue
+                if src_condition(src) and alt_condition(caption, lang, titles, fasttext_model):
+                    fp.write(src + "\t" + caption + "\n")
+                    num_written += 1
+            except Exception as err:
+                pass
     except Exception as err:
         pass
     return num_written

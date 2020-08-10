@@ -35,13 +35,14 @@ def is_title(inputString, title_set):
     return False
 
 
-def download(titles, image_dict, file_path, fp, num_written, fasttext_model):
+def download(titles, image_dict, file_path, fp, num_written, fasttext_model, lang):
     try:
         content = open(file_path, "r").read()
         soup = BeautifulSoup(content, 'html.parser')
         images = soup.find_all("img")
         if len(images) == 0: return num_written
-        image_info = list(filter(lambda x: x is not None, map(lambda im: img_info(im, lang, titles, fasttext_model), images)))
+        image_info = list(
+            filter(lambda x: x is not None, map(lambda im: img_info(im, lang, titles, fasttext_model), images)))
         if len(image_info) == 0: return num_written
 
         alt_text = []
@@ -60,27 +61,26 @@ def download(titles, image_dict, file_path, fp, num_written, fasttext_model):
         fp.write("\n".join(alt_text))
         fp.write("\n")
         num_written += len(alt_text)
-    except:
+    except Exception as err:
         pass
     return num_written
 
 
 lang_condition = lambda alt, lang, fasttext_model: fasttext_model.predict(alt)[0][0] == lang
 alt_condition = lambda alt, lang, titles, fasttext_model: len(alt.strip().split(" ")) > 5 and not contains_number(
-    alt) and ((not has_english(alt)) or lang=="__label__en") and "." not in alt[:-1] and "." not in alt[:-1] and all(
+    alt) and ((not has_english(alt)) or lang == "__label__en") and "." not in alt[:-1] and "." not in alt[:-1] and all(
     map(lambda x: x not in alt, banned_puncts)) and lang_condition(alt, lang, fasttext_model)
 good_format = lambda src: src.endswith(".jpg") or src.endswith(".png") or src.endswith(".jpeg")
 src_condition = lambda src: good_format(src.strip().lower()) and good_size(src) and all(
     map(lambda x: x not in src.lower(), banned_words))
 img_con = lambda im: im["alt"] is not None and len(im["alt"].strip()) > 1 and src_condition(im["src"])
-img_info = lambda im, lang, titles, fasttext_model: (im["src"].strip(), im["alt"]) if img_con(im) and alt_condition(im["alt"], lang,
-                                                                                                    titles, fasttext_model) else None
+img_info = lambda im, lang, titles, fasttext_model: (im["src"].strip(), im["alt"]) if img_con(im) and alt_condition(
+    im["alt"], lang,
+    titles, fasttext_model) else None
 get_titles = lambda path: set(filter(lambda x: len(x.split(" ")) >= 2,
                                      map(lambda x: x[
                                                    :x.find("(") + 1].strip().lower() if "(" in x else x.strip().lower(),
                                          open(path, "r").read().strip().split("\n"))))
-
-
 
 if __name__ == "__main__":
     input_folder = os.path.abspath(sys.argv[1])
@@ -96,7 +96,7 @@ if __name__ == "__main__":
         dirs = os.listdir(input_folder)
         for f, file in enumerate(dirs):
             file_path = os.path.join(input_folder, file)
-            num_written = download(titles, image_dict, file_path, fp, num_written, fasttext_model)
+            num_written = download(titles, image_dict, file_path, fp, num_written, fasttext_model, lang)
             if (f + 1) % 100 == 0:
-                print(f + 1, "/", len(dirs), "-> wrote", num_written , end="\r")
+                print(f + 1, "/", len(dirs), "-> wrote", num_written)
     print("\nWrote", num_written)

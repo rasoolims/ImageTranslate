@@ -40,11 +40,25 @@ def download(titles, image_dict, file_path, fp, num_written, fasttext_model, lan
         content = open(file_path, "r").read()
         soup = BeautifulSoup(content, 'html.parser')
         images = soup.find_all("img")
+
+        alt_images = []
+        for image in images:
+            try:
+                alt = image["alt"]
+                src = image["src"]
+                alt_images.append(image)
+            except:
+                pass
+        images = alt_images
+
         if len(images) == 0: return num_written
+
         image_info = list(
             filter(lambda x: x is not None, map(lambda im: img_info(im, lang, titles, fasttext_model), images)))
         if len(image_info) == 0: return num_written
 
+        if len(soup.find_all("meida-caption__text")) > 0:
+            print("HI!")
         alt_text = []
         for src, alt in image_info:
             if src not in image_dict:

@@ -104,7 +104,7 @@ def download(titles, image_dict, file_path, fp, num_written, fasttext_model, lan
                     if is_title(caption, titles):
                         continue
                 if src_condition(src) and alt_condition(caption, lang, titles, fasttext_model):
-                    fp.write(src + "\t" + caption + "\n")
+                    fp.write(caption + "\t" + src + "\n")
                     num_written += 1
             except Exception as err:
                 pass

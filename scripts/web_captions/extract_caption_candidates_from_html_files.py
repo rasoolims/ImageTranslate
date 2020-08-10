@@ -39,6 +39,46 @@ def download(titles, image_dict, file_path, fp, num_written, fasttext_model, lan
     try:
         content = open(file_path, "r").read()
         soup = BeautifulSoup(content, 'html.parser')
+
+        figures = soup.find_all("figure")
+        for fig in figures:
+            try:
+                try:
+                    src = fig.find_all("img")[0]["src"]
+                except:
+                    try:
+                        src = fig.find_all("amp-img")[0]["src"]
+                    except:
+                        src = fig.find("div", {"class": "js-delayed-image-load"})["data-src"].strip()
+                try:
+                    try:
+                        caption = fig.find("figcaption").find_all("span", {"class": "media-caption__text"})[
+                            0].text.strip()
+                    except:
+                        caption = fig.find("figcaption").text.strip()
+                except:
+                    try:
+                        caption = fig.find_all("img")[0]["alt"]
+                    except:
+                        try:
+                            caption = fig.find_all("amp-img")[0]["alt"]
+                        except:
+                            caption = fig.find("div", {"class": "js-delayed-image-load"})["data-alt"].strip()
+
+                if "|" in caption:
+                    caption = caption[caption.rfind("|") + 1:].strip()
+                    if len(caption.split(" ")) < 5:
+                        continue
+                    if is_title(caption, titles):
+                        continue
+                if src not in image_dict:
+                    if src_condition(src) and alt_condition(caption, lang, titles, fasttext_model):
+                        fp.write(caption + "\t" + src + "\n")
+                        image_dict[src] = caption
+                        num_written += 1
+            except Exception as err:
+                pass
+
         images = soup.find_all("img")
 
         alt_images = []
@@ -72,42 +112,8 @@ def download(titles, image_dict, file_path, fp, num_written, fasttext_model, lan
             fp.write("\n".join(alt_text))
             fp.write("\n")
             num_written += len(alt_text)
-        figures = soup.find_all("figure")
-        for fig in figures:
-            try:
-                try:
-                    src = fig.find_all("img")[0]["src"]
-                except:
-                    try:
-                        src = fig.find_all("amp-img")[0]["src"]
-                    except:
-                        src = fig.find("div", {"class": "js-delayed-image-load"})["data-src"].strip()
-                try:
-                    try:
-                        caption = fig.find("figcaption").find_all("span", {"class": "media-caption__text"})[
-                            0].text.strip()
-                    except:
-                        caption = fig.find("figcaption").text.strip()
-                except:
-                    try:
-                        caption = fig.find_all("img")[0]["alt"]
-                    except:
-                        try:
-                            caption = fig.find_all("amp-img")[0]["alt"]
-                        except:
-                            caption = fig.find("div", {"class": "js-delayed-image-load"})["data-alt"].strip()
 
-                if "|" in caption:
-                    caption = caption[caption.rfind("|") + 1:].strip()
-                    if len(caption.split(" ")) < 5:
-                        continue
-                    if is_title(caption, titles):
-                        continue
-                if src_condition(src) and alt_condition(caption, lang, titles, fasttext_model):
-                    fp.write(caption + "\t" + src + "\n")
-                    num_written += 1
-            except Exception as err:
-                pass
+
     except Exception as err:
         pass
     return num_written

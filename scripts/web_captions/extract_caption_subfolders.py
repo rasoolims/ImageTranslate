@@ -8,9 +8,6 @@ output_file = os.path.abspath(sys.argv[5])
 
 num_written = 0
 
-image_dict = {}
-
-
 def download_dir(titles, image_dict, fp, num_written, input_folder, fasttext_model):
     print(input_folder)
     dirs = os.listdir(input_folder)

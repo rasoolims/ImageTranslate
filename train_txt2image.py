@@ -29,6 +29,7 @@ class Caption2ImageTrainer(ImageMTTrainer):
         super().__init__(model, mask_prob, clip, optimizer, beam_width, max_len_a, max_len_b, len_penalty_ratio,
                          nll_loss, fp16, mm_mode)
         self.caption_model = caption_model
+        self.caption_model.eval()
         self.caption_model = self.caption_model.to(self.device)
 
         if self.num_gpu == 1 and fp16:
@@ -80,7 +81,7 @@ class Caption2ImageTrainer(ImageMTTrainer):
                     if step % 50 == 0 and tokens > 0:
                         elapsed = time.time() - start
                         print(datetime.datetime.now(),
-                              "Epoch Step: %d Loss: %f Tokens per Sec: %f " % (
+                              "Epoch Step: %d Loss: %f Image per Sec: %f " % (
                                   step, cur_loss / tokens, tokens / elapsed))
 
                         if step % 500 == 0:
@@ -115,7 +116,10 @@ class Caption2ImageTrainer(ImageMTTrainer):
 
     def eval(self, img_dev_data_iter: List[data_utils.DataLoader]):
         total_loss, tokens, = 0, 0
-
+        model = (
+            self.model.module if hasattr(self.model, "module") else self.model
+        )
+        model.eval()
         for data in img_dev_data_iter:
             for batch in data:
                 try:
@@ -136,7 +140,7 @@ class Caption2ImageTrainer(ImageMTTrainer):
                 except RuntimeError as err:
                     print(repr(err))
                     pass
-
+        model.train()
         return total_loss / tokens
 
     @staticmethod

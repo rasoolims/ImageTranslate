@@ -343,7 +343,8 @@ class Caption2Image(nn.Module):
 
         encoder_states = self.encode(src_inputs, src_mask, src_langs)[0]
 
-        encoder_states = F.dropout(encoder_states, p=self.config.hidden_dropout_prob)
+        if self.training:
+            encoder_states = F.dropout(encoder_states, p=self.config.hidden_dropout_prob)
 
         attention_scores = self.input_attention(encoder_states).squeeze(-1)
         attention_scores.masked_fill_(~src_mask, -10000.0)

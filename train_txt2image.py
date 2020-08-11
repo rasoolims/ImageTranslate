@@ -86,7 +86,7 @@ class Caption2ImageTrainer(ImageMTTrainer):
 
                         if step % 500 == 0:
                             if img_dev_data_iter is not None and step % 5000 == 0:
-                                loss = self.eval_bleu(img_dev_data_iter)
+                                loss = self.eval(img_dev_data_iter)
                                 print("Dev Loss:", loss)
 
                             model.save(saving_path + ".latest")

@@ -32,7 +32,7 @@ print("\nReading target docs")
 found = 0
 with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath(sys.argv[4]), "w") as src_writer, open(
         os.path.abspath(sys.argv[5]), "w") as dst_writer:
-    for line in dst_reader:
+    for i, line in enumerate(dst_reader):
         sentences = line.strip().split("</s>")
         title = sentences[0][sentences[0].find(">") + 1:].strip()
 

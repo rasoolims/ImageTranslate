@@ -212,8 +212,6 @@ class ImageCaptioning(Seq2Seq):
         self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
                                                     dropout=self.config.hidden_dropout_prob,
                                                     freeze=freeze_image, depth=resnet_depth)
-        self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, self.config.hidden_size).fill_(0.1),
-                                                      requires_grad=True)
 
     def encode(self, src_inputs=None, src_mask=None, src_langs=None, images=None):
         if images is not None:

@@ -5,7 +5,10 @@ print("Reading titles")
 title_dict = {}
 with open(os.path.abspath(sys.argv[1]), "r") as title_reader:
     for line in title_reader:
-        a, e = line.strip().split("\t")
+        spl = line.strip().split("\t")
+        if len(spl) != 2:
+            continue
+        a, e = spl
         if "(" in a:
             a = a[:a.find("(")]
         if "(" is e:
@@ -13,6 +16,7 @@ with open(os.path.abspath(sys.argv[1]), "r") as title_reader:
 
         title_dict[e] = a
 
+print("Number of titles", len(title_dict))
 print("Reading source docs")
 
 src_docs = {}

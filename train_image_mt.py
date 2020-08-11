@@ -199,8 +199,11 @@ class ImageMTTrainer:
                             if len(batch) < self.num_gpu:
                                 continue
 
+                            # For image masking, we are allowed to mask more than mask_prob
+                            mask_prob = random.uniform(self.mask_prob, 1.0)
+
                             masked_info = list(
-                                map(lambda pi, si: mass_mask(self.mask_prob, pi, si, model.text_processor), pad_indices,
+                                map(lambda pi, si: mass_mask(mask_prob, pi, si, model.text_processor), pad_indices,
                                     src_inputs))
                             predictions = self.model(src_inputs=list(map(lambda m: m["src_text"], masked_info)),
                                                      tgt_inputs=list(map(lambda m: m["to_recover"], masked_info)),

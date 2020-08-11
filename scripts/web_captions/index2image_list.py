@@ -5,7 +5,8 @@ index_file = os.path.abspath(sys.argv[1])
 dir = os.path.abspath(sys.argv[2])
 output_file = os.path.abspath(sys.argv[3])
 
-extensions = {".jpg", ".jpeg", ".png", ".JPG", ".JPEG", ".PNG", ""}
+extensions = {".jpg", ".jpeg", ".JPG", ".JPEG", ""}
+wrote = 0
 with open(index_file, "r") as r, open(output_file, "w") as w:
     for line in r:
         spl = line.strip().split("\t")
@@ -13,5 +14,7 @@ with open(index_file, "r") as r, open(output_file, "w") as w:
         for extension in extensions:
             if os.path.exists(file_name + extension):
                 file_name = file_name + extension
+                w.write(file_name + "\t" + spl[-1] + "\n")
+                wrote += 1
                 break
-        w.write(file_name + "\t" + spl[-1] + "\n")
+print("WROTE", wrote)

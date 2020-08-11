@@ -29,6 +29,7 @@ class Caption2ImageTrainer(ImageMTTrainer):
         super().__init__(model, mask_prob, clip, optimizer, beam_width, max_len_a, max_len_b, len_penalty_ratio,
                          nll_loss, fp16, mm_mode)
         self.caption_model = caption_model
+        self.caption_model = self.caption_model.to(self.device)
 
         if self.num_gpu == 1 and fp16:
             self.caption_model = amp.initialize(self.caption_model, opt_level="O2")

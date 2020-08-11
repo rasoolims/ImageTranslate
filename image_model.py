@@ -1,7 +1,11 @@
+import pickle
+
 import torch.nn.functional as F
 from torchvision import models
 from transformers.modeling_albert import *
 
+import lm_config
+from bert_seq2seq import BertEncoderModel, BertConfig
 from mass_seq2seq import MassSeq2Seq, future_mask
 from seq2seq import Seq2Seq
 from textprocessor import TextProcessor
@@ -227,8 +231,8 @@ class ImageCaptioning(Seq2Seq):
             return encoder_states
 
     def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, tgt_mask=None,
-                pad_idx: int = 0,
-                tgt_positions=None, batch=None, proposals=None, log_softmax: bool = False, **kwargs):
+                pad_idx: int = 0, tgt_positions=None, batch=None, proposals=None, log_softmax: bool = False,
+                encode_only: bool = False, **kwargs):
         device = self.encoder.embeddings.word_embeddings.weight.device
         if isinstance(batch, list):
             assert len(batch) == 1
@@ -254,6 +258,8 @@ class ImageCaptioning(Seq2Seq):
 
         images = batch["images"].to(device)
         image_embeddings = self.encode(images=images)
+        if encode_only:
+            return image_embeddings
 
         assert tgt_inputs is not None
         tgt_inputs = tgt_inputs.to(device)
@@ -285,3 +291,89 @@ class ImageCaptioning(Seq2Seq):
         if log_softmax:
             outputs = F.log_softmax(outputs, dim=-1)
         return outputs
+
+
+class Caption2Image(nn.Module):
+    def __init__(self, text_processor: TextProcessor, enc_layer: int = 6, embed_dim: int = 768,
+                 intermediate_dim: int = 3072):
+        super(Caption2Image, self).__init__()
+        self.text_processor: TextProcessor = text_processor
+        self.config = lm_config.get_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
+                                           pad_token_id=text_processor.pad_token_id(),
+                                           bos_token_id=text_processor.bos_token_id(),
+                                           eos_token_id=text_processor.sep_token_id(),
+                                           enc_layer=enc_layer, embed_dim=embed_dim, intermediate_dim=intermediate_dim)
+
+        self.enc_layer = enc_layer
+        self.embed_dim = embed_dim
+        self.intermediate_dim = intermediate_dim
+        self.config["type_vocab_size"] = len(text_processor.languages)
+        self.config = BertConfig(**self.config)
+
+        self.encoder = BertEncoderModel(self.config)
+        self.encoder.init_weights()
+
+        self.input_attention = nn.Linear(self.config.hidden_size, 1)
+        self.decoder = nn.Linear(self.config.hidden_size, 49 * self.config.hidden_size)
+
+    def encode(self, src_inputs, src_mask, src_langs):
+        device = self.encoder.embeddings.word_embeddings.weight.device
+        if src_inputs.device != device:
+            src_inputs = src_inputs.to(device)
+            src_mask = src_mask.to(device)
+            src_langs = src_langs.to(device)
+        encoder_states = self.encoder(src_inputs, attention_mask=src_mask, token_type_ids=src_langs)
+        return (encoder_states, None)
+
+    def forward(self, src_inputs, src_mask, src_langs):
+        "Take in and process masked src and target sequences."
+        device = self.encoder.embeddings.word_embeddings.weight.device
+        if isinstance(src_langs, list):
+            src_langs = src_langs[0]
+        if isinstance(src_mask, list):
+            src_mask = src_mask[0]
+        if isinstance(src_inputs, list):
+            src_inputs = src_inputs[0]
+
+        src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
+        src_inputs = src_inputs.to(device)
+        src_langs = src_langs.to(device)
+        if src_mask.device != device:
+            src_mask = src_mask.to(device)
+
+        encoder_states = self.encode(src_inputs, src_mask, src_langs)[0]
+
+        encoder_states = F.dropout(encoder_states, p=self.config.hidden_dropout_prob)
+
+        attention_scores = self.input_attention(encoder_states).squeeze(-1)
+        attention_scores.masked_fill_(~src_mask, -10000.0)
+        attention_prob = nn.Softmax(dim=1)(attention_scores)
+        sentence_embeddings = torch.einsum("bfd,bf->bd", encoder_states, attention_prob)
+
+        image_embeddings = self.decoder(sentence_embeddings)
+
+        return image_embeddings
+
+    def save(self, out_dir: str):
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        with open(os.path.join(out_dir, "mt_config"), "wb") as fp:
+            pickle.dump((self.enc_layer, self.embed_dim, self.intermediate_dim), fp)
+        try:
+            torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
+        except:
+            torch.cuda.empty_cache()
+            torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
+
+    @staticmethod
+    def load(out_dir: str, tok_dir: str):
+        text_processor = TextProcessor(tok_model_path=tok_dir)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
+            enc_layer, embed_dim, intermediate_dim = pickle.load(fp)
+
+            mt_model = Caption2Image(text_processor=text_processor, enc_layer=enc_layer, embed_dim=embed_dim,
+                                     intermediate_dim=intermediate_dim)
+            mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
+                                     strict=False)
+            return mt_model

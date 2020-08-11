@@ -15,7 +15,7 @@ annotations = obj["annotations"]
 caption_dict = defaultdict(list)
 with open(output_path, "w") as w:
     for annotation in annotations:
-        caption = annotation["caption"].replace("\r","").replace("\n","").strip()
+        caption = annotation["caption"].replace("\r", "").replace("\n", "").strip()
         image_path = str(annotation["image_id"])
         added_zeros = "".join((12 - len(image_path)) * ["0"])
         image_path = os.path.join(dir, "".join([added_zeros, image_path, ".jpg"]))

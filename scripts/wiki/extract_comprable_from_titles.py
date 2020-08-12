@@ -1,6 +1,9 @@
 import os
 import sys
 
+len_condition = lambda words1, words2: True if .9 <= len(words1) / len(words2) <= 1.1 or abs(
+    len(words1) - len(words2)) <= 3 else False
+
 print("Reading titles")
 title_dict = {}
 with open(os.path.abspath(sys.argv[1]), "r") as title_reader:
@@ -43,7 +46,11 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
 
                 src_writer.write("\t".join(src_sentences) + "\n")
                 dst_writer.write("\t".join(sentences[1:]) + "\n")
-                first_sen_writer.write(src_sentences[0] + "\t" + sentences[1] + "\n")
+
+                sen_words1 = src_sentences[0].strip().split(" ")
+                sen_words2 = sentences[1].strip().split(" ")
+                if len_condition(sen_words1, sen_words2):
+                    first_sen_writer.write(src_sentences[0] + "\t" + sentences[1] + "\n")
                 found += 1
         print(found, "/", i, end="\r")
 print("\nDone!")

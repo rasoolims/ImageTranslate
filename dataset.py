@@ -135,7 +135,7 @@ class MTDataset(Dataset):
                 cur_src_langs, cur_dst_langs = [cur_src_langs[-1]], [cur_dst_langs[-1]]
                 cur_max_src_len, cur_max_dst_len = int(cur_src_batch[0].size(0)), int(cur_dst_batch[0].size(0))
 
-            if (ei + 1) % 1000 == 0:
+            if ei % 1000 == 0:
                 print(ei, "/", len(examples), end="\r")
 
         if len(cur_src_batch) > 0 and len(cur_src_batch) >= num_gpu:

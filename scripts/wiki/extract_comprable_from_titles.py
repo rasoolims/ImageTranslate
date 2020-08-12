@@ -50,10 +50,9 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
                 sen_words1 = src_sentences[0].strip().split(" ")
                 sen_words2 = sentences[1].strip().split(" ")
                 if len_condition(sen_words1, sen_words2):
-                    first_sen_writer.write(
-                        src_sentences[0].replace("()", "").replace("  ", " ") + "\t" + sentences[1].replace("()",
-                                                                                                            "").replace(
-                            "  ", " ") + "\n")
+                    src_sentences[0] = src_sentences[0].replace("()", "").replace("  ", " ").strip()
+                    sentences[1] = sentences[1].replace("()", "").replace("  ", " ").strip()
+                    first_sen_writer.write(src_sentences[0] + "\t" + sentences[1] + "\n")
                 found += 1
         print(found, "/", i, end="\r")
 print("\nDone!")

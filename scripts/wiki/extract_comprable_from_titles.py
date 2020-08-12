@@ -52,6 +52,10 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
                 if len_condition(sen_words1, sen_words2):
                     src_sentences[0] = src_sentences[0].replace("()", "").replace("  ", " ").strip()
                     sentences[1] = sentences[1].replace("()", "").replace("  ", " ").strip()
+                    if sentences[1].lower().startswith("early life"):
+                        continue  # Common phrase in Wiki
+                    if "list of" in sentences[1].lower():
+                        continue  # Common phrase in Wiki
                     first_sen_writer.write(src_sentences[0] + "\t" + sentences[1] + "\n")
                 found += 1
         print(found, "/", i, end="\r")

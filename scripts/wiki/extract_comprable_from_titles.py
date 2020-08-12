@@ -1,6 +1,8 @@
 import os
+import re
 import sys
 
+has_number = lambda i: bool(re.search(r'\d', i))
 len_condition = lambda words1, words2: True if .7 <= len(words1) / len(words2) <= 1.3 or abs(
     len(words1) - len(words2)) <= 5 and len(words1) >= 5 and len(words2) >= 5 else False
 
@@ -56,7 +58,10 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
                         continue  # Common phrase in Wiki
                     if "list of" in sentences[1].lower():
                         continue  # Common phrase in Wiki
-                    first_sen_writer.write(src_sentences[0] + "\t" + sentences[1] + "\n")
+                    n1 = has_number(sentences[1])
+                    n2 = has_number(src_sentences[0])
+                    if (n1 and n2) or (not n1 and not n2):
+                        first_sen_writer.write(src_sentences[0] + "\t" + sentences[1] + "\n")
                 found += 1
         print(found, "/", i, end="\r")
 print("\nDone!")

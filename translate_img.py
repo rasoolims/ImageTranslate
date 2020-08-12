@@ -76,7 +76,23 @@ def translate_batch(batch, txt2img, generator, text_processor, verbose=False):
             new_outputs += output
         second_outputs = new_outputs
     mt_2nd_output = list(map(lambda x: text_processor.tokenizer.decode(x[1:].numpy()), second_outputs))
-    return mt_output, src_text, mt_2nd_output
+
+    output_2nd_padded = pad_sequence(second_outputs, batch_first=True, padding_value=pad_idx)
+    output_2nd_pad_idx = (output_2nd_padded != pad_idx)
+    output_3rd_image_embed = txt2img(output_2nd_padded, output_2nd_pad_idx, src_langs)
+    output_3rd_image_embed = output_3rd_image_embed.view(output_3rd_image_embed.size(0), 49, -1)
+
+    third_outputs = generator(first_tokens=tgt_inputs[:, 0], max_len=max_len,
+                              tgt_langs=dst_langs, image_embed=output_3rd_image_embed,
+                              pad_idx=pad_idx)
+    if torch.cuda.device_count() > 1:
+        new_outputs = []
+        for output in third_outputs:
+            new_outputs += output
+        third_outputs = new_outputs
+    mt_3rd_output = list(map(lambda x: text_processor.tokenizer.decode(x[1:].numpy()), third_outputs))
+
+    return mt_output, src_text, mt_2nd_output, mt_3rd_output
 
 
 def build_data_loader(options, text_processor):
@@ -130,8 +146,9 @@ if __name__ == "__main__":
     with open(options.output_path, "w") as writer:
         with torch.no_grad():
             for batch in test_loader:
-                mt_output, src_text, mt_2nd_output = translate_batch(batch, txt2img_model, generator, text_processor,
-                                                                     options.verbose)
+                mt_output, src_text, mt_2nd_output, mt_3rd_output = translate_batch(batch, txt2img_model, generator,
+                                                                                    text_processor,
+                                                                                    options.verbose)
 
                 sen_count += len(mt_output)
                 print(datetime.datetime.now(), "Translated", sen_count, "sentences", end="\r")
@@ -139,7 +156,8 @@ if __name__ == "__main__":
                     writer.write("\n".join(mt_output))
                 else:
                     writer.write("\n".join(
-                        [y + "\n" + x + "\n" + z + "\n****" for x, y, z in zip(mt_output, src_text, mt_2nd_output)]))
+                        [y + "\n" + x + "\n" + z + "\n" + f + "\n****" for x, y, z, f in
+                         zip(mt_output, src_text, mt_2nd_output, mt_3rd_output)]))
                 writer.write("\n")
 
     print(datetime.datetime.now(), "Translated", sen_count, "sentences")

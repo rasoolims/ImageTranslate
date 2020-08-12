@@ -46,22 +46,25 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
             if src_title in src_docs:
                 src_sentences = src_docs[src_title]
 
-                src_writer.write("\t".join(src_sentences) + "\n")
-                dst_writer.write("\t".join(sentences[1:]) + "\n")
+                for j in range(len(src_sentences)):
+                    src_sentences[j] = src_sentences[j].replace("()", "").replace("  ", " ").strip()
+                    sen_words1 = src_sentences[j].strip().split(" ")
+                    n2 = has_number(src_sentences[j])
+                    for k in range(1, len(sentences)):
+                        sentences[k] = sentences[k].replace("()", "").replace("  ", " ").strip()
+                        sen_words2 = sentences[k].strip().split(" ")
+                        if len_condition(sen_words1, sen_words2):
+                            if sentences[k].lower().startswith("early life"):
+                                continue  # Common phrase in Wiki
+                            if "list of" in sentences[k].lower():
+                                continue  # Common phrase in Wiki
+                            n1 = has_number(sentences[k])
+                            if (n1 and n2) or (not n1 and not n2):
+                                if j == 0 and k == 1:
+                                    first_sen_writer.write(src_sentences[0] + "\t" + sentences[1] + "\n")
+                                src_writer.write(src_sentences[j] + "\n")
+                                dst_writer.write(sentences[k] + "\n")
+                                found += 1
 
-                sen_words1 = src_sentences[0].strip().split(" ")
-                sen_words2 = sentences[1].strip().split(" ")
-                if len_condition(sen_words1, sen_words2):
-                    src_sentences[0] = src_sentences[0].replace("()", "").replace("  ", " ").strip()
-                    sentences[1] = sentences[1].replace("()", "").replace("  ", " ").strip()
-                    if sentences[1].lower().startswith("early life"):
-                        continue  # Common phrase in Wiki
-                    if "list of" in sentences[1].lower():
-                        continue  # Common phrase in Wiki
-                    n1 = has_number(sentences[1])
-                    n2 = has_number(src_sentences[0])
-                    if (n1 and n2) or (not n1 and not n2):
-                        first_sen_writer.write(src_sentences[0] + "\t" + sentences[1] + "\n")
-                found += 1
         print(found, "/", i, end="\r")
 print("\nDone!")

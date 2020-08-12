@@ -90,11 +90,12 @@ class MTDataset(Dataset):
         """
         num_gpu = torch.cuda.device_count()
         with open(batch_pickle_dir, "rb") as fr:
-            print("LOADING BATCHES")
+            print("LOADING MT BATCHES")
             examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = marshal.load(fr)
             self.batch_examples(examples, max_batch, max_batch_capacity, max_seq_len, num_gpu, pad_idx)
 
     def batch_examples(self, examples, max_batch, max_batch_capacity, max_seq_len, num_gpu, pad_idx):
+        print("BUILDING MT BATCHES")
         self.batches = []
         cur_src_batch, cur_dst_batch, cur_max_src_len, cur_max_dst_len = [], [], 0, 0
         cur_src_langs, cur_dst_langs, cur_lex_cand_batch = [], [], []

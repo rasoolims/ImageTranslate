@@ -57,18 +57,18 @@ class SenSim(nn.Module):
         if src_mask.device != device:
             src_mask = src_mask.to(device)
         src_embed = self.encode(src_inputs, src_mask, src_langs)
-        src_norm = torch.norm(src_embed, dim=-1, p=2).unsqueeze(-1) + 1e-4
-        src_embed = torch.div(src_embed, src_norm)
 
         tgt_langs = tgt_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
         if tgt_inputs.device != device:
             tgt_inputs = tgt_inputs.to(device)
             tgt_mask = tgt_mask.to(device)
         tgt_embed = self.encode(tgt_inputs, tgt_mask, tgt_langs)
-        tgt_norm = torch.norm(tgt_embed, dim=-1, p=2).unsqueeze(-1) + 1e-4
-        tgt_embed = torch.div(tgt_embed, tgt_norm)
 
         if normalize:
+            src_norm = torch.norm(src_embed, dim=-1, p=2).unsqueeze(-1) + 1e-4
+            src_embed = torch.div(src_embed, src_norm)
+            tgt_norm = torch.norm(tgt_embed, dim=-1, p=2).unsqueeze(-1) + 1e-4
+            tgt_embed = torch.div(tgt_embed, tgt_norm)
             cross_dot = torch.mm(src_embed, tgt_embed.T)
             denom = torch.log(torch.sum(torch.exp(cross_dot), dim=-1) + 1e-4)
             nominator = torch.diagonal(cross_dot[:, :], 0) + 1e-4

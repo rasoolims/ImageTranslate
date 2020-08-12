@@ -45,7 +45,7 @@ class BeamDecoder(nn.Module):
 
     def forward(self, src_inputs=None, src_sizes=None, first_tokens=None, src_mask=None, src_langs=None, tgt_langs=None,
                 pad_idx=None, max_len: int = None, unpad_output: bool = True, beam_width: int = None, images=None,
-                proposals=None):
+                proposals=None, image_embed=None):
         """
 
         :param device:
@@ -66,6 +66,8 @@ class BeamDecoder(nn.Module):
             src_inputs = src_inputs[0]
         if isinstance(images, list):
             images = images[0]
+        if isinstance(image_embed, list):
+            image_embed = image_embed[0]
         if isinstance(proposals, list):
             proposals = proposals[0]
 
@@ -76,8 +78,10 @@ class BeamDecoder(nn.Module):
         if src_inputs is not None:
             batch_size = src_inputs.size(0)
             src_mask = src_mask.to(device)
-        else:
+        elif images is not None:
             batch_size = images.size(0)
+        elif image_embed is not None:
+            batch_size = image_embed.size(0)
 
         if images is not None:
             images = images.to(device)
@@ -88,7 +92,13 @@ class BeamDecoder(nn.Module):
             src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
             encoder_states = self.seq2seq_model.encode(src_inputs, src_mask, src_langs)[0]
         elif src_inputs is None:
-            encoder_states = self.seq2seq_model.encode(images=images)  # = image embeddings
+            if image_embed is None:
+                encoder_states = self.seq2seq_model.encode(images=images)  # = image embeddings
+            else:
+                encoder_states = image_embed
+                if image_embed.device != device:
+                    encoder_states = encoder_states.to(device)
+
         else:
             encoder_states, image_embeddings = self.seq2seq_model.encode(src_inputs, src_mask, src_langs, images)
         eos = self.seq2seq_model.text_processor.sep_token_id()

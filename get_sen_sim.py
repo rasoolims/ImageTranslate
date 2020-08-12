@@ -9,6 +9,7 @@ from option_parser import get_img_options_parser
 from sen_sim import SenSim
 from seq_gen import get_outputs_until_eos
 from train_image_mt import ImageMTTrainer
+from utils import build_optimizer
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -59,8 +60,9 @@ class SenSimEval(ImageMTTrainer):
         mt_model, text_processor = SenSim.load(options.model_path, tok_dir=options.tokenizer_path)
 
         print("Model initialization done!")
+        optimizer = build_optimizer(mt_model, options.learning_rate, warump_steps=options.warmup)
 
-        trainer = SenSimEval(model=mt_model, mask_prob=options.mask_prob, optimizer=None, clip=options.clip,
+        trainer = SenSimEval(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                              fp16=options.fp16)
 
         pin_memory = torch.cuda.is_available()

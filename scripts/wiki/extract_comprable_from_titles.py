@@ -47,10 +47,14 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
                 src_sentences = src_docs[src_title]
 
                 for j in range(len(src_sentences)):
+                    region1 = j / len(src_sentences)
                     src_sentences[j] = src_sentences[j].replace("()", "").replace("  ", " ").strip()
                     sen_words1 = src_sentences[j].strip().split(" ")
                     n2 = has_number(src_sentences[j])
                     for k in range(1, len(sentences)):
+                        region2 = (k - 1) / (len(sentences) - 1)
+                        if abs(region1 - region2) > 0.3:
+                            continue
                         sentences[k] = sentences[k].replace("()", "").replace("  ", " ").strip()
                         sen_words2 = sentences[k].strip().split(" ")
                         if len_condition(sen_words1, sen_words2):

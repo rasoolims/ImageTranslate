@@ -4,6 +4,7 @@ from optparse import OptionParser
 import torch
 import torch.utils.data as data_utils
 from apex import amp
+from torch.nn.utils.rnn import pad_sequence
 
 import dataset
 from image_model import ImageCaptioning, Caption2Image
@@ -34,6 +35,7 @@ def get_lm_option_parser():
 
 
 def translate_batch(batch, txt2img, generator, text_processor, verbose=False):
+    pad_idx = text_processor.pad_token_id()
     src_inputs = batch["src_texts"].squeeze(0)
     src_mask = batch["src_pad_mask"].squeeze(0)
     tgt_inputs = batch["dst_texts"].squeeze(0)
@@ -52,14 +54,29 @@ def translate_batch(batch, txt2img, generator, text_processor, verbose=False):
     image_embed = image_embed.view(image_embed.size(0), 49, -1)
     outputs = generator(first_tokens=tgt_inputs[:, 0], max_len=max_len,
                         tgt_langs=dst_langs, image_embed=image_embed,
-                        pad_idx=text_processor.pad_token_id())
+                        pad_idx=pad_idx)
     if torch.cuda.device_count() > 1:
         new_outputs = []
         for output in outputs:
             new_outputs += output
         outputs = new_outputs
     mt_output = list(map(lambda x: text_processor.tokenizer.decode(x[1:].numpy()), outputs))
-    return mt_output, src_text
+
+    output_padded = pad_sequence(outputs, batch_first=True, padding_value=pad_idx)
+    output_pad_idx = (output_padded != pad_idx)
+    output_image_embed = txt2img(output_padded, output_pad_idx, dst_langs)
+    output_image_embed = output_image_embed.view(output_image_embed.size(0), 49, -1)
+
+    second_outputs = generator(first_tokens=src_inputs[:, 0], max_len=max_len,
+                               tgt_langs=src_langs, image_embed=output_image_embed,
+                               pad_idx=pad_idx)
+    if torch.cuda.device_count() > 1:
+        new_outputs = []
+        for output in second_outputs:
+            new_outputs += output
+        second_outputs = new_outputs
+    mt_2nd_output = list(map(lambda x: text_processor.tokenizer.decode(x[1:].numpy()), second_outputs))
+    return mt_output, src_text, mt_2nd_output
 
 
 def build_data_loader(options, text_processor):
@@ -113,13 +130,16 @@ if __name__ == "__main__":
     with open(options.output_path, "w") as writer:
         with torch.no_grad():
             for batch in test_loader:
-                mt_output, src_text = translate_batch(batch, txt2img_model, generator, text_processor, options.verbose)
+                mt_output, src_text, mt_2nd_output = translate_batch(batch, txt2img_model, generator, text_processor,
+                                                                     options.verbose)
+
                 sen_count += len(mt_output)
                 print(datetime.datetime.now(), "Translated", sen_count, "sentences", end="\r")
                 if not options.verbose:
                     writer.write("\n".join(mt_output))
                 else:
-                    writer.write("\n".join([y + "\n" + x + "\n****" for x, y in zip(mt_output, src_text)]))
+                    writer.write("\n".join(
+                        [y + "\n" + x + "\n" + z + "\n****" for x, y, z in zip(mt_output, src_text, mt_2nd_output)]))
                 writer.write("\n")
 
     print(datetime.datetime.now(), "Translated", sen_count, "sentences")

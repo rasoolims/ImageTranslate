@@ -1,25 +1,21 @@
 import sys
-from typing import List
 
 import torch
 import torch.utils.data as data_utils
 from IPython.core import ultratb
 
+import dataset
 from option_parser import get_img_options_parser
 from sen_sim import SenSim
 from seq_gen import get_outputs_until_eos
 from train_image_mt import ImageMTTrainer
 from utils import build_optimizer
-import dataset
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
 
 class SenSimEval(ImageMTTrainer):
-    def eval(self, saving_path: str = None,
-             mt_dev_iter: data_utils.DataLoader = None):
-        batch_zip, shortest = self.get_batch_zip(None, None, mt_dev_iter)
-
+    def eval(self, saving_path: str = None, mt_dev_iter: data_utils.DataLoader = None):
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
@@ -47,7 +43,7 @@ class SenSimEval(ImageMTTrainer):
                             map(lambda tgt: model.text_processor.tokenizer.decode(tgt.numpy()), targets))
                         for s in range(len(sims)):
                             w.write(src_txts[s] + "\t" + target_txts[s] + "\t" + str(float(sims[s])) + "\n")
-                        print(i, end="\r")
+                        print(i, "/", len(mt_dev_iter), end="\r")
 
 
                 except RuntimeError as err:

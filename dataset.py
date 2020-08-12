@@ -72,8 +72,9 @@ class TextDataset(Dataset):
 class MTDataset(Dataset):
     def __init__(self, max_batch_capacity: int, max_batch: int,
                  pad_idx: int, max_seq_len: int = 175, batch_pickle_dir: str = None,
-                 examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = None, lex_dict=None):
+                 examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = None, lex_dict=None,keep_pad_idx=False):
         self.lex_dict = lex_dict
+        self.keep_pad_idx = keep_pad_idx
         if examples is None:
             self.build_batches(batch_pickle_dir, max_batch_capacity, max_batch, pad_idx, max_seq_len)
         else:
@@ -151,13 +152,14 @@ class MTDataset(Dataset):
                      "dst_pad_mask": dst_pad_mask, "src_langs": torch.LongTensor(cur_src_langs),
                      "dst_langs": torch.LongTensor(cur_dst_langs), "proposal": lex_cand_batch}
             self.batches.append(entry)
-        for b in self.batches:
-            pads = b["src_pad_mask"]
-            pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
-            pindices = torch.nonzero(~pads)
-            for (r, c) in pindices:
-                pad_indices[r] = min(pad_indices[r], int(c))
-            b["pad_idx"] = torch.LongTensor(pad_indices)
+        if self.keep_pad_idx:
+            for b in self.batches:
+                pads = b["src_pad_mask"]
+                pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
+                pindices = torch.nonzero(~pads)
+                for (r, c) in pindices:
+                    pad_indices[r] = min(pad_indices[r], int(c))
+                b["pad_idx"] = torch.LongTensor(pad_indices)
         print("\nLoaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
 
     def __len__(self):

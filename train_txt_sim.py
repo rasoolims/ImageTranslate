@@ -104,8 +104,6 @@ class SenSimTrainer(ImageMTTrainer):
         return step
 
     def eval(self, dev_data_iter, saving_path):
-        mt_output = []
-        src_text = []
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )

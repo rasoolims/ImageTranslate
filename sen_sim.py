@@ -102,4 +102,4 @@ class SenSim(nn.Module):
                            intermediate_dim=intermediate_dim)
             model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
                                   strict=False)
-            return model
+            return model, text_processor

@@ -71,4 +71,5 @@ def get_img_options_parser():
                       help="Ignore MT data in backtranslation loss of MASS model", default=False)
     parser.add_option("--tie", action="store_true", dest="tie_embed", help="Tie encoder and decoder embeddings",
                       default=False)
+    parser.add_option("--output", dest="output", help="Output file (for simiality)", metavar="FILE", default=None)
     return parser

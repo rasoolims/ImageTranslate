@@ -97,7 +97,7 @@ class MTDataset(Dataset):
         self.batches = []
         cur_src_batch, cur_dst_batch, cur_max_src_len, cur_max_dst_len = [], [], 0, 0
         cur_src_langs, cur_dst_langs, cur_lex_cand_batch = [], [], []
-        for example in examples:
+        for ei, example in enumerate(examples):
             src = torch.LongTensor(example[0][:max_seq_len])  # trim if longer than expected!
             dst = torch.LongTensor(example[1][:max_seq_len])  # trim if longer than expected!
             cur_src_langs.append(example[2])
@@ -133,6 +133,10 @@ class MTDataset(Dataset):
                 cur_src_batch, cur_dst_batch = [cur_src_batch[-1]], [cur_dst_batch[-1]]
                 cur_src_langs, cur_dst_langs = [cur_src_langs[-1]], [cur_dst_langs[-1]]
                 cur_max_src_len, cur_max_dst_len = int(cur_src_batch[0].size(0)), int(cur_dst_batch[0].size(0))
+
+            if (ei + 1) % 10000 == 0:
+                print(ei, "/", len(examples), end="\r")
+
         if len(cur_src_batch) > 0 and len(cur_src_batch) >= num_gpu:
             src_batch = pad_sequence(cur_src_batch, batch_first=True, padding_value=pad_idx)
             dst_batch = pad_sequence(cur_dst_batch, batch_first=True, padding_value=pad_idx)
@@ -152,7 +156,7 @@ class MTDataset(Dataset):
             for (r, c) in pindices:
                 pad_indices[r] = min(pad_indices[r], int(c))
             b["pad_idx"] = torch.LongTensor(pad_indices)
-        print("Loaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
+        print("\nLoaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
 
     def __len__(self):
         return len(self.batches)

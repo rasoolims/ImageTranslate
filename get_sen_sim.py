@@ -49,7 +49,7 @@ class SenSimEval(ImageMTTrainer):
                 except RuntimeError as err:
                     print(repr(err))
                     torch.cuda.empty_cache()
-                print("\n")
+            print("\n")
 
     @staticmethod
     def sim(options):

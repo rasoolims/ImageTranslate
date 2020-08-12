@@ -7,8 +7,8 @@ from IPython.core import ultratb
 
 from option_parser import get_img_options_parser
 from sen_sim import SenSim
+from seq_gen import get_outputs_until_eos
 from train_image_mt import ImageMTTrainer
-from seq_gen import  get_outputs_until_eos
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -37,17 +37,22 @@ class SenSimEval(ImageMTTrainer):
                             sims = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                               src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
                                               tgt_langs=dst_langs, normalize=False)
-                            srcs = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs, remove_first_token=True)
-                            targets = get_outputs_until_eos(model.text_processor.sep_token_id(), tgt_inputs, remove_first_token=True)
+                            srcs = get_outputs_until_eos(model.text_processor.sep_token_id(), src_inputs,
+                                                         remove_first_token=True)
+                            targets = get_outputs_until_eos(model.text_processor.sep_token_id(), tgt_inputs,
+                                                            remove_first_token=True)
                             src_txts = list(map(lambda src: model.text_processor.tokenizer.decode(src.numpy()), srcs))
-                            target_txts = list(map(lambda tgt: model.text_processor.tokenizer.decode(tgt.numpy()), targets))
+                            target_txts = list(
+                                map(lambda tgt: model.text_processor.tokenizer.decode(tgt.numpy()), targets))
                             for s in range(len(sims)):
-                                w.write(src_txts[s]+"\t"+target_txts[s]+"\t"+str(float(sims[s]))+"\n")
+                                w.write(src_txts[s] + "\t" + target_txts[s] + "\t" + str(float(sims[s])) + "\n")
+                            print(i, "/", len(batches), end="\r")
 
 
                     except RuntimeError as err:
                         print(repr(err))
                         torch.cuda.empty_cache()
+                print("\n")
 
     @staticmethod
     def sim(options):

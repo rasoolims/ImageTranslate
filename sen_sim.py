@@ -46,7 +46,8 @@ class SenSim(nn.Module):
         sentence_embeddings = torch.einsum("bfd,bf->bd", encoder_states, attention_prob)
         return sentence_embeddings
 
-    def forward(self, src_inputs, src_mask, src_langs, tgt_inputs, tgt_mask, tgt_langs,
+    def forward(self, src_inputs, src_mask, src_langs, tgt_inputs, tgt_mask, tgt_langs, src_neg_inputs=None,
+                src_neg_mask=None, src_neg_langs=None, tgt_neg_inputs=None, tgt_neg_mask=None, tgt_neg_langs=None,
                 normalize: bool = False):
         "Take in and process masked src and target sequences."
         device = self.encoder.embeddings.word_embeddings.weight.device
@@ -69,10 +70,44 @@ class SenSim(nn.Module):
             src_embed = torch.div(src_embed, src_norm)
             tgt_norm = torch.norm(tgt_embed, dim=-1, p=2).unsqueeze(-1) + 1e-4
             tgt_embed = torch.div(tgt_embed, tgt_norm)
-            cross_dot = torch.mm(src_embed, tgt_embed.T)
-            denom = torch.log(torch.sum(torch.exp(cross_dot), dim=-1) + 1e-4)
-            nominator = torch.diagonal(cross_dot[:, :], 0) + 1e-4
-            log_neg = torch.sum(denom - nominator) / len(cross_dot)
+
+            if src_neg_langs is not None:
+                src_neg_langs = src_neg_langs.unsqueeze(-1).expand(-1, src_neg_inputs.size(-1))
+                src_neg_inputs = src_neg_inputs.to(device)
+                src_neg_langs = src_neg_langs.to(device)
+
+                if src_neg_mask.device != device:
+                    src_neg_mask = src_neg_mask.to(device)
+                src_neg_embed = self.encode(src_neg_inputs, src_neg_mask, src_neg_langs)
+                src_neg_norm = torch.norm(src_neg_embed, dim=-1, p=2).unsqueeze(-1) + 1e-4
+                src_neg_embed = torch.div(src_neg_embed, src_neg_norm)
+
+                tgt_neg_langs = tgt_neg_langs.unsqueeze(-1).expand(-1, tgt_neg_inputs.size(-1))
+                tgt_neg_inputs = tgt_neg_inputs.to(device)
+                tgt_neg_langs = tgt_neg_langs.to(device)
+
+                if tgt_neg_mask.device != device:
+                    tgt_neg_mask = tgt_neg_mask.to(device)
+                tgt_neg_embed = self.encode(tgt_neg_inputs, tgt_neg_mask, tgt_neg_langs)
+                tgt_neg_norm = torch.norm(tgt_neg_embed, dim=-1, p=2).unsqueeze(-1) + 1e-4
+                tgt_neg_embed = torch.div(tgt_neg_embed, tgt_neg_norm)
+
+                tgt_neg_embd = torch.cat([tgt_neg_embed, tgt_embed])
+                src_neg_embd = torch.cat([src_neg_embed, src_embed])
+
+                nominator = torch.sum(src_embed * tgt_embed, dim=-1) + 1e-4
+
+                cross_dot = torch.mm(src_embed, tgt_neg_embd.T)
+                cross_dot_rev = torch.mm(tgt_embed, src_neg_embd.T)
+                cross_dot_all = torch.cat([cross_dot, cross_dot_rev], dim=1)
+                denom = torch.log(torch.sum(torch.exp(cross_dot_all), dim=-1) + 1e-4)
+                log_neg = torch.sum(denom - nominator) / len(cross_dot)
+            else:
+                cross_dot = torch.mm(src_embed, tgt_embed.T)
+                denom = torch.log(torch.sum(torch.exp(cross_dot), dim=-1) + 1e-4)
+                nominator = torch.diagonal(cross_dot[:, :], 0) + 1e-4
+                log_neg = torch.sum(denom - nominator) / len(cross_dot)
+
             return log_neg
         else:
             dot_prod = torch.sum(src_embed * tgt_embed, dim=-1)

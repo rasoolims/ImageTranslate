@@ -9,6 +9,7 @@ import torch
 import torch.utils.data as data_utils
 from IPython.core import ultratb
 
+import dataset
 from lm import LM
 from option_parser import get_img_options_parser
 from sen_sim import SenSim
@@ -23,6 +24,7 @@ class SenSimTrainer(ImageMTTrainer):
     def train_epoch(self, step: int, saving_path: str = None,
                     mt_dev_iter: List[data_utils.DataLoader] = None,
                     mt_train_iter: List[data_utils.DataLoader] = None, max_step: int = 300000,
+                    src_neg_iter: data_utils.DataLoader = None, dst_neg_iter: data_utils.DataLoader = None,
                     **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
@@ -45,11 +47,23 @@ class SenSimTrainer(ImageMTTrainer):
                     tgt_mask = batch["dst_pad_mask"].squeeze(0)
                     src_langs = batch["src_langs"].squeeze(0)
                     dst_langs = batch["dst_langs"].squeeze(0)
+                    src_neg_batch = next(iter(src_neg_iter))
+                    src_neg_inputs = src_neg_batch["src_texts"].squeeze(0)
+                    src_neg_mask = src_neg_batch["src_pad_mask"].squeeze(0)
+                    src_neg_langs = src_neg_batch["langs"].squeeze(0)
+
+                    dst_neg_batch = next(iter(dst_neg_iter))
+                    tgt_neg_inputs = dst_neg_batch["src_texts"].squeeze(0)
+                    tgt_neg_mask = dst_neg_batch["src_pad_mask"].squeeze(0)
+                    dst_neg_langs = dst_neg_batch["langs"].squeeze(0)
+
                     if src_inputs.size(0) < self.num_gpu:
                         continue
                     loss = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
                                       src_mask=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
-                                      tgt_langs=dst_langs, normalize=True)
+                                      tgt_langs=dst_langs, src_neg_inputs=src_neg_inputs, tgt_neg_inputs=tgt_neg_inputs,
+                                      src_neg_mask=src_neg_mask, tgt_neg_mask=tgt_neg_mask, src_neg_langs=src_neg_langs,
+                                      tgt_neg_langs=dst_neg_langs, normalize=True)
                     nSens = src_inputs.size(0)
 
                     backward(loss, self.optimizer, self.fp16)
@@ -164,6 +178,19 @@ class SenSimTrainer(ImageMTTrainer):
         pin_memory = torch.cuda.is_available()
 
         mt_train_loader = SenSimTrainer.get_mt_train_data(mt_model, num_processors, options, pin_memory)
+        src_neg_data = dataset.MassDataset(batch_pickle_dir=options.src_neg,
+                                           max_batch_capacity=num_processors * options.total_capacity * 5,
+                                           max_batch=num_processors * options.batch * 5,
+                                           pad_idx=mt_model.text_processor.pad_token_id(), keep_pad_idx=False,
+                                           max_seq_len=options.max_seq_len, keep_examples=False)
+        dst_neg_data = dataset.MassDataset(batch_pickle_dir=options.dst_neg,
+                                           max_batch_capacity=num_processors * options.total_capacity * 5,
+                                           max_batch=num_processors * options.batch * 5,
+                                           pad_idx=mt_model.text_processor.pad_token_id(), keep_pad_idx=False,
+                                           max_seq_len=options.max_seq_len, keep_examples=False)
+
+        src_neg_loader = data_utils.DataLoader(src_neg_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+        dst_neg_loader = data_utils.DataLoader(dst_neg_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
 
         mt_dev_loader = None
         if options.mt_dev_path is not None:
@@ -174,7 +201,8 @@ class SenSimTrainer(ImageMTTrainer):
         while options.step > 0 and step < options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(mt_train_iter=mt_train_loader, max_step=options.step, mt_dev_iter=mt_dev_loader,
-                                       saving_path=options.model_path, step=step)
+                                       saving_path=options.model_path, step=step, src_neg_iter=src_neg_loader,
+                                       dst_neg_iter=dst_neg_loader)
             train_epoch += 1
 
 

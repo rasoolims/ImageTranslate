@@ -72,4 +72,10 @@ def get_img_options_parser():
     parser.add_option("--tie", action="store_true", dest="tie_embed", help="Tie encoder and decoder embeddings",
                       default=False)
     parser.add_option("--output", dest="output", help="Output file (for simiality)", metavar="FILE", default=None)
+    parser.add_option("--src-neg", dest="src_neg",
+                      help="Negative sample monolingual file in source language (for simiality)", metavar="FILE",
+                      default=None)
+    parser.add_option("--dst-neg", dest="dst_neg",
+                      help="Negative sample monolingual file in target language (for simiality)", metavar="FILE",
+                      default=None)
     return parser

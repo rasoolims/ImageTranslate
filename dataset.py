@@ -172,8 +172,9 @@ class MTDataset(Dataset):
 class MassDataset(Dataset):
     def __init__(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
                  pad_idx: int, max_seq_len: int = 512, keep_examples: bool = False, example_list: List = None,
-                 lex_dict=None):
+                 lex_dict=None, keep_pad_idx=True):
         self.lex_dict = lex_dict
+        self.keep_pad_idx = keep_pad_idx
         if example_list is None:
             self.build_batches(batch_pickle_dir, max_batch_capacity, max_batch, pad_idx, max_seq_len, keep_examples)
         else:
@@ -258,13 +259,14 @@ class MassDataset(Dataset):
 
         self.batches = list(map(lambda b, l: pad_entry(entry(b, l)), batches, langs))
 
-        for b in self.batches:
-            pads = b["src_pad_mask"]
-            pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
-            pindices = torch.nonzero(~pads)
-            for (r, c) in pindices:
-                pad_indices[r] = min(pad_indices[r], int(c))
-            b["pad_idx"] = torch.LongTensor(pad_indices)
+        if self.keep_pad_idx:
+            for b in self.batches:
+                pads = b["src_pad_mask"]
+                pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
+                pindices = torch.nonzero(~pads)
+                for (r, c) in pindices:
+                    pad_indices[r] = min(pad_indices[r], int(c))
+                b["pad_idx"] = torch.LongTensor(pad_indices)
 
         print("Loaded %d MASS batches!" % (len(self.batches)))
         print("Number of languages", len(self.lang_ids))

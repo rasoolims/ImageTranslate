@@ -25,16 +25,21 @@ with open(src_path, "r") as sr, open(dst_path, "r") as dr, open(alignment_path, 
         print(i, end="\r")
 
 cooc_count = Counter(coocs)
+pair_dict = sorted(cooc_count.items(), key=lambda x: x[1], reverse=True)
+covered = set()
 
 print("\nDict processing")
 written = 0
 with open(dict_path, "w") as writer:
-    for i, word_pair in enumerate(cooc_count):
+    for i, (word_pair, count) in enumerate(cooc_count):
         src_word, dst_word = word_pair.split("\t")
         if src_word.lower().strip() == dst_word.lower().strip():
             continue
-        if cooc_count[word_pair] < min_cooc:
+        if src_word in covered:
             continue
+        if count < min_cooc:
+            continue
+        covered.add(src_word)
         writer.write(word_pair + "\n")
         written += 1
         print(written, "/", i, end="\r")

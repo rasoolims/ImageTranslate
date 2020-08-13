@@ -5,7 +5,8 @@ from collections import Counter
 src_path = os.path.abspath(sys.argv[1])
 dst_path = os.path.abspath(sys.argv[2])
 alignment_path = os.path.abspath(sys.argv[3])
-dict_path = os.path.abspath(sys.argv[4])
+min_cooc = int(sys.argv[4])
+dict_path = os.path.abspath(sys.argv[5])
 
 src_word_count = Counter()
 dst_word_count = Counter()
@@ -26,10 +27,14 @@ with open(src_path, "r") as sr, open(dst_path, "r") as dr, open(alignment_path, 
         print(i, end="\r")
 
 print("\nDict processing")
+written = 0
 with open(dict_path, "w") as writer:
     for i, word_pair in enumerate(cooc_count):
         src_word, dst_word = word_pair.split("\t")
+        if cooc_count[word_pair] < min_cooc:
+            continue
         pmi = cooc_count[word_pair] / (src_word_count[src_word] * dst_word_count[dst_word])
         writer.write(word_pair + "\t" + str(pmi) + "\n")
-        print(i, end="\r")
+        written += 1
+        print(written, "/", i, end="\r")
 print("\nDone!")

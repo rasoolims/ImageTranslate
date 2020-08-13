@@ -4,7 +4,7 @@ import sys
 path = lambda i: os.path.abspath(sys.argv[i])
 
 # define punctuation
-punctuations = '''!()-[]{};:'"\,<>./?@#$%^&*_~'''
+punctuations = '''!()-[]{};:'"\,<>./?@#$%^&*_~؛،؟!'''
 
 with open(path(1), "r") as r, open(path(2), "w") as w:
     for line in r:

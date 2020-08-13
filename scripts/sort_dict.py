@@ -8,10 +8,10 @@ with open(os.path.abspath(sys.argv[1]), "r") as r:
     for line in r:
         spl = line.strip().split("\t")
 
-        if len(spl) == 3 and float(spl[2]) >= threshold and spl[1].lower() != spl[2].lower():
+        if len(spl) == 3 and float(spl[2]) >= threshold and spl[0].lower().strip() != spl[1].lower().strip():
             if "." in spl[0] or "." in spl[1]:# or spl[0][0].isupper() or spl[1][0].isupper():
                 continue
-            pair_dict[spl[0] + "\t" + spl[1]] = float(spl[2])
+            pair_dict[spl[0].strip() + "\t" + spl[1].strip()] = float(spl[2])
 
 pair_dict = sorted(pair_dict.items(), key=lambda x: x[1], reverse=True)
 covered = set()

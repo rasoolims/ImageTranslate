@@ -13,9 +13,11 @@ cooc_count = Counter()
 alignment_counter = lambda alignment, src_words, dst_words: Counter(
     map(lambda a: src_words[int(a[0])] + "\t" + dst_words[int(a[1])], alignment))
 
+all_src_words, all_dst_words = [], []
 with open(src_path, "r") as sr, open(dst_path, "r") as dr, open(alignment_path, "r") as ar:
     for i, (src, dst, alignment) in enumerate(zip(sr, dr, ar)):
-
+        src_words = src.strip().split(" ")
+        dst_words = dst.strip().split(" ")
         try:
             alignments = filter(lambda x: len(x) == 2, map(lambda a: a.split("-"), alignment.strip().split(" ")))
             cooc_count += alignment_counter(alignments, src_words, dst_words)

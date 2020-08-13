@@ -17,7 +17,7 @@ with open(src_path, "r") as sr, open(dst_path, "r") as dr, open(alignment_path, 
 
         density = len(alignments) / max(len(src_words), len(dst_words))
         if density >= min_density and len(src_words) >= 5 and len(dst_words) >= 5:
-            w.write(src.strip() + "|||" + dst.strip() + "\n")
+            w.write(src.strip() + " ||| " + dst.strip() + "\n")
             written += 1
 
         print(written, "/", i, end="\r")

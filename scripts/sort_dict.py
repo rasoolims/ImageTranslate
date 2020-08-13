@@ -9,7 +9,7 @@ with open(os.path.abspath(sys.argv[1]), "r") as r:
         spl = line.strip().split("\t")
 
         if len(spl) == 3 and float(spl[2]) >= threshold and spl[1].lower() != spl[2].lower():
-            if "." in spl[0] or "." in spl[1] or spl[0].isupper() or spl[1].isupper():
+            if "." in spl[0] or "." in spl[1] or spl[0][0].isupper() or spl[1][0].isupper():
                 continue
             pair_dict[spl[0] + "\t" + spl[1]] = float(spl[2])
 

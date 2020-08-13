@@ -31,7 +31,7 @@ covered = set()
 print("\nDict processing")
 written = 0
 with open(dict_path, "w") as writer:
-    for i, (word_pair, count) in enumerate(cooc_count):
+    for i, (word_pair, count) in enumerate(pair_dict):
         src_word, dst_word = word_pair.split("\t")
         if src_word.lower().strip() == dst_word.lower().strip():
             continue

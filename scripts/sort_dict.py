@@ -7,7 +7,7 @@ pair_dict = {}
 with open(os.path.abspath(sys.argv[1]), "r") as r:
     for line in r:
         spl = line.strip().split("\t")
-        if len(spl) == 3 and float(spl[2]) >= threshold:
+        if len(spl) == 3 and float(spl[2]) >= threshold and spl[1].lower() != spl[2].lower():
             pair_dict[spl[0] + "\t" + spl[1]] = float(spl[2])
 
 pair_dict = sorted(pair_dict.items(), key=lambda x: x[1], reverse=True)

@@ -522,7 +522,7 @@ class ImageMTTrainer:
         trainer.reference = []
         for dev_path in dev_paths:
             mt_dev_data = dataset.MTDataset(batch_pickle_dir=dev_path,
-                                            max_batch_capacity=options.total_capacity,
+                                            max_batch_capacity=options.total_capacity, keep_pad_idx=True,
                                             max_batch=int(options.batch / (options.beam_width * 2)),
                                             pad_idx=mt_model.text_processor.pad_token_id(), lex_dict=lex_dict)
             dl = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
@@ -549,7 +549,8 @@ class ImageMTTrainer:
             mt_train_data = dataset.MTDataset(batch_pickle_dir=train_path,
                                               max_batch_capacity=int(num_processors * options.total_capacity / 2),
                                               max_batch=int(num_processors * options.batch / 2),
-                                              pad_idx=mt_model.text_processor.pad_token_id(), lex_dict=lex_dict)
+                                              pad_idx=mt_model.text_processor.pad_token_id(), lex_dict=lex_dict,
+                                              keep_pad_idx=False)
             mtl = data_utils.DataLoader(mt_train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
             mt_train_loader.append(mtl)
         return mt_train_loader

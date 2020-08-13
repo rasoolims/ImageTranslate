@@ -21,7 +21,7 @@ with open(src_path, "r") as sr, open(dst_path, "r") as dr, open(alignment_path, 
 
         src_word_count += Counter(src_words)
         dst_word_count += Counter(dst_words)
-        alignments = filter(lambda x: len(x) == 2, map(lambda a: a.split("-"), alignment.strip()))
+        alignments = filter(lambda x: len(x) == 2, map(lambda a: a.split("-"), alignment.strip().split(" ")))
         cooc_count += alignment_counter(alignments, src_words, dst_words)
         print(i, end="\r")
 

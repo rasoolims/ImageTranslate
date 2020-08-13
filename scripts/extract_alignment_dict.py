@@ -12,7 +12,7 @@ dst_word_count = Counter()
 cooc_count = Counter()
 
 with open(src_path, "r") as sr, open(dst_path, "r") as dr, open(alignment_path, "r") as ar:
-    for src, dst, alignment in zip(sr, dr, ar):
+    for i, (src, dst, alignment) in enumerate(zip(sr, dr, ar)):
         src_words = src.strip().split(" ")
         dst_words = dst.strip().split(" ")
 
@@ -26,9 +26,13 @@ with open(src_path, "r") as sr, open(dst_path, "r") as dr, open(alignment_path, 
             si, di = int(spl[0]), int(spl[1])
 
             cooc_count[src_words[si] + "\t" + dst_words[di]] += 1
+        print(i, end="\r")
 
+print("\nDict processing")
 with open(dict_path, "w") as writer:
-    for word_pair in cooc_count:
+    for i, word_pair in enumerate(cooc_count):
         src_word, dst_word = word_pair.split("\t")
         pmi = cooc_count[word_pair] / (src_word_count[src_word] * dst_word_count[dst_word])
         writer.write(word_pair + "\t" + str(pmi) + "\n")
+        print(i, end="\r")
+print("\nDone!")

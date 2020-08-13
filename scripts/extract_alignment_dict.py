@@ -8,8 +8,6 @@ alignment_path = os.path.abspath(sys.argv[3])
 min_cooc = int(sys.argv[4])
 dict_path = os.path.abspath(sys.argv[5])
 
-src_word_count = Counter()
-dst_word_count = Counter()
 cooc_count = Counter()
 
 alignment_counter = lambda alignment, src_words, dst_words: Counter(
@@ -17,11 +15,7 @@ alignment_counter = lambda alignment, src_words, dst_words: Counter(
 
 with open(src_path, "r") as sr, open(dst_path, "r") as dr, open(alignment_path, "r") as ar:
     for i, (src, dst, alignment) in enumerate(zip(sr, dr, ar)):
-        src_words = src.strip().split(" ")
-        dst_words = dst.strip().split(" ")
 
-        src_word_count += Counter(src_words)
-        dst_word_count += Counter(dst_words)
         try:
             alignments = filter(lambda x: len(x) == 2, map(lambda a: a.split("-"), alignment.strip().split(" ")))
             cooc_count += alignment_counter(alignments, src_words, dst_words)
@@ -36,8 +30,7 @@ with open(dict_path, "w") as writer:
         src_word, dst_word = word_pair.split("\t")
         if cooc_count[word_pair] < min_cooc:
             continue
-        pmi = cooc_count[word_pair] / (src_word_count[src_word] * dst_word_count[dst_word])
-        writer.write(word_pair + "\t" + str(pmi) + "\n")
+        writer.write(word_pair + "\n")
         written += 1
         print(written, "/", i, end="\r")
 print("\nDone!")

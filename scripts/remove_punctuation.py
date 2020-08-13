@@ -12,6 +12,8 @@ with open(path(1), "r") as r, open(path(2), "w") as w:
         for char in line.strip():
             if char not in punctuations:
                 no_punct.append(char)
+            else:
+                no_punct.append(" ")
         sen = "".join(no_punct)
         w.write(" ".join(sen.split()))
         w.write("\n")

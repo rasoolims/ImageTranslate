@@ -11,6 +11,10 @@ with open(os.path.abspath(sys.argv[1]), "r") as r:
             pair_dict[spl[0] + "\t" + spl[1]] = float(spl[2])
 
 pair_dict = sorted(pair_dict.items(), key=lambda x: x[1], reverse=True)
+covered = set()
 with open(os.path.abspath(sys.argv[2]), "w") as w:
     for x, y in pair_dict:
-        w.write(x + "\t" + str(y) + "\n")
+        s, t = x.split("\t")
+        if s not in covered:
+            covered.add(s)
+            w.write(x + "\t" + str(y) + "\n")

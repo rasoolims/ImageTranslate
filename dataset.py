@@ -72,7 +72,7 @@ class TextDataset(Dataset):
 class MTDataset(Dataset):
     def __init__(self, max_batch_capacity: int, max_batch: int,
                  pad_idx: int, max_seq_len: int = 175, batch_pickle_dir: str = None,
-                 examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = None, lex_dict=None,keep_pad_idx=False):
+                 examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = None, lex_dict=None, keep_pad_idx=True):
         self.lex_dict = lex_dict
         self.keep_pad_idx = keep_pad_idx
         if examples is None:

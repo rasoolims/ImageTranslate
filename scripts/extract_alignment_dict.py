@@ -31,6 +31,8 @@ written = 0
 with open(dict_path, "w") as writer:
     for i, word_pair in enumerate(cooc_count):
         src_word, dst_word = word_pair.split("\t")
+        if src_word.lower().strip() == dst_word.lower().strip():
+            continue
         if cooc_count[word_pair] < min_cooc:
             continue
         writer.write(word_pair + "\n")

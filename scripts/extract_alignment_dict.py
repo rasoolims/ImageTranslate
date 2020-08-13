@@ -8,9 +8,8 @@ alignment_path = os.path.abspath(sys.argv[3])
 min_cooc = int(sys.argv[4])
 dict_path = os.path.abspath(sys.argv[5])
 
-cooc_count = Counter()
-
-alignment_counter = lambda alignment, src_words, dst_words: Counter(
+coocs = []
+alignment_counter = lambda alignment, src_words, dst_words: list(
     map(lambda a: src_words[int(a[0])] + "\t" + dst_words[int(a[1])], alignment))
 
 all_src_words, all_dst_words = [], []
@@ -20,10 +19,12 @@ with open(src_path, "r") as sr, open(dst_path, "r") as dr, open(alignment_path, 
         dst_words = dst.strip().split(" ")
         try:
             alignments = filter(lambda x: len(x) == 2, map(lambda a: a.split("-"), alignment.strip().split(" ")))
-            cooc_count += alignment_counter(alignments, src_words, dst_words)
+            coocs += alignment_counter(alignments, src_words, dst_words)
         except:
             pass
         print(i, end="\r")
+
+cooc_count = Counter(coocs)
 
 print("\nDict processing")
 written = 0

@@ -11,6 +11,10 @@ src_word_count = Counter()
 dst_word_count = Counter()
 cooc_count = Counter()
 
+alignment_counter = lambda alignment, src_words, dst_words: Counter(
+    map(lambda a: src_words[int(a.split("-")[0])] + "\t" + dst_words[int(a.split("-")[1])],
+        alignment.split(" ")))
+
 with open(src_path, "r") as sr, open(dst_path, "r") as dr, open(alignment_path, "r") as ar:
     for i, (src, dst, alignment) in enumerate(zip(sr, dr, ar)):
         src_words = src.strip().split(" ")
@@ -19,13 +23,7 @@ with open(src_path, "r") as sr, open(dst_path, "r") as dr, open(alignment_path, 
         src_word_count += Counter(src_words)
         dst_word_count += Counter(dst_words)
 
-        for a in alignment.strip().split(" "):
-            spl = a.split("-")
-            if len(spl) != 2: continue
-
-            si, di = int(spl[0]), int(spl[1])
-
-            cooc_count[src_words[si] + "\t" + dst_words[di]] += 1
+        cooc_count += alignment_counter(alignment.strip(), src_words, dst_words)
         print(i, end="\r")
 
 print("\nDict processing")

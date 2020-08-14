@@ -2,6 +2,7 @@ import os
 import sys
 
 threshold = float(sys.argv[3])
+min_len = int(sys.argv[4])
 
 pair_dict = {}
 with open(os.path.abspath(sys.argv[1]), "r") as r:
@@ -10,6 +11,8 @@ with open(os.path.abspath(sys.argv[1]), "r") as r:
 
         if len(spl) == 3 and float(spl[2]) >= threshold and spl[0].lower().strip() != spl[1].lower().strip():
             if "." in spl[0] or "." in spl[1]:  # or spl[0][0].isupper() or spl[1][0].isupper():
+                continue
+            if len(spl[0].split(" ")) < min_len or len(spl[1].split(" ")) < min_len:
                 continue
             pair_dict[spl[0].strip() + "\t" + spl[1].strip()] = float(spl[2])
 

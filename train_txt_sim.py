@@ -10,9 +10,9 @@ import torch.utils.data as data_utils
 from IPython.core import ultratb
 
 import dataset
-from lm import LM
 from option_parser import get_img_options_parser
 from sen_sim import SenSim
+from seq2seq import Seq2Seq
 from textprocessor import TextProcessor
 from train_image_mt import ImageMTTrainer
 from utils import build_optimizer, backward
@@ -164,10 +164,9 @@ class SenSimTrainer(ImageMTTrainer):
         mt_model = SenSim(text_processor=text_processor, enc_layer=options.encoder_layer, embed_dim=options.embed_dim,
                           intermediate_dim=options.intermediate_layer_dim)
 
-        if options.lm_path is not None:
-            lm = LM(text_processor=text_processor, enc_layer=options.encoder_layer,
-                    embed_dim=options.embed_dim, intermediate_dim=options.intermediate_layer_dim)
-            mt_model.init_from_lm(lm)
+        if options.pretrained_path is not None:
+            pret = Seq2Seq.load(Seq2Seq, options.pretrained_path, tok_dir=options.tokenizer_path)
+            mt_model.init_from_lm(pret)
 
         print("Model initialization done!")
 

@@ -385,14 +385,14 @@ class ImageMTTrainer:
         if bleu.score > self.best_bleu:
             self.best_bleu = bleu.score
             print("Saving best BLEU", self.best_bleu)
-            model.save(saving_path)
-            with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                pickle.dump(self.optimizer, fp)
-
             with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
                 writer.write("\n".join(
                     [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
                      zip(src_text, mt_output, self.reference[:len(mt_output)])]))
+
+            model.save(saving_path)
+            with open(os.path.join(saving_path, "optim"), "wb") as fp:
+                pickle.dump(self.optimizer, fp)
 
         return bleu.score
 

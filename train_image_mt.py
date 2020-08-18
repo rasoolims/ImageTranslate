@@ -78,7 +78,8 @@ class ImageMTTrainer:
     def train_epoch(self, img_data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: List[data_utils.DataLoader] = None,
                     mt_train_iter: List[data_utils.DataLoader] = None, max_step: int = 300000,
-                    fine_tune: bool = False, lang_directions: dict = False, lex_dict=None, **kwargs):
+                    fine_tune: bool = False, lang_directions: dict = False, lex_dict=None, save_opt: bool = False,
+                    **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -300,8 +301,9 @@ class ImageMTTrainer:
                                 print("BLEU:", bleu)
 
                             model.save(saving_path + ".latest")
-                            with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                                pickle.dump(self.optimizer, fp)
+                            if save_opt:
+                                with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                                    pickle.dump(self.optimizer, fp)
 
                         start, tokens, cur_loss = time.time(), 0, 0
 
@@ -339,7 +341,7 @@ class ImageMTTrainer:
         shortest = min(len(l) for l in iters)
         return zip(*iters), shortest
 
-    def eval_bleu(self, dev_data_iter, saving_path):
+    def eval_bleu(self, dev_data_iter, saving_path, save_opt: bool = False):
         mt_output = []
         src_text = []
         model = (
@@ -391,8 +393,9 @@ class ImageMTTrainer:
                      zip(src_text, mt_output, self.reference[:len(mt_output)])]))
 
             model.save(saving_path)
-            with open(os.path.join(saving_path, "optim"), "wb") as fp:
-                pickle.dump(self.optimizer, fp)
+            if save_opt:
+                with open(os.path.join(saving_path, "optim"), "wb") as fp:
+                    pickle.dump(self.optimizer, fp)
 
         return bleu.score
 
@@ -471,11 +474,12 @@ class ImageMTTrainer:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(img_data_iter=img_train_loader, mass_data_iter=mass_train_loader,
                                        mt_train_iter=mt_train_loader, max_step=options.step, lex_dict=lex_dict,
-                                       mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step)
+                                       mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
+                                       save_opt=options.save_opt)
             train_epoch += 1
 
         finetune_epoch = 0
-        if options.finetune_step>0:
+        if options.finetune_step > 0:
             mt_model.save(options.model_path + ".beam")
             # Resetting the optimizer for the purpose of finetuning.
             trainer.optimizer.reset()
@@ -498,7 +502,8 @@ class ImageMTTrainer:
             step = trainer.train_epoch(img_data_iter=img_train_loader, mass_data_iter=finetune_loader,
                                        mt_train_iter=mt_train_loader, max_step=options.finetune_step + options.step,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
-                                       fine_tune=True, lang_directions=lang_directions, lex_dict=lex_dict)
+                                       fine_tune=True, lang_directions=lang_directions, lex_dict=lex_dict,
+                                       save_opt=options.save_opt)
             finetune_epoch += 1
 
     @staticmethod

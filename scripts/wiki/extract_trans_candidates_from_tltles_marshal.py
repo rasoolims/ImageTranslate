@@ -77,6 +77,7 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
         print(found, "/", i, end="\r")
 
 with open(sys.argv[4], "wb") as writer:
+    print("\nWriting", len(sen_ids), len(src2dst_dict), len(dst2src_dict))
     marshal.dump((sen_ids, dict(src2dst_dict), dict(dst2src_dict)), writer)
 
-print("\nDone!")
+print("Done!")

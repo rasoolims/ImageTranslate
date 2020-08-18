@@ -115,8 +115,8 @@ if __name__ == "__main__":
                     enc_states = encoder_states.expand(len(tgt_inputs), encoder_states.size(1), encoder_states.size(2))
                     src_mask_spl = src_mask.expand(len(tgt_inputs), src_mask.size(1))
                     dst_langs = dst_langs.unsqueeze(1).expand(tgt_inputs.size())
-                    decoder_output = decoder(enc_states, tgt_inputs[:, :-1], tgt_mask[:, :-1], src_mask_spl,
-                                             subseq_mask,
+                    decoder_output = decoder(encoder_states=enc_states, input_ids=tgt_inputs[:, :-1],
+                                             encoder_attention_mask=src_mask_spl, tgt_attention_mask=subseq_mask,
                                              token_type_ids=dst_langs[:, :-1])
                     predictions = F.log_softmax(output_layer(decoder_output), dim=-1)
 

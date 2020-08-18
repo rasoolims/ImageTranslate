@@ -50,8 +50,7 @@ src2dst_dict = defaultdict(set)
 dst2src_dict = defaultdict(set)
 
 found = 0
-with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath(sys.argv[4]), "w") as src_writer, open(
-        os.path.abspath(sys.argv[5]), "w") as dst_writer, open(os.path.abspath(sys.argv[6]), "w") as first_sen_writer:
+with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
     for i, line in enumerate(dst_reader):
         sentences = line.strip().split("</s>")
         title = sentences[0][sentences[0].find(">") + 1:].strip()
@@ -78,7 +77,7 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
 
         print(found, "/", i, end="\r")
 
-with open(sys.argv[3], "wb") as writer:
+with open(sys.argv[4], "wb") as writer:
     marshal.dump((sen_ids, dict(src2dst_dict), dict(dst2src_dict)), writer)
 
 print("\nDone!")

@@ -475,9 +475,10 @@ class ImageMTTrainer:
             train_epoch += 1
 
         finetune_epoch = 0
-        mt_model.save(options.model_path + ".beam")
-        # Resetting the optimizer for the purpose of finetuning.
-        trainer.optimizer.reset()
+        if options.finetune_step>0:
+            mt_model.save(options.model_path + ".beam")
+            # Resetting the optimizer for the purpose of finetuning.
+            trainer.optimizer.reset()
 
         lang_directions = ImageMTTrainer.get_lang_dirs(options.bt_langs, text_processor)
         print("lang dirs", lang_directions)

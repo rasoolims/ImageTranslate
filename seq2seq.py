@@ -181,6 +181,9 @@ class Seq2Seq(nn.Module):
         except:
             torch.cuda.empty_cache()
             torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
+        finally:
+            torch.cuda.empty_cache()
+
 
     @staticmethod
     def load(cls, out_dir: str, tok_dir: str):

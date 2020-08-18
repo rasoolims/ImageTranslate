@@ -65,12 +65,11 @@ class SenSim(nn.Module):
             tgt_mask = tgt_mask.to(device)
         tgt_embed = self.encode(tgt_inputs, tgt_mask, tgt_langs)
 
+        src_norm = torch.norm(src_embed, dim=-1, p=2).unsqueeze(-1) + 1e-4
+        src_embed = torch.div(src_embed, src_norm)
+        tgt_norm = torch.norm(tgt_embed, dim=-1, p=2).unsqueeze(-1) + 1e-4
+        tgt_embed = torch.div(tgt_embed, tgt_norm)
         if normalize:
-            src_norm = torch.norm(src_embed, dim=-1, p=2).unsqueeze(-1) + 1e-4
-            src_embed = torch.div(src_embed, src_norm)
-            tgt_norm = torch.norm(tgt_embed, dim=-1, p=2).unsqueeze(-1) + 1e-4
-            tgt_embed = torch.div(tgt_embed, tgt_norm)
-
             if src_neg_langs is not None:
                 src_neg_langs = src_neg_langs.unsqueeze(-1).expand(-1, src_neg_inputs.size(-1))
                 src_neg_inputs = src_neg_inputs.to(device)

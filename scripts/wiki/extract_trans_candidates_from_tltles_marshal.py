@@ -90,8 +90,8 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
                                 tgt_sen = remove_punc(tgt_sen)
                                 sen_ids[tgt_sen] = len(sen_ids)
 
-                            src2dst_dict[sen_ids[src_sen]].add(tgt_sen)
-                            dst2src_dict[tgt_sen].add(sen_ids[src_sen])
+                            src2dst_dict[sen_ids[src_sen]].add(sen_ids[tgt_sen])
+                            dst2src_dict[sen_ids[tgt_sen]].add(sen_ids[src_sen])
 
                 found += 1
         if i % 1000 == 0:

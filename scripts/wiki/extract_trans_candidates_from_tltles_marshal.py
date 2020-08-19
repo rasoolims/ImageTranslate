@@ -107,8 +107,10 @@ print("Deleting", len(to_del))
 for sen in to_del:
     del dst2src_dict[sen]
 
+uniq_sens = None
+
 with open(sys.argv[4], "wb") as writer:
     print("\nWriting", len(sen_ids), len(src2dst_dict), len(dst2src_dict))
-    marshal.dump((sen_ids, dict(src2dst_dict), dict(dst2src_dict)), writer)
+    marshal.dump((list(sen_ids.keys()), dict(src2dst_dict), dict(dst2src_dict)), writer)
 
 print("Done!")

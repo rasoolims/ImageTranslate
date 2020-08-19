@@ -29,9 +29,9 @@ def get_option_parser():
 tok_sen = lambda s: text_processor.tokenize_one_sentence(s)[:512]
 
 
-def create_batches(sen_ids, sentences, src2dst_dict, dst2src_dict, text_processor: TextProcessor, resume_index=0,
+def create_batches(sentences, src2dst_dict, dst2src_dict, text_processor: TextProcessor, resume_index=0,
                    end_index=-1):
-    print(len(sen_ids), len(src2dst_dict), len(dst2src_dict))
+    print(len(src2dst_dict), len(dst2src_dict))
 
     print("Getting batches...")
     index = 0
@@ -74,12 +74,11 @@ if __name__ == "__main__":
     with torch.no_grad(), open(options.output, "w") as writer:
         print("Loading data...")
         with open(options.data, "rb") as fp:
-            sen_ids, src2dst_dict, dst2src_dict = marshal.load(fp)
-        sentences = list(sen_ids.keys())
+            sentences, src2dst_dict, dst2src_dict = marshal.load(fp)
 
         print("Scoring candidates")
         for i, batch in enumerate(
-                create_batches(sen_ids, sentences, src2dst_dict, dst2src_dict, text_processor, options.resume_index,
+                create_batches(sentences, src2dst_dict, dst2src_dict, text_processor, options.resume_index,
                                options.end_index)):
             try:
                 sid, src_input, tids_all, tgt_inputs_all, src_lang, dst_langs_all = batch

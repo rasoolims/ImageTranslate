@@ -85,12 +85,19 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
             src_title = title_dict[title]
             if src_title in src_docs:
                 src_sentences = src_docs[src_title]
-                for tgt_sen in sens:
+
+                for tgt_sen in sentences[1:]:
+                    tgt_ln = len(tgt_sen.split(" "))
+                    if not (8 <= tgt_ln <= 50):
+                        continue
                     for (src_sen, ln) in src_sentences:
-                        if len_condition(ln, sen_lens[tgt_sen]):
-                            if sen not in sen_ids:
-                                src_sen = remove_punc(sen)
+                        if len_condition(ln, tgt_ln):
+                            if src_sen not in sen_ids:
+                                src_sen = remove_punc(src_sen)
                                 sen_ids[src_sen] = len(sen_ids)
+                            if tgt_sen not in sen_ids:
+                                tgt_sen = remove_punc(tgt_sen)
+                                sen_ids[tgt_sen] = len(sen_ids)
 
                             src2dst_dict[sen_ids[src_sen]].add(tgt_sen)
                             dst2src_dict[tgt_sen].add(sen_ids[src_sen])

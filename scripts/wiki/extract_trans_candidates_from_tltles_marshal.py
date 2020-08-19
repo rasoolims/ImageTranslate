@@ -28,6 +28,7 @@ print("Reading source docs")
 sen_ids = dict()
 sen_lens = dict()
 
+
 src_docs = {}
 with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
     for i, line in enumerate(src_reader):
@@ -37,11 +38,13 @@ with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
         if len(sentences) < 4:
             continue
         for sen in sentences[1:]:
-            if sen not in sen_ids:
-                sen = sen.replace("()", "").replace("  ", " ").strip()
-                sen_lens[len(sen_ids)] = len(sen.split(" "))
-                sen_ids[sen] = len(sen_ids)
-            sens.append(sen_ids[sen])
+            if 8 <= ln <= 80:
+                if sen not in sen_ids:
+                    sen = sen.replace("()", "").replace("  ", " ").strip()
+                    ln = len(sen.split(" "))
+                    sen_lens[len(sen_ids)] = ln
+                    sen_ids[sen] = len(sen_ids)
+                sens.append(sen_ids[sen])
 
         src_docs[title] = sens
         if i % 1000 == 0: print(i, end="\r")
@@ -59,11 +62,13 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
         if len(sentences) < 4:
             continue
         for sen in sentences[1:]:
-            if sen not in sen_ids:
-                sen = sen.replace("()", "").replace("  ", " ").strip()
-                sen_lens[len(sen_ids)] = len(sen.split(" "))
-                sen_ids[sen] = len(sen_ids)
-            sens.append(sen_ids[sen])
+            ln = len(sen.split(" "))
+            if 8 <= ln <= 80:
+                if sen not in sen_ids:
+                    sen = sen.replace("()", "").replace("  ", " ").strip()
+                    sen_lens[len(sen_ids)] = len(sen.split(" "))
+                    sen_ids[sen] = len(sen_ids)
+                sens.append(sen_ids[sen])
 
         if title in title_dict:
             src_title = title_dict[title]

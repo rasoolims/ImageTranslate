@@ -89,19 +89,11 @@ for sen in src2dst_dict.keys():
 print("\nDeleting", len(to_del))
 for sen in to_del:
     del src2dst_dict[sen]
-    try:
-        del sen_ids[uniq_sens[sen]]
-    except:
-        pass
 
 to_del = set()
 for sen in dst2src_dict.keys():
     if len(dst2src_dict[sen]) == 1:
         to_del.add(sen)
-        try:
-            del sen_ids[uniq_sens[sen]]
-        except:
-            pass
 
 print("Deleting", len(to_del))
 for sen in to_del:
@@ -109,8 +101,11 @@ for sen in to_del:
 
 uniq_sens = None
 
-with open(sys.argv[4], "wb") as writer:
+with open(sys.argv[4] + ".sens", "wb") as writer1, open(sys.argv[4] + ".src", "wb") as writer2, open(
+        sys.argv[4] + ".dst", "wb") as writer3:
     print("\nWriting", len(sen_ids), len(src2dst_dict), len(dst2src_dict))
-    marshal.dump((list(sen_ids.keys()), dict(src2dst_dict), dict(dst2src_dict)), writer)
+    marshal.dump(list(sen_ids.keys()), writer1)
+    marshal.dump(dict(src2dst_dict), writer2)
+    marshal.dump(dict(dst2src_dict), writer3)
 
 print("Done!")

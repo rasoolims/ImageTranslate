@@ -8,10 +8,12 @@ forward_dict = dict()
 print("forward")
 with open(input_path, "r") as reader:
     for i, line in enumerate(reader):
-        forward = line.strip().split("\t")
-        forward_dict[forward[0]] = (forward[1], float(forward[2]))
-        if (i + 1) % 1000 == 0:
-            print(i + 1, end="\r")
+        try:
+            forward = line.strip().split("\t")
+            forward_dict[forward[0]] = (forward[1], float(forward[2]))
+            if (i + 1) % 1000 == 0:
+                print(i + 1, end="\r")
+        except: pass
 print("\nbackward")
 found = 0
 with open(output_path, "w") as w:

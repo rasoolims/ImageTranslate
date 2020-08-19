@@ -44,7 +44,7 @@ with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
             sens.append(sen_ids[sen])
 
         src_docs[title] = sens
-        print(i, end="\r")
+        if i % 1000 == 0: print(i, end="\r")
 
 print("\nReading target docs")
 src2dst_dict = defaultdict(set)

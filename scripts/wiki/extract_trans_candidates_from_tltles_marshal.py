@@ -5,7 +5,7 @@ import sys
 from collections import defaultdict
 
 has_number = lambda i: bool(re.search(r'\d', i))
-len_condition = lambda l1, l2: True if .8 <= l1 / l2 <= 1.2 or abs(l1 - l2) <= 5 and l1 >= 5 and l2 >= 5 else False
+len_condition = lambda l1, l2: True if abs(l1 - l2) <= 5 and l1 >= 5 and l2 >= 5 else False
 
 print("Reading titles")
 title_dict = {}

@@ -2,7 +2,7 @@ import os
 import sys
 
 input_path = os.path.abspath(sys.argv[1])
-output_path = os.path.abspath(sys.argv[3])
+output_path = os.path.abspath(sys.argv[2])
 forward_dict = dict()
 
 print("forward")

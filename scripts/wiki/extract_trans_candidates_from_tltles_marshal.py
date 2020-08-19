@@ -34,6 +34,8 @@ with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
         sentences = line.strip().split("</s>")
         title = sentences[0][sentences[0].find(">") + 1:].strip()
         sens = []
+        if len(sentences) < 4:
+            continue
         for sen in sentences[1:]:
             if sen not in sen_ids:
                 sen = sen.replace("()", "").replace("  ", " ").strip()
@@ -54,6 +56,8 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
         sentences = line.strip().split("</s>")
         title = sentences[0][sentences[0].find(">") + 1:].strip()
         sens = []
+        if len(sentences) < 4:
+            continue
         for sen in sentences[1:]:
             if sen not in sen_ids:
                 sen = sen.replace("()", "").replace("  ", " ").strip()
@@ -65,8 +69,6 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
             src_title = title_dict[title]
             if src_title in src_docs:
                 src_sentences = src_docs[src_title]
-                if len(sens) < 3 or len(src_sentences) < 3:
-                    continue
                 for tgt_sen in sens:
                     for src_sen in src_sentences:
                         if len_condition(sen_lens[src_sen], sen_lens[tgt_sen]):
@@ -76,22 +78,6 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
                 found += 1
 
         print(found, "/", i, end="\r")
-
-to_del = set()
-for sen in src2dst_dict.keys():
-    if len(src2dst_dict[sen]) == 1:
-        to_del.add(sen)
-print("Deleting", len(to_del))
-for sen in to_del:
-    del src2dst_dict[sen]
-
-to_del = set()
-for sen in dst2src_dict.keys():
-    if len(dst2src_dict[sen]) == 1:
-        to_del.add(sen)
-print("Deleting", len(to_del))
-for sen in to_del:
-    del dst2src_dict[sen]
 
 with open(sys.argv[4], "wb") as writer:
     print("\nWriting", len(sen_ids), len(src2dst_dict), len(dst2src_dict))

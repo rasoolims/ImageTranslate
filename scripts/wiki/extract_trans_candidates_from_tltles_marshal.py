@@ -9,7 +9,7 @@ punctuations = '''!()-[]{};:'"\,<>./?@#$%^&*_~؛،؟!'''
 
 def remove_punc(sentence):
     no_punct = []
-    for char in sentence
+    for char in sentence:
         if char not in punctuations:
             no_punct.append(char)
         else:
@@ -20,7 +20,7 @@ def remove_punc(sentence):
 
 
 has_number = lambda i: bool(re.search(r'\d', i))
-len_condition = lambda l1, l2: True if abs(l1 - l2) <= 5 and 80 >= l1 >= 8 and 80 >= l2 >= 8 else False
+len_condition = lambda l1, l2: True if abs(l1 - l2) <= 5 and 50 >= l1 >= 8 and 50 >= l2 >= 8 else False
 
 print("Reading titles")
 title_dict = {}
@@ -54,7 +54,7 @@ with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
         for sen in sentences[1:]:
             sen = remove_punc(sen)
             ln = len(sen.split(" "))
-            if 8 <= ln <= 80:
+            if 8 <= ln <= 50:
                 if sen not in sen_ids:
                     sen = sen.replace("()", "").replace("  ", " ").strip()
                     sen_lens[len(sen_ids)] = ln
@@ -79,7 +79,7 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
         for sen in sentences[1:]:
             sen = remove_punc(sen)
             ln = len(sen.split(" "))
-            if 8 <= ln <= 80:
+            if 8 <= ln <= 50:
                 if sen not in sen_ids:
                     sen = sen.replace("()", "").replace("  ", " ").strip()
                     sen_lens[len(sen_ids)] = len(sen.split(" "))

@@ -86,11 +86,17 @@ for sen in src2dst_dict.keys():
 print("\nDeleting", len(to_del))
 for sen in to_del:
     del src2dst_dict[sen]
+    del sen_ids[sen]
 
 to_del = set()
 for sen in dst2src_dict.keys():
     if len(dst2src_dict[sen]) <= 2:
         to_del.add(sen)
+        try:
+            del sen_ids[sen]
+        except:
+            pass
+
 print("Deleting", len(to_del))
 for sen in to_del:
     del dst2src_dict[sen]

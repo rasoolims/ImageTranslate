@@ -65,7 +65,8 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
             src_title = title_dict[title]
             if src_title in src_docs:
                 src_sentences = src_docs[src_title]
-
+                if len(sens) < 3 or len(src_sentences) < 3:
+                    continue
                 for tgt_sen in sens:
                     for src_sen in src_sentences:
                         if len_condition(sen_lens[src_sen], sen_lens[tgt_sen]):

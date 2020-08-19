@@ -26,7 +26,6 @@ print("Number of titles", len(title_dict))
 print("Reading source docs")
 
 sen_ids = dict()
-uniq_sens = []
 sen_lens = dict()
 
 src_docs = {}
@@ -42,7 +41,6 @@ with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
                 sen = sen.replace("()", "").replace("  ", " ").strip()
                 sen_lens[len(sen_ids)] = len(sen.split(" "))
                 sen_ids[sen] = len(sen_ids)
-                uniq_sens.append(sen)
             sens.append(sen_ids[sen])
 
         src_docs[title] = sens
@@ -64,7 +62,6 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
             if sen not in sen_ids:
                 sen = sen.replace("()", "").replace("  ", " ").strip()
                 sen_lens[len(sen_ids)] = len(sen.split(" "))
-                uniq_sens.append(sen)
                 sen_ids[sen] = len(sen_ids)
             sens.append(sen_ids[sen])
 

@@ -56,7 +56,6 @@ with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
             ln = len(sen.split(" "))
             if 8 <= ln <= 50:
                 if sen not in sen_ids:
-                    sen = sen.replace("()", "").replace("  ", " ").strip()
                     sen_lens[len(sen_ids)] = ln
                     sen_ids[sen] = len(sen_ids)
                 sens.append(sen_ids[sen])
@@ -81,7 +80,6 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
             ln = len(sen.split(" "))
             if 8 <= ln <= 50:
                 if sen not in sen_ids:
-                    sen = sen.replace("()", "").replace("  ", " ").strip()
                     sen_lens[len(sen_ids)] = len(sen.split(" "))
                     sen_ids[sen] = len(sen_ids)
                 sens.append(sen_ids[sen])

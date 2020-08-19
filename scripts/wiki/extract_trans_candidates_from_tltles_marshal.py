@@ -79,10 +79,10 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
                     for (src_sen, ln) in src_sentences:
                         if len_condition(ln, tgt_ln):
                             if src_sen not in sen_ids:
-                                src_sen = remove_punc(src_sen)
+                                # src_sen = remove_punc(src_sen)
                                 sen_ids[src_sen] = len(sen_ids)
                             if tgt_sen not in sen_ids:
-                                tgt_sen = remove_punc(tgt_sen)
+                                # tgt_sen = remove_punc(tgt_sen)
                                 sen_ids[tgt_sen] = len(sen_ids)
 
                             src2dst_dict[sen_ids[src_sen]].add(sen_ids[tgt_sen])

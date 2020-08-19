@@ -28,7 +28,6 @@ print("Reading source docs")
 sen_ids = dict()
 sen_lens = dict()
 
-
 src_docs = {}
 with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
     for i, line in enumerate(src_reader):
@@ -38,10 +37,10 @@ with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
         if len(sentences) < 4:
             continue
         for sen in sentences[1:]:
+            ln = len(sen.split(" "))
             if 8 <= ln <= 80:
                 if sen not in sen_ids:
                     sen = sen.replace("()", "").replace("  ", " ").strip()
-                    ln = len(sen.split(" "))
                     sen_lens[len(sen_ids)] = ln
                     sen_ids[sen] = len(sen_ids)
                 sens.append(sen_ids[sen])

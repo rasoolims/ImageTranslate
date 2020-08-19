@@ -8,15 +8,10 @@ punctuations = '''!()-[]{};:'"\,<>./?@#$%^&*_~؛،؟!'''
 
 
 def remove_punc(sentence):
-    no_punct = []
-    for char in sentence:
-        if char not in punctuations:
-            no_punct.append(char)
-        else:
-            no_punct.append(" ")
-    sen = "".join(no_punct)
-    sen = " ".join(sen.split())
-    return sen
+    for char in punctuations:
+        sentence = sentence.replace(char, " ")
+    sentence = " ".join(sentence.split())
+    return sentence
 
 
 has_number = lambda i: bool(re.search(r'\d', i))

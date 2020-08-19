@@ -72,19 +72,19 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
     for i, line in enumerate(dst_reader):
         sentences = line.strip().split("</s>")
         title = sentences[0][sentences[0].find(">") + 1:].strip()
-        sens = []
-        if len(sentences) < 4:
-            continue
-        for sen in sentences[1:]:
-            sen = remove_punc(sen)
-            ln = len(sen.split(" "))
-            if 8 <= ln <= 50:
-                if sen not in sen_ids:
-                    sen_lens[len(sen_ids)] = len(sen.split(" "))
-                    sen_ids[sen] = len(sen_ids)
-                sens.append(sen_ids[sen])
-
         if title in title_dict:
+            sens = []
+            if len(sentences) < 4:
+                continue
+            for sen in sentences[1:]:
+                sen = remove_punc(sen)
+                ln = len(sen.split(" "))
+                if 8 <= ln <= 50:
+                    if sen not in sen_ids:
+                        sen_lens[len(sen_ids)] = len(sen.split(" "))
+                        sen_ids[sen] = len(sen_ids)
+                    sens.append(sen_ids[sen])
+
             src_title = title_dict[title]
             if src_title in src_docs:
                 src_sentences = src_docs[src_title]

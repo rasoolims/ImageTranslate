@@ -54,6 +54,7 @@ with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
         for sen in sentences[1:]:
             ln = len(sen.split(" "))
             if 8 <= ln <= 50:
+                sen = remove_punc(sen)
                 if sen not in sen_ids:
                     sen_lens[len(sen_ids)] = ln
                     sen_ids[sen] = len(sen_ids)
@@ -78,8 +79,10 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
             for sen in sentences[1:]:
                 ln = len(sen.split(" "))
                 if 8 <= ln <= 50:
+                    sen = remove_punc(sen)
                     if sen not in sen_ids:
                         sen_lens[len(sen_ids)] = len(sen.split(" "))
+                        sen = remove_punc(sen)
                         sen_ids[sen] = len(sen_ids)
                     sens.append(sen_ids[sen])
 
@@ -88,8 +91,6 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
                 src_sentences = src_docs[src_title]
                 for tgt_sen in sens:
                     for src_sen in src_sentences:
-                        src_sen = remove_punc(src_sen)
-                        tgt_sen = remove_punc(tgt_sen)
                         if len_condition(sen_lens[src_sen], sen_lens[tgt_sen]):
                             src2dst_dict[src_sen].add(tgt_sen)
                             dst2src_dict[tgt_sen].add(src_sen)

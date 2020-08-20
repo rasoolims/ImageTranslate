@@ -14,6 +14,7 @@ with open(input_file, "r") as reader:
             sentences.append(line.strip())
         print(i, end="\r")
 
+print(len(sentences))
 random.shuffle(sentences)
 
 with open(output_file, "w") as writer:

@@ -73,7 +73,7 @@ def build_data_loader(options, text_processor):
             src_tok_line = text_processor.tokenize_one_sentence(src_line.strip().replace(" </s> ", " "))
             examples.append((src_tok_line, fixed_output, src_lang_id, target_lang))
     print(datetime.datetime.now(), "Loaded %f examples", (len(examples)))
-    test_data = dataset.MTDataset(examples=examples,
+    test_data = dataset.MTDataset(examples=examples, keep_pad_idx=False,
                                   max_batch_capacity=options.total_capacity, max_batch=options.batch,
                                   pad_idx=text_processor.pad_token_id(), max_seq_len=10000)
     pin_memory = torch.cuda.is_available()

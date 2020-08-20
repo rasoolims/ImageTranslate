@@ -7,7 +7,8 @@ len_condition = lambda words1, words2: True if abs(len(words1) - len(words2)) <=
 
 src_file = os.path.abspath(sys.argv[1])
 dst_file = os.path.abspath(sys.argv[2])
-output_file = os.path.abspath(sys.argv[3])
+punc_letters = sys.argv[3]
+output_file = os.path.abspath(sys.argv[4])
 wrote = 0
 with open(src_file, "r") as r1, open(dst_file, "r") as r2, open(output_file, "w") as w:
     for i, (s, t) in enumerate(zip(r1, r2)):
@@ -24,7 +25,11 @@ with open(src_file, "r") as r1, open(dst_file, "r") as r2, open(output_file, "w"
 
         if num_consistent and len_condition(sw, tw):
             if s.endswith(".") and not t.endswith("."):
-                t += "."
+                t += punc_letters[0]
+            elif s.endswith("!") and not t.endswith("!"):
+                t += punc_letters[1]
+            elif s.endswith("?") and not t.endswith("?"):
+                t += punc_letters[2]
             w.write(s + " ||| " + t + "\n")
             wrote += 1
 

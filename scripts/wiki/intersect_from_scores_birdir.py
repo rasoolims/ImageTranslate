@@ -10,10 +10,12 @@ with open(input_path, "r") as reader:
     for i, line in enumerate(reader):
         try:
             forward = line.strip().split("\t")
-            forward_dict[forward[0]] = (forward[1], float(forward[2]))
+            if 8 <= len(forward[0].split(" ")) <= 50 and 8 <= len(forward[1].split(" ")) <= 50:
+                forward_dict[forward[0]] = (forward[1], float(forward[2]))
             if (i + 1) % 1000 == 0:
                 print(i + 1, end="\r")
-        except: pass
+        except:
+            pass
 print("\nbackward")
 found = 0
 with open(output_path, "w") as w:

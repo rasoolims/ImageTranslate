@@ -23,6 +23,8 @@ with open(src_file, "r") as r1, open(dst_file, "r") as r2, open(output_file, "w"
         num_consistent = (ns and nt) or not (ns or nt)
 
         if num_consistent and len_condition(sw, tw):
+            if s.endswith(".") and not t.endswith("."):
+                t += "."
             w.write(s + " ||| " + t + "\n")
             wrote += 1
 

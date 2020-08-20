@@ -67,7 +67,7 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
 
             src_title = title_dict[title]
             if src_title in src_docs:
-                src_sentences = list(map(lambda s: remove_punc(s), src_docs[src_title]))
+                src_sentences = list(map(lambda s: (remove_punc(s[0]), s[1]), src_docs[src_title]))
                 tgt_sentences = list(map(lambda s: remove_punc(s), sentences[1:]))
 
                 for tgt_sen in tgt_sentences:

@@ -72,7 +72,7 @@ if __name__ == "__main__":
     max_capacity = options.total_capacity * 1000000
     with torch.no_grad(), open(options.output, "w") as writer:
         print("Loading data...")
-        with open(options.data, "rb") as fp, open(options.sens, "rb") as fp2:
+        with open(options.sens, "rb") as fp, open(options.data, "rb") as fp2:
             sentences = marshal.load(fp)
             src2dst_dict = marshal.load(fp2)
 

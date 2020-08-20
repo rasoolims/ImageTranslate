@@ -109,12 +109,12 @@ print("Deleting", len(to_del))
 for sen in to_del:
     del dst2src_dict[sen]
 
-uniq_sens = None
+sen_list = list(sen_ids.keys())
 
 with open(sys.argv[4] + ".sens", "wb") as writer1, open(sys.argv[4] + ".src", "wb") as writer2, open(
         sys.argv[4] + ".dst", "wb") as writer3:
     print("\nWriting", len(sen_ids), len(src2dst_dict), len(dst2src_dict))
-    marshal.dump(list(sen_ids.keys()), writer1)
+    marshal.dump((sen_list), writer1)
     marshal.dump(dict(src2dst_dict), writer2)
     marshal.dump(dict(dst2src_dict), writer3)
 

@@ -23,6 +23,13 @@ with open(src_file, "r") as r1, open(dst_file, "r") as r2, open(output_file, "w"
 
         num_consistent = (ns and nt) or not (ns or nt)
 
+        if ns and nt:
+            sns = re.findall(r'\d+', s)
+            tns = re.findall(r'\d+', t)
+            if sns != tns:
+                num_consistent = False
+
+
         if num_consistent and len_condition(sw, tw):
             if s.endswith(".") and not t.endswith("."):
                 t += punc_letters[0]

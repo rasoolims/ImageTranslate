@@ -102,14 +102,14 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
                 found += 1
         if i % 1000 == 0:
             print(found, "/", i, end="\r")
-
-to_del = set()
-for sen in src2dst_dict.keys():
-    if len(src2dst_dict[sen]) == 1:
-        to_del.add(sen)
-print("\nDeleting", len(to_del))
-for sen in to_del:
-    del src2dst_dict[sen]
+#
+# to_del = set()
+# for sen in src2dst_dict.keys():
+#     if len(src2dst_dict[sen]) == 1:
+#         to_del.add(sen)
+# print("\nDeleting", len(to_del))
+# for sen in to_del:
+#     del src2dst_dict[sen]
 
 to_del = set()
 for sen in dst2src_dict.keys():

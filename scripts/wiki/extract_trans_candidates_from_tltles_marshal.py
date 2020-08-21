@@ -6,8 +6,8 @@ from collections import defaultdict
 
 punctuations = '''!()-[]{};:'"\,./?@#$%^&*_~؛،؟!'''
 
-min_len = 5
-max_len = 100
+min_len = int(sys.argv[4])
+max_len = int(sys.argv[5])
 
 
 def remove_punc(sentence):
@@ -122,8 +122,8 @@ for sen in to_del:
 
 sen_list = list(sen_ids.keys())
 
-with open(sys.argv[4] + ".sens", "wb") as writer1, open(sys.argv[4] + ".src", "wb") as writer2, open(
-        sys.argv[4] + ".dst", "wb") as writer3:
+with open(sys.argv[6] + ".sens", "wb") as writer1, open(sys.argv[6] + ".src", "wb") as writer2, open(
+        sys.argv[6] + ".dst", "wb") as writer3:
     print("\nWriting", len(sen_ids), len(src2dst_dict), len(dst2src_dict))
     marshal.dump((sen_list), writer1)
     marshal.dump(dict(src2dst_dict), writer2)

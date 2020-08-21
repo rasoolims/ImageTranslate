@@ -4,7 +4,7 @@ import re
 import sys
 from collections import defaultdict
 
-punctuations = '''!()-[]{};:'"\,<>./?@#$%^&*_~؛،؟!'''
+punctuations = '''!()-[]{};:'"\,./?@#$%^&*_~؛،؟!'''
 
 
 def remove_punc(sentence):
@@ -35,10 +35,13 @@ print("Reading source docs")
 sen_ids = dict()
 sen_lens = dict()
 
+eos = "</s>"
+
 src_docs = {}
 with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
     for i, line in enumerate(src_reader):
-        sentences = line.strip().split("</s>")
+        sentences = line.strip().split(eos)
+        lang = sentences[0][:sentences[0].find(">") + 1].strip()
         title = sentences[0][sentences[0].find(">") + 1:].strip()
         sens = []
         if len(sentences) < 4:
@@ -46,7 +49,7 @@ with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
         for sen in sentences[1:]:
             ln = len(sen.split(" "))
             if 8 <= ln <= 50:
-                sens.append((sen, ln))
+                sens.append((lang + " " + sen + " " + eos, ln))
 
         src_docs[title] = sens
         if i % 1000 == 0: print(i, end="\r")
@@ -58,8 +61,9 @@ dst2src_dict = defaultdict(set)
 found = 0
 with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
     for i, line in enumerate(dst_reader):
-        sentences = line.strip().split("</s>")
+        sentences = line.strip().split(eos)
         title = sentences[0][sentences[0].find(">") + 1:].strip()
+        lang = sentences[0][:sentences[0].find(">") + 1].strip()
         if title in title_dict:
             sens = []
             if len(sentences) < 4:
@@ -68,10 +72,10 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
             src_title = title_dict[title]
             if src_title in src_docs:
                 src_sentences = list(map(lambda s: (remove_punc(s[0]), s[1]), src_docs[src_title]))
-                tgt_sentences = list(map(lambda s: remove_punc(s), sentences[1:]))
+                tgt_sentences = list(map(lambda s: lang + " " + remove_punc(s) + " " + eos, sentences[1:]))
 
                 for tgt_sen in tgt_sentences:
-                    tgt_ln = len(tgt_sen.split(" "))
+                    tgt_ln = len(tgt_sen.split(" ")) - 2
                     if not (8 <= tgt_ln <= 50):
                         continue
                     for (src_sen, ln) in src_sentences:

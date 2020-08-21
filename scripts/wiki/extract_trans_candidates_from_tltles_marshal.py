@@ -15,8 +15,8 @@ def remove_punc(sentence):
 
 
 has_number = lambda i: bool(re.search(r'\d', i))
-len_condition = lambda l1, l2: True if abs(
-    l1 - l2) <= 5 and max_len >= l1 >= min_len and max_len >= l2 >= min_len else False
+len_condition = lambda l1, l2: True if (abs(
+    l1 - l2) <= 5 or 0.8 <= l1 / l2 <= 1.2) and max_len >= l1 >= min_len and max_len >= l2 >= min_len else False
 
 print("Reading titles")
 title_dict = {}

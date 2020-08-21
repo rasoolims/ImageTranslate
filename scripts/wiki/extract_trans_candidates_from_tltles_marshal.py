@@ -6,13 +6,17 @@ from collections import defaultdict
 
 punctuations = '''!()-[]{};:'"\,./?@#$%^&*_~؛،؟!'''
 
+min_len = 5
+max_len = 100
+
 
 def remove_punc(sentence):
     return " ".join("".join(map(lambda char: char if char not in punctuations else " ", sentence)).split())
 
 
 has_number = lambda i: bool(re.search(r'\d', i))
-len_condition = lambda l1, l2: True if abs(l1 - l2) <= 5 and 50 >= l1 >= 8 and 50 >= l2 >= 8 else False
+len_condition = lambda l1, l2: True if abs(
+    l1 - l2) <= 5 and max_len >= l1 >= min_len and max_len >= l2 >= min_len else False
 
 print("Reading titles")
 title_dict = {}
@@ -48,8 +52,8 @@ with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
             continue
         for sen in sentences[1:]:
             ln = len(sen.split(" "))
-            if 8 <= ln <= 50:
-                sens.append((lang + " " + sen + " " + eos, ln))
+            if min_len <= ln <= max_len:
+                sens.append((lang, sen, ln))
 
         src_docs[title] = sens
         if i % 1000 == 0: print(i, end="\r")
@@ -71,12 +75,13 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
 
             src_title = title_dict[title]
             if src_title in src_docs:
-                src_sentences = list(map(lambda s: (remove_punc(s[0]), s[1]), src_docs[src_title]))
+                src_sentences = list(
+                    map(lambda s: (s[0] + " " + remove_punc(s[1]) + " " + eos, s[2]), src_docs[src_title]))
                 tgt_sentences = list(map(lambda s: lang + " " + remove_punc(s) + " " + eos, sentences[1:]))
 
                 for tgt_sen in tgt_sentences:
                     tgt_ln = len(tgt_sen.split(" ")) - 2
-                    if not (8 <= tgt_ln <= 50):
+                    if not (min_len <= tgt_ln <= max_len):
                         continue
                     for (src_sen, ln) in src_sentences:
                         if len_condition(ln, tgt_ln):

@@ -76,8 +76,8 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
             src_title = title_dict[title]
             if src_title in src_docs:
                 src_sentences = list(
-                    map(lambda s: (s[0] + " " + remove_punc(s[1]) + " " + eos, s[2]), src_docs[src_title]))
-                tgt_sentences = list(map(lambda s: lang + " " + remove_punc(s) + " " + eos, sentences[1:]))
+                    map(lambda s: (" ".join([s[0], remove_punc(s[1]), eos]), s[2]), src_docs[src_title]))
+                tgt_sentences = list(map(lambda s: " ".join([lang, remove_punc(s), eos]), sentences[1:]))
 
                 for tgt_sen in tgt_sentences:
                     tgt_ln = len(tgt_sen.split(" ")) - 2

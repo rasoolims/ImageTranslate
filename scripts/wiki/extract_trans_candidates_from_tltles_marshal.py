@@ -110,15 +110,15 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader:
 # print("\nDeleting", len(to_del))
 # for sen in to_del:
 #     del src2dst_dict[sen]
-
-to_del = set()
-for sen in dst2src_dict.keys():
-    if len(dst2src_dict[sen]) == 1:
-        to_del.add(sen)
-
-print("Deleting", len(to_del))
-for sen in to_del:
-    del dst2src_dict[sen]
+#
+# to_del = set()
+# for sen in dst2src_dict.keys():
+#     if len(dst2src_dict[sen]) == 1:
+#         to_del.add(sen)
+#
+# print("Deleting", len(to_del))
+# for sen in to_del:
+#     del dst2src_dict[sen]
 
 sen_list = list(sen_ids.keys())
 

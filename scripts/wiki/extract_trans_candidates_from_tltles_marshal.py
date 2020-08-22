@@ -11,7 +11,11 @@ max_len = int(sys.argv[5])
 
 
 def remove_punc(sentence):
-    return " ".join("".join(map(lambda char: char if char not in punctuations else " ", sentence)).split())
+    sentence = sentence.replace("()", "").replace("( )", "").replace("[]", "").replace("[ ]", "")
+    sentence = " ".join(sentence.split())
+    return sentence
+    # We don't use this for the mean while
+    # return " ".join("".join(map(lambda char: char if char not in punctuations else " ", sentence)).split())
 
 
 has_number = lambda i: bool(re.search(r'\d', i))

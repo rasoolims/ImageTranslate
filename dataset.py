@@ -250,22 +250,18 @@ class MassDataset(Dataset):
                 batches.append((cur_src_batch, cur_lex_cand_batch if self.lex_dict is not None else None))
                 langs.append(cur_langs)
 
+        pad_idx_find = lambda non_zeros, sz: (sz - 1) if int(non_zeros.size(0)) == 0 else non_zeros[0]
+        pad_indices = lambda pads: torch.LongTensor(
+            list(map(lambda p: pad_idx_find(torch.nonzero(p), int(pads.size(1))), pads)))
         padder = lambda b: pad_sequence(b, batch_first=True, padding_value=pad_idx)
         tensorfier = lambda b: list(map(torch.LongTensor, b))
         entry = lambda b, l: {"src_texts": padder(tensorfier(b[0])),
                               "proposal": padder(tensorfier(b[1])) if b[1] is not None else torch.LongTensor([pad_idx]),
                               "langs": torch.LongTensor(l)}
-        pad_entry = lambda e: {"src_texts": e["src_texts"], "langs": e["langs"], "proposal": e["proposal"]}
+        pad_entry = lambda e: {"src_texts": e["src_texts"], "langs": e["langs"], "proposal": e["proposal"],
+                               "pad_idx": pad_indices(e["src_texts"] == pad_idx)}
 
         self.batches = list(map(lambda b, l: pad_entry(entry(b, l)), batches, langs))
-
-        if self.keep_pad_idx:
-            pad_idx_find = lambda non_zeros, sz: (sz - 1) if int(non_zeros.size(0)) == 0 else non_zeros[0]
-            for b in self.batches:
-                pads = b["src_texts"] == pad_idx
-                sz = int(pads.size(1))
-                pad_indices = torch.LongTensor(list(map(lambda p: pad_idx_find(torch.nonzero(p), sz), pads)))
-                b["pad_idx"] = pad_indices
 
         print("Loaded %d MASS batches!" % (len(self.batches)))
         print("Number of languages", len(self.lang_ids))

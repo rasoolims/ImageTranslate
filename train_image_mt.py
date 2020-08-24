@@ -450,7 +450,9 @@ class ImageMTTrainer:
             if options.step > 0:
                 mass_train_data, mass_train_loader = ImageMTTrainer.get_mass_loader(mass_train_paths, mt_model,
                                                                                     num_processors, options,
-                                                                                    pin_memory, lex_dict=lex_dict)
+                                                                                    pin_memory,
+                                                                                    keep_examples=options.finetune_step > 0,
+                                                                                    lex_dict=lex_dict)
 
             if options.finetune_step > 0:
                 finetune_loader, finetune_data = ImageMTTrainer.get_mass_finetune_data(mass_train_data,
@@ -580,14 +582,14 @@ class ImageMTTrainer:
         return finetune_loader, finetune_data
 
     @staticmethod
-    def get_mass_loader(mass_train_paths, mt_model, num_processors, options, pin_memory, lex_dict=None):
+    def get_mass_loader(mass_train_paths, mt_model, num_processors, options, pin_memory, keep_examples, lex_dict=None):
         mass_train_data, mass_train_loader = [], []
         for i, mass_train_path in enumerate(mass_train_paths):
             td = dataset.MassDataset(batch_pickle_dir=mass_train_path,
                                      max_batch_capacity=num_processors * options.total_capacity,
                                      max_batch=num_processors * options.batch,
                                      pad_idx=mt_model.text_processor.pad_token_id(),
-                                     max_seq_len=options.max_seq_len, keep_examples=True, lex_dict=lex_dict)
+                                     max_seq_len=options.max_seq_len, keep_examples=keep_examples, lex_dict=lex_dict)
             mass_train_data.append(td)
 
             dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)

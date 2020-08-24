@@ -21,6 +21,7 @@ with open(input_path, "r") as reader:
             pass
 print("\nbackward")
 found = 0
+added = set()
 with open(output_path, "w") as w:
     for src in forward_dict.keys():
         dst, p1 = forward_dict[src]
@@ -36,8 +37,11 @@ with open(output_path, "w") as w:
                 continue
 
             if l1 > l2:
-                w.write(dst + " ||| " + src + "\t" + str(p1) + "\t" + str(p2) + "\t" + str(psum) + "\n")
-            else:
+                if dst not in added:
+                    w.write(dst + " ||| " + src + "\t" + str(p1) + "\t" + str(p2) + "\t" + str(psum) + "\n")
+                    added.add(dst)
+            elif src not in added:
+                added.add(src)
                 w.write(src + " ||| " + dst + "\t" + str(p1) + "\t" + str(p2) + "\t" + str(psum) + "\n")
             found += 1
         if (i + 1) % 1000 == 0:

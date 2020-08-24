@@ -152,14 +152,15 @@ class MTDataset(Dataset):
                      "dst_pad_mask": dst_pad_mask, "src_langs": torch.LongTensor(cur_src_langs),
                      "dst_langs": torch.LongTensor(cur_dst_langs), "proposal": lex_cand_batch}
             self.batches.append(entry)
+
         if self.keep_pad_idx:
+            pad_idx_find = lambda non_zeros, sz: (sz - 1) if int(non_zeros.size(0)) == 0 else non_zeros[0]
             for b in self.batches:
-                pads = b["src_pad_mask"]
-                pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
-                pindices = torch.nonzero(~pads)
-                for (r, c) in pindices:
-                    pad_indices[r] = min(pad_indices[r], int(c))
-                b["pad_idx"] = torch.LongTensor(pad_indices)
+                pads = b["src_texts"] == pad_idx
+                sz = int(pads.size(1))
+                pad_indices = torch.LongTensor(list(map(lambda p: pad_idx_find(torch.nonzero(p), sz), pads)))
+                b["pad_idx"] = pad_indices
+
         print("\nLoaded %d bitext sentences to %d batches!" % (len(examples), len(self.batches)))
 
     def __len__(self):
@@ -259,13 +260,12 @@ class MassDataset(Dataset):
         self.batches = list(map(lambda b, l: pad_entry(entry(b, l)), batches, langs))
 
         if self.keep_pad_idx:
+            pad_idx_find = lambda non_zeros, sz: (sz - 1) if int(non_zeros.size(0)) == 0 else non_zeros[0]
             for b in self.batches:
-                pads = b["src_texts"] != pad_idx
-                pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
-                pindices = torch.nonzero(~pads)
-                for (r, c) in pindices:
-                    pad_indices[r] = min(pad_indices[r], int(c))
-                b["pad_idx"] = torch.LongTensor(pad_indices)
+                pads = b["src_texts"] == pad_idx
+                sz = int(pads.size(1))
+                pad_indices = torch.LongTensor(list(map(lambda p: pad_idx_find(torch.nonzero(p), sz), pads)))
+                b["pad_idx"] = pad_indices
 
         print("Loaded %d MASS batches!" % (len(self.batches)))
         print("Number of languages", len(self.lang_ids))

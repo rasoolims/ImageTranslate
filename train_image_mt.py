@@ -101,7 +101,7 @@ class ImageMTTrainer:
                             model.text_processor.id2token(lang_directions[int(r)])]
                         if is_mass_batch:
                             src_inputs = batch["src_texts"].squeeze(0)
-                            src_pad_mask = batch["src_pad_mask"].squeeze(0)
+                            src_pad_mask = batch["src_texts"] != model.text_processor.pad_token_id()
                             pad_indices = batch["pad_idx"].squeeze(0)
                             proposal = batch["proposal"].squeeze(0) if lex_dict is not None else None
                             target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])
@@ -247,7 +247,6 @@ class ImageMTTrainer:
                         ntokens = targets.size(0)
                     else:  # MASS data
                         src_inputs = batch["src_texts"].squeeze(0)
-                        src_pad_mask = batch["src_pad_mask"].squeeze(0)
                         pad_indices = batch["pad_idx"].squeeze(0)
                         proposals = batch["proposal"].squeeze(0) if lex_dict is not None else None
                         if src_inputs.size(0) < self.num_gpu:
@@ -256,7 +255,7 @@ class ImageMTTrainer:
                         masked_info = mass_mask(self.mask_prob, pad_indices, src_inputs, model.text_processor)
                         predictions = self.model(src_inputs=masked_info["src_text"],
                                                  tgt_inputs=masked_info["to_recover"],
-                                                 tgt_positions=masked_info["positions"], src_pads=src_pad_mask,
+                                                 tgt_positions=masked_info["positions"],
                                                  pad_idx=model.text_processor.pad_token_id(),
                                                  src_langs=batch["langs"].squeeze(0), proposals=proposals,
                                                  log_softmax=True)

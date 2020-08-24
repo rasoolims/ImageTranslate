@@ -118,7 +118,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             proposals = proposals[0]
 
         if batch is None:
-            return super().forward(src_inputs=src_inputs, src_pads=src_pads, tgt_inputs=tgt_inputs, src_langs=src_langs,
+            return super().forward(src_inputs=src_inputs, tgt_inputs=tgt_inputs, src_langs=src_langs,
                                    tgt_langs=tgt_langs, pad_idx=pad_idx, tgt_positions=tgt_positions,
                                    proposals=proposals,
                                    log_softmax=log_softmax)

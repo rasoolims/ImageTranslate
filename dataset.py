@@ -254,14 +254,13 @@ class MassDataset(Dataset):
         entry = lambda b, l: {"src_texts": padder(tensorfier(b[0])),
                               "proposal": padder(tensorfier(b[1])) if b[1] is not None else torch.LongTensor([pad_idx]),
                               "langs": torch.LongTensor(l)}
-        pad_entry = lambda e: {"src_pad_mask": e["src_texts"] != pad_idx, "src_texts": e["src_texts"],
-                               "langs": e["langs"], "proposal": e["proposal"]}
+        pad_entry = lambda e: {"src_texts": e["src_texts"], "langs": e["langs"], "proposal": e["proposal"]}
 
         self.batches = list(map(lambda b, l: pad_entry(entry(b, l)), batches, langs))
 
         if self.keep_pad_idx:
             for b in self.batches:
-                pads = b["src_pad_mask"]
+                pads = b["src_texts"] != pad_idx
                 pad_indices = [int(pads.size(1)) - 1] * int(pads.size(0))
                 pindices = torch.nonzero(~pads)
                 for (r, c) in pindices:

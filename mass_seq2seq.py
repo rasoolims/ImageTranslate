@@ -4,7 +4,7 @@ from seq2seq import Seq2Seq, future_mask
 
 
 class MassSeq2Seq(Seq2Seq):
-    def forward(self, src_inputs, src_pads, tgt_inputs, src_langs, tgt_langs=None, pad_idx: int = 0,
+    def forward(self, src_inputs, tgt_inputs, src_langs, tgt_langs=None, pad_idx: int = 0,
                 tgt_positions=None, log_softmax: bool = False, proposals=None):
         """
         :param mask_pad_mask: # Since MASS also generates MASK tokens, we do not backpropagate them during training.
@@ -17,11 +17,11 @@ class MassSeq2Seq(Seq2Seq):
             src_langs = src_langs[0]
         if isinstance(src_inputs, list):
             src_inputs = src_inputs[0]
-            src_pads = src_pads[0]
         if isinstance(tgt_positions, list):
             tgt_positions = tgt_positions[0]
 
         tgt_inputs = tgt_inputs.to(device)
+        src_pads = src_inputs != pad_idx
         tgt_mask = tgt_inputs != pad_idx
 
         if tgt_langs is not None:

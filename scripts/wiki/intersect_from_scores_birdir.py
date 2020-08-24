@@ -12,8 +12,9 @@ with open(input_path, "r") as reader:
     for i, line in enumerate(reader):
         try:
             forward = line.strip().split("\t")
-            if 8 <= len(forward[0].split(" ")) <= 50 and 8 <= len(forward[1].split(" ")) <= 50:
-                forward_dict[forward[0]] = (forward[1], float(forward[2]))
+            p = float(forward[2])
+            if 8 <= len(forward[0].split(" ")) <= 50 and 8 <= len(forward[1].split(" ")) <= 50 and p >= lowest:
+                forward_dict[forward[0]] = (forward[1], p)
             if (i + 1) % 1000 == 0:
                 print(i + 1, end="\r")
         except:
@@ -23,13 +24,9 @@ found = 0
 with open(output_path, "w") as w:
     for src in forward_dict.keys():
         dst, p1 = forward_dict[src]
-        if p1 < lowest:
-            continue
 
         if dst in forward_dict and forward_dict[dst][0] == src:
             _, p2 = forward_dict[dst]
-            if p2 < lowest:
-                continue
 
             l1 = src.split(" ")[0]
             l2 = dst.split(" ")[0]

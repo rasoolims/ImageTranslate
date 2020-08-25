@@ -7,7 +7,7 @@ len_condition = lambda words1, words2: True if abs(len(words1) - len(words2)) <=
 
 src_file = os.path.abspath(sys.argv[1])
 dst_file = os.path.abspath(sys.argv[2])
-punc_letters = ".!?" if sys.argv[3]!="ar" else ".!؟"
+punc_letters = ".!?" if sys.argv[3] != "ar" else ".!؟"
 output_file = os.path.abspath(sys.argv[4])
 wrote = 0
 with open(src_file, "r") as r1, open(dst_file, "r") as r2, open(output_file, "w") as w:
@@ -28,7 +28,6 @@ with open(src_file, "r") as r1, open(dst_file, "r") as r2, open(output_file, "w"
             tns = re.findall(r'\d+', t)
             if sns != tns:
                 num_consistent = False
-
 
         if num_consistent and len_condition(sw, tw):
             if s.endswith(".") and not t.endswith("."):

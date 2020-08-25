@@ -19,5 +19,5 @@ print("\n", len(sentences))
 random.shuffle(sentences)
 
 with open(output_file, "w") as writer:
-    writer.write("\n".join(sentences[:line_count+1]))
+    writer.write("\n".join(sentences[:line_count + 1]))
 print("\nDone!")

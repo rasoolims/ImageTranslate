@@ -149,7 +149,8 @@ class BeamDecoder(nn.Module):
             else:
                 cur_src_mask = None
 
-            decoder = self.seq2seq_model.decoder
+            decoder = self.seq2seq_model.decoder if not self.seq2seq_model.lang_dec else self.seq2seq_model.decoder[
+                batch_lang]
             output_layer = self.seq2seq_model.output_layer if not self.seq2seq_model.lang_dec else \
                 self.seq2seq_model.output_layer[batch_lang]
 

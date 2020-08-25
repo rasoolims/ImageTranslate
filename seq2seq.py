@@ -43,8 +43,8 @@ class Seq2Seq(nn.Module):
         self.encoder.init_weights()
         self.lang_dec = lang_dec
         self.tie_embed = tie_embed
-        self.decoder = BertDecoderModel(dec_config)
         if not lang_dec:
+            self.decoder = BertDecoderModel(dec_config)
             self.output_layer = BertOutputLayer(dec_config)
             if tie_embed:
                 self.encoder._tie_or_clone_weights(self.output_layer, self.encoder.embeddings.word_embeddings)
@@ -54,7 +54,16 @@ class Seq2Seq(nn.Module):
             self.encoder._tie_or_clone_weights(self.encoder.embeddings.token_type_embeddings,
                                                self.decoder.embeddings.token_type_embeddings)
         else:
+            dec = BertDecoderModel(dec_config)
+            self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
             self.output_layer = nn.ModuleList([BertOutputLayer(dec_config) for _ in text_processor.languages])
+            for i, dec in enumerate(self.decoder):
+                if tie_embed:
+                    self.encoder._tie_or_clone_weights(self.output_layer[i], self.encoder.embeddings.word_embeddings)
+                    dec.embeddings.position_embeddings = self.encoder.embeddings.position_embeddings
+                dec._tie_or_clone_weights(self.output_layer[i], dec.embeddings.word_embeddings)
+                dec._tie_or_clone_weights(self.encoder.embeddings.token_type_embeddings,
+                                          dec.embeddings.token_type_embeddings)
 
         self.use_proposals = use_proposals
         if self.use_proposals:
@@ -144,7 +153,7 @@ class Seq2Seq(nn.Module):
         if subseq_mask.device != tgt_inputs.device:
             subseq_mask = subseq_mask.to(device)
 
-        decoder = self.decoder
+        decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
         output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
 
         decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
@@ -174,7 +183,6 @@ class Seq2Seq(nn.Module):
             torch.save(self.state_dict(), os.path.join(out_dir, "mt_model.state_dict"))
         finally:
             torch.cuda.empty_cache()
-
 
     @staticmethod
     def load(cls, out_dir: str, tok_dir: str):

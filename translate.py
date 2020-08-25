@@ -67,16 +67,18 @@ def build_data_loader(options, text_processor):
     fixed_output = [text_processor.token_id(dst_lang)]
     examples = []
     with open(options.input_path, "r") as s_fp:
-        for src_line in s_fp:
+        for i, src_line in enumerate(s_fp):
             if len(src_line.strip()) == 0: continue
             src_line = " ".join([src_lang, src_line, "</s>"])
             src_tok_line = text_processor.tokenize_one_sentence(src_line.strip().replace(" </s> ", " "))
             examples.append((src_tok_line, fixed_output, src_lang_id, target_lang))
-    print(datetime.datetime.now(), "Loaded %f examples", (len(examples)))
+            if i % 10000 == 0:
+                print(i, end="\r")
+    print("\n", datetime.datetime.now(), "Loaded %f examples", (len(examples)))
     test_data = dataset.MTDataset(examples=examples, max_batch_capacity=options.total_capacity, max_batch=options.batch,
                                   pad_idx=text_processor.pad_token_id(), max_seq_len=10000)
     pin_memory = torch.cuda.is_available()
-    examples = None # Make sure it gets collected
+    examples = None  # Make sure it gets collected
     return data_utils.DataLoader(test_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
 

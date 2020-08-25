@@ -2,7 +2,7 @@ import os
 import sys
 
 min_len = int(sys.argv[2])
-max_len = int(sys.argv[2])
+max_len = int(sys.argv[3])
 
 wrote = 0
 with open(os.path.abspath(sys.argv[1]), "r") as r, open(os.path.abspath(sys.argv[4]), "w") as w:
@@ -13,7 +13,7 @@ with open(os.path.abspath(sys.argv[1]), "r") as r, open(os.path.abspath(sys.argv
             wrote += 1
             w.write(s + "\n")
 
-        if i % 1000 == 0:
+        if i % 10000 == 0:
             print(wrote, "/", i, end="\r")
 
 print("\nDone", wrote)

@@ -87,7 +87,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
                                     bleu = self.eval_bleu(img_dev_data_iter, saving_path)
                                     print("BLEU:", bleu)
 
-                                model.save(saving_path + ".latest")
+                                model.cpu().save(saving_path + ".latest")
                                 with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                                     pickle.dump(self.optimizer, fp)
 
@@ -107,7 +107,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
                 print("BLEU:", bleu)
 
             print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-            model.save(saving_path + ".latest")
+            model.cpu().save(saving_path + ".latest")
         except RuntimeError as err:
             print(repr(err))
 
@@ -152,7 +152,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
         if bleu.score > self.best_bleu:
             self.best_bleu = bleu.score
             print("Saving best BLEU", self.best_bleu)
-            model.save(saving_path)
+            model.cpu().save(saving_path)
             with open(os.path.join(saving_path, "optim"), "wb") as fp:
                 pickle.dump(self.optimizer, fp)
 

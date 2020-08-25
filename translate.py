@@ -102,14 +102,17 @@ if __name__ == "__main__":
     with open(options.output_path, "w") as writer:
         with torch.no_grad():
             for batch in test_loader:
-                mt_output, src_text = translate_batch(batch, generator, text_processor, options.verbose)
-                sen_count += len(mt_output)
-                print(datetime.datetime.now(), "Translated", sen_count, "sentences", end="\r")
-                if not options.verbose:
-                    writer.write("\n".join(mt_output))
-                else:
-                    writer.write("\n".join([y + "\n" + x + "\n****" for x, y in zip(mt_output, src_text)]))
-                writer.write("\n")
+                try:
+                    mt_output, src_text = translate_batch(batch, generator, text_processor, options.verbose)
+                    sen_count += len(mt_output)
+                    print(datetime.datetime.now(), "Translated", sen_count, "sentences", end="\r")
+                    if not options.verbose:
+                        writer.write("\n".join(mt_output))
+                    else:
+                        writer.write("\n".join([y + "\n" + x + "\n****" for x, y in zip(mt_output, src_text)]))
+                    writer.write("\n")
+                except RuntimeError as err:
+                    print("\n", repr(err))
 
     print(datetime.datetime.now(), "Translated", sen_count, "sentences")
     print(datetime.datetime.now(), "Done!")

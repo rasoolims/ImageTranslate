@@ -299,7 +299,7 @@ class ImageMTTrainer:
                                 bleu = self.eval_bleu(mt_dev_iter, saving_path)
                                 print("BLEU:", bleu)
 
-                            model.save(saving_path + ".latest")
+                            model.cpu().save(saving_path + ".latest")
                             if save_opt:
                                 with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                                     pickle.dump(self.optimizer, fp)
@@ -321,7 +321,7 @@ class ImageMTTrainer:
 
         try:
             print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-            model.save(saving_path + ".latest")
+            model.cpu().save(saving_path + ".latest")
 
             if mt_dev_iter is not None:
                 bleu = self.eval_bleu(mt_dev_iter, saving_path)
@@ -391,7 +391,7 @@ class ImageMTTrainer:
                     [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
                      zip(src_text, mt_output, self.reference[:len(mt_output)])]))
 
-            model.save(saving_path)
+            model.cpu().save(saving_path)
             if save_opt:
                 with open(os.path.join(saving_path, "optim"), "wb") as fp:
                     pickle.dump(self.optimizer, fp)
@@ -481,7 +481,7 @@ class ImageMTTrainer:
 
         finetune_epoch = 0
         if options.finetune_step > 0:
-            mt_model.save(options.model_path + ".beam")
+            mt_model.cpu().save(options.model_path + ".beam")
             # Resetting the optimizer for the purpose of finetuning.
             trainer.optimizer.reset()
 

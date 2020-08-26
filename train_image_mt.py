@@ -294,11 +294,12 @@ class ImageMTTrainer:
                               "Epoch Step: %d Loss: %f Tokens per Sec: %f " % (
                                   step, cur_loss / tokens, tokens / elapsed))
 
-                        if step % 500 == 0:
-                            if mt_dev_iter is not None and step % 5000 == 0:
-                                bleu = self.eval_bleu(mt_dev_iter, saving_path)
-                                print("BLEU:", bleu)
 
+                        if mt_dev_iter is not None and step % 5000 == 0:
+                            bleu = self.eval_bleu(mt_dev_iter, saving_path)
+                            print("BLEU:", bleu)
+
+                        if step % 10000 == 0:
                             model.cpu().save(saving_path + ".latest")
                             if save_opt:
                                 with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:

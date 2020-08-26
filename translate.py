@@ -112,7 +112,7 @@ if __name__ == "__main__":
                     if not options.verbose:
                         writer.write("\n".join(mt_output))
                     else:
-                        writer.write("\n".join([y + "\n" + x + "\n****" for x, y in zip(mt_output, src_text)]))
+                        writer.write("\n".join([y + " ||| " + x + "\n" for x, y in zip(mt_output, src_text)]))
                     writer.write("\n")
                 except RuntimeError as err:
                     print("\n", repr(err))

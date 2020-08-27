@@ -101,7 +101,7 @@ class ImageMTTrainer:
                             model.text_processor.id2token(lang_directions[int(r)])]
                         if is_mass_batch:
                             src_inputs = batch["src_texts"].squeeze(0)
-                            src_pad_mask = batch["src_texts"] != model.text_processor.pad_token_id()
+                            src_pad_mask = src_inputs != model.text_processor.pad_token_id()
                             pad_indices = batch["pad_idx"].squeeze(0)
                             proposal = batch["proposal"].squeeze(0) if lex_dict is not None else None
                             target_langs = torch.LongTensor([lang_directions[int(l)] for l in src_inputs[:, 0]])

@@ -8,11 +8,10 @@ types = set()
 with open(path, "r") as reader:
     for line in reader:
         line = line.strip()
-        docs += 1
-        sens += len(line.split("</s>"))
+        sens += 1
         words = line.split(" ")
-        toks += len(words) - 2
+        toks += len(words) - 2 if words[0].startswith("<") else len(words)
         types |= set(words)
-        print(docs, end="\r")
+        print(sens, end="\r")
 
-print(docs, "docs,", sens, "sens,", len(types), "types,", toks, "tokens")
+print(sens, "sens,", len(types), "types,", toks, "tokens")

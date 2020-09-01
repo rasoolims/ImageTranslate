@@ -39,8 +39,7 @@ print("\nReading target docs")
 found = 0
 j = 0
 k = 1
-with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath(sys.argv[4]), "w") as src_writer, open(
-        os.path.abspath(sys.argv[5]), "w") as dst_writer, open(os.path.abspath(sys.argv[6]), "w") as first_sen_writer:
+with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath(sys.argv[4]), "w") as first_sen_writer:
     for i, line in enumerate(dst_reader):
         sentences = line.strip().split("</s>")
         title = sentences[0][sentences[0].find(">") + 1:].strip()

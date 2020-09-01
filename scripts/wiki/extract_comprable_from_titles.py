@@ -64,6 +64,8 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
                                 continue  # Common phrase in Wiki
                             n1 = has_number(sentences[k])
                             if (n1 and n2) or (not n1 and not n2):
+                                if src_sentences[j].lower() == sentences[k].lower():
+                                    continue
                                 if j == 0 and k == 1:
                                     first_sen_writer.write(src_sentences[j] + "\t" + sentences[k] + "\n")
                                 src_writer.write(src_sentences[j] + "\n")

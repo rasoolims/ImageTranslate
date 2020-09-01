@@ -48,6 +48,8 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
             src_title = title_dict[title]
             if src_title in src_docs:
                 src_sentences = src_docs[src_title]
+                sentences[k] = sentences[k].replace("()", "").replace("  ", " ").strip()
+                src_sentences[j] = src_sentences[j].replace("()", "").replace("  ", " ").strip()
                 if sentences[k].lower().startswith("early life"):
                     continue  # Common phrase in Wiki
                 if "list of" in sentences[k].lower():
@@ -55,7 +57,7 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
                 n1 = has_number(sentences[k])
                 n2 = has_number(src_sentences[j])
                 sen_words2 = sentences[k].strip().split(" ")
-                sen_words1 = sentences[j].strip().split(" ")
+                sen_words1 = src_sentences[j].strip().split(" ")
                 if not len_condition(sen_words1, sen_words2):
                     continue
                 if (n1 and n2) or (not n1 and not n2):

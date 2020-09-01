@@ -5,8 +5,8 @@ import sys
 guj_digits = {"૦", "૧", "૨", "૩", "૪", "૫", "૬", "૭", "૮", "૯", "०", "१", "२", "३", "४", "५", "६", "७", "८", "९"}
 
 has_number = lambda i: bool(re.search(r'\d', i)) or any(map(lambda x: x in guj_digits, i))
-len_condition = lambda words1, words2: True if .7 <= len(words1) / len(words2) <= 1.3 or abs(
-    len(words1) - len(words2)) <= 5 and len(words1) >= 5 and len(words2) >= 5 else False
+len_condition = lambda words1, words2: True if (.7 <= len(words1) / len(words2) <= 1.3 or abs(
+    len(words1) - len(words2)) <= 5) and len(words1) >= 5 and len(words2) >= 5 else False
 
 print("Reading titles")
 title_dict = {}

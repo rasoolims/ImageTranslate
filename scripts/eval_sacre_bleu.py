@@ -13,7 +13,7 @@ def get_lm_option_parser():
 (options, args) = get_lm_option_parser().parse_args()
 
 output = open(options.output, "r").read().strip().split("\n")
-gold = [open(options.gold, "r").read().strip().split("\n")]
+gold = [[open(g, "r").read().strip().split("\n")] for g in options.gold.strip().split(",")]
 
 print("Cased Detokenized BLEU")
 bleu = sacrebleu.corpus_bleu(output, gold)

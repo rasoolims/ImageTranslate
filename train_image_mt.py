@@ -77,7 +77,7 @@ class ImageMTTrainer:
 
     def train_epoch(self, img_data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: List[data_utils.DataLoader] = None,
-                    mt_train_iter: List[data_utils.DataLoader] = None, max_step: int = 300000,
+                    mt_train_iter: List[data_utils.DataLoader] = None, max_step: int = 300000, accum=1,
                     fine_tune: bool = False, lang_directions: dict = False, lex_dict=None, save_opt: bool = False,
                     **kwargs):
         "Standard Training and Logging Function"
@@ -89,9 +89,9 @@ class ImageMTTrainer:
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
+        self.optimizer.zero_grad()
         for i, batches in enumerate(batch_zip):
             for batch in batches:
-                self.optimizer.zero_grad()
                 is_img_batch = isinstance(batch, list) and "captions" in batch[0]
                 is_mass_batch = not is_img_batch and "dst_texts" not in batch
                 is_contrastive = False
@@ -278,10 +278,11 @@ class ImageMTTrainer:
                     total_loss += loss
                     cur_loss += loss
 
-                    # We accumulate the gradients for both tasks!
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
-                    self.optimizer.step()
                     step += 1
+                    if step % accum == 0:
+                        self.optimizer.step()
+                        self.optimizer.zero_grad()
 
                     if is_mass_batch and not fine_tune:
                         mass_unmask(masked_info["src_text"], masked_info["src_mask"], masked_info["mask_idx"])
@@ -293,7 +294,6 @@ class ImageMTTrainer:
                         print(datetime.datetime.now(),
                               "Epoch Step: %d Loss: %f Tokens per Sec: %f " % (
                                   step, cur_loss / tokens, tokens / elapsed))
-
 
                         if mt_dev_iter is not None and step % 5000 == 0:
                             bleu = self.eval_bleu(mt_dev_iter, saving_path)
@@ -480,7 +480,7 @@ class ImageMTTrainer:
             step = trainer.train_epoch(img_data_iter=img_train_loader, mass_data_iter=mass_train_loader,
                                        mt_train_iter=mt_train_loader, max_step=options.step, lex_dict=lex_dict,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
-                                       save_opt=options.save_opt)
+                                       save_opt=options.save_opt, accum=options.accum)
             train_epoch += 1
 
         finetune_epoch = 0
@@ -509,7 +509,7 @@ class ImageMTTrainer:
                                        mt_train_iter=mt_train_loader, max_step=options.finetune_step + options.step,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
                                        fine_tune=True, lang_directions=lang_directions, lex_dict=lex_dict,
-                                       save_opt=options.save_opt)
+                                       save_opt=options.save_opt, accum=options.accum)
             finetune_epoch += 1
 
     @staticmethod

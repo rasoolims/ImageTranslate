@@ -79,4 +79,5 @@ def get_img_options_parser():
                       help="Negative sample monolingual file in target language (for simiality)", metavar="FILE",
                       default=None)
     parser.add_option("--save-opt", action="store_true", dest="save_opt", default=False)
+    parser.add_option("--acc", dest="accum", help="Gradient accumulation", type="int", default=1)
     return parser

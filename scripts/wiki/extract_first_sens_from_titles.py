@@ -47,7 +47,11 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
             src_title = title_dict[title]
             if src_title in src_docs:
                 src_sens = src_docs[src_title]
+
+                found_first = False
                 for i in range(1, min(4, len(sentences))):
+                    if found_first:
+                        break
                     for j in range(min(3, len(src_sens))):
                         first_sentence = sentences[i]
                         src_first_sentence = src_sens[j]
@@ -68,6 +72,7 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
                             if src_first_sentence.lower() != first_sentence.lower():
                                 first_sen_writer.write(src_first_sentence + " ||| " + first_sentence + "\n")
                                 found += 1
+                                found_first = True
                                 break
 
         print(found, "/", i, end="\r")

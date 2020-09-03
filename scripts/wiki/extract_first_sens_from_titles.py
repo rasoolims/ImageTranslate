@@ -47,8 +47,8 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
             src_title = title_dict[title]
             if src_title in src_docs:
                 src_sens = src_docs[src_title]
-                for i in range(1, min(6, len(sentences))):
-                    for j in range(min(5, len(src_sens))):
+                for i in range(1, min(4, len(sentences))):
+                    for j in range(min(3, len(src_sens))):
                         first_sentence = sentences[i]
                         src_first_sentence = src_sens[j]
 

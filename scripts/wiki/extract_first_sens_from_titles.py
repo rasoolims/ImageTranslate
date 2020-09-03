@@ -48,38 +48,31 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
             if src_title in src_docs:
                 src_sens = src_docs[src_title]
 
-                found_first = False
-                for i in range(1, min(4, len(sentences))):
-                    if found_first:
-                        break
-                    for j in range(min(3, len(src_sens))):
-                        first_sentence = sentences[i]
-                        src_first_sentence = src_sens[j]
+                first_sentence = sentences[0]
+                src_first_sentence = src_sens[0]
 
-                        first_sentence = first_sentence.replace("()", "").replace("  ", " ").strip()
-                        src_first_sentence = src_first_sentence.replace("()", "").replace("  ", " ").strip()
-                        if len(first_sentence) < 5:
-                            continue  # Very short
-                        if first_sentence.startswith("AD "):
-                            continue  # Common phrase in Wiki
-                        if first_sentence.lower().startswith("early life"):
-                            continue  # Common phrase in Wiki
-                        if has_number(first_sentence[0]):
-                            continue  # Common phrase in Wiki
-                        if "list of" in first_sentence.lower():
-                            continue  # Common phrase in Wiki
-                        n1 = has_number(first_sentence)
-                        n2 = has_number(src_first_sentence)
-                        sen_words2 = first_sentence.strip().split(" ")
-                        sen_words1 = src_first_sentence.strip().split(" ")
-                        if not len_condition(sen_words1, sen_words2):
-                            continue
-                        if (n1 and n2) or (not n1 and not n2):
-                            if src_first_sentence.lower() != first_sentence.lower():
-                                first_sen_writer.write(src_first_sentence + " ||| " + first_sentence + "\n")
-                                found += 1
-                                found_first = True
-                                break
+                first_sentence = first_sentence.replace("()", "").replace("  ", " ").strip()
+                src_first_sentence = src_first_sentence.replace("()", "").replace("  ", " ").strip()
+                if len(first_sentence) < 5:
+                    continue  # Very short
+                if first_sentence.startswith("AD "):
+                    continue  # Common phrase in Wiki
+                if first_sentence.lower().startswith("early life"):
+                    continue  # Common phrase in Wiki
+                if has_number(first_sentence[0]):
+                    continue  # Common phrase in Wiki
+                if "list of" in first_sentence.lower():
+                    continue  # Common phrase in Wiki
+                n1 = has_number(first_sentence)
+                n2 = has_number(src_first_sentence)
+                sen_words2 = first_sentence.strip().split(" ")
+                sen_words1 = src_first_sentence.strip().split(" ")
+                if not len_condition(sen_words1, sen_words2):
+                    continue
+                if (n1 and n2) or (not n1 and not n2):
+                    if src_first_sentence.lower() != first_sentence.lower():
+                        first_sen_writer.write(src_first_sentence + " ||| " + first_sentence + "\n")
+                        found += 1
 
         print(found, "/", i, end="\r")
 print("\nDone!")

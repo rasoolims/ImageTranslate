@@ -58,9 +58,11 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
 
                         first_sentence = first_sentence.replace("()", "").replace("  ", " ").strip()
                         src_first_sentence = src_first_sentence.replace("()", "").replace("  ", " ").strip()
+                        if len(first_sentence) < 5:
+                            continue  # Very short
                         if first_sentence.lower().startswith("early life"):
                             continue  # Common phrase in Wiki
-                        if has_number(first_sentence.lower()[0]):
+                        if has_number(first_sentence[0]):
                             continue  # Common phrase in Wiki
                         if "list of" in first_sentence.lower():
                             continue  # Common phrase in Wiki

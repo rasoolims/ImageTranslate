@@ -32,7 +32,7 @@ with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
         sentences = line.strip().split("</s>")
         title = sentences[0][sentences[0].find(">") + 1:].strip()
 
-        src_docs[title] = sentences[1]
+        src_docs[title] = sentences
         print(i, end="\r")
 
 print("\nReading target docs")
@@ -47,7 +47,7 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
         if title in title_dict:
             src_title = title_dict[title]
             if src_title in src_docs:
-                src_first_sentence = src_docs[src_title]
+                src_first_sentence = src_docs[src_title][1]
                 first_sentence = first_sentence.replace("()", "").replace("  ", " ").strip()
                 src_first_sentence = src_first_sentence.replace("()", "").replace("  ", " ").strip()
                 if first_sentence.lower().startswith("early life"):

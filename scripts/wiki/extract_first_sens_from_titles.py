@@ -48,7 +48,7 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
             if src_title in src_docs:
                 src_sens = src_docs[src_title]
 
-                first_sentence = sentences[0]
+                first_sentence = sentences[1]
                 src_first_sentence = src_sens[0]
 
                 first_sentence = first_sentence.replace("()", "").replace("  ", " ").strip()

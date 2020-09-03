@@ -151,8 +151,9 @@ class BeamDecoder(nn.Module):
 
             decoder = self.seq2seq_model.decoder if not self.seq2seq_model.lang_dec else self.seq2seq_model.decoder[
                 batch_lang]
-            output_layer = self.seq2seq_model.output_layer if not (
-                    self.seq2seq_model.lang_dec or self.seq2seq_model.tie_embed) else self.seq2seq_model.output_layer[
+            output_layer = self.seq2seq_model.output_layer if (
+                                                                  not self.seq2seq_model.lang_dec) and self.seq2seq_model.tie_embed else \
+            self.seq2seq_model.output_layer[
                 batch_lang]
 
             if images is None or src_inputs is None:

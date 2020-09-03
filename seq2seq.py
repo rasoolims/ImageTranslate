@@ -61,6 +61,10 @@ class Seq2Seq(nn.Module):
             else:
                 self.output_layer = nn.ModuleList([BertOutputLayer(dec_config) for _ in text_processor.languages])
 
+            if len(self.encoder.encoder.layer) == len(self.decoder.decoder.layer):
+                for i in range(len(self.encoder.encoder.layer)):
+                    self.decoder.decoder.layer[i].attention = self.encoder.encoder.layer[i].attention
+
         else:
             dec = BertDecoderModel(dec_config)
             self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
@@ -162,7 +166,7 @@ class Seq2Seq(nn.Module):
             subseq_mask = subseq_mask.to(device)
 
         decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
-        output_layer = self.output_layer if not (self.lang_dec or self.tie_embed) else self.output_layer[batch_lang]
+        output_layer = self.output_layer if (not self.lang_dec) and self.tie_embed else self.output_layer[batch_lang]
 
         decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
                                  encoder_attention_mask=src_mask, tgt_attention_mask=subseq_mask,

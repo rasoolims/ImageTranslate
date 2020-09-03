@@ -32,37 +32,37 @@ with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
         sentences = line.strip().split("</s>")
         title = sentences[0][sentences[0].find(">") + 1:].strip()
 
-        src_docs[title] = sentences[1:]
+        src_docs[title] = sentences[1]
         print(i, end="\r")
 
 print("\nReading target docs")
 found = 0
 j = 0
-k = 1
 with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath(sys.argv[4]), "w") as first_sen_writer:
     for i, line in enumerate(dst_reader):
         sentences = line.strip().split("</s>")
         title = sentences[0][sentences[0].find(">") + 1:].strip()
+        first_sentences = sentences[1]
 
         if title in title_dict:
             src_title = title_dict[title]
             if src_title in src_docs:
                 src_sentences = src_docs[src_title]
-                sentences[k] = sentences[k].replace("()", "").replace("  ", " ").strip()
-                src_sentences[j] = src_sentences[j].replace("()", "").replace("  ", " ").strip()
+                first_sentences = first_sentences.replace("()", "").replace("  ", " ").strip()
+                src_sentences = src_sentences.replace("()", "").replace("  ", " ").strip()
                 if sentences[k].lower().startswith("early life"):
                     continue  # Common phrase in Wiki
-                if "list of" in sentences[k].lower():
+                if "list of" in first_sentences.lower():
                     continue  # Common phrase in Wiki
-                n1 = has_number(sentences[k])
-                n2 = has_number(src_sentences[j])
-                sen_words2 = sentences[k].strip().split(" ")
-                sen_words1 = src_sentences[j].strip().split(" ")
+                n1 = has_number(first_sentences)
+                n2 = has_number(src_sentences)
+                sen_words2 = first_sentences.strip().split(" ")
+                sen_words1 = src_sentences.strip().split(" ")
                 if not len_condition(sen_words1, sen_words2):
                     continue
                 if (n1 and n2) or (not n1 and not n2):
-                    if src_sentences[j].lower() != sentences[k].lower():
-                        first_sen_writer.write(src_sentences[j] + " ||| " + sentences[k] + "\n")
+                    if src_sentences.lower() != first_sentences.lower():
+                        first_sen_writer.write(src_sentences + " ||| " + first_sentences + "\n")
                         found += 1
 
         print(found, "/", i, end="\r")

@@ -45,14 +45,20 @@ class Seq2Seq(nn.Module):
         self.tie_embed = tie_embed
         if not lang_dec:
             self.decoder = BertDecoderModel(dec_config)
-            self.output_layer = BertOutputLayer(dec_config)
+            self.encoder._tie_or_clone_weights(self.encoder.embeddings.position_embeddings,
+                                               self.decoder.embeddings.position_embeddings)
+            self.encoder._tie_or_clone_weights(self.encoder.embeddings.token_type_embeddings,
+                                               self.decoder.embeddings.token_type_embeddings)
+
             if tie_embed:
+                self.output_layer = BertOutputLayer(dec_config)
                 self.encoder._tie_or_clone_weights(self.output_layer, self.encoder.embeddings.word_embeddings)
                 self.encoder._tie_or_clone_weights(self.encoder.embeddings.position_embeddings,
                                                    self.decoder.embeddings.position_embeddings)
-            self.decoder._tie_or_clone_weights(self.output_layer, self.decoder.embeddings.word_embeddings)
-            self.encoder._tie_or_clone_weights(self.encoder.embeddings.token_type_embeddings,
-                                               self.decoder.embeddings.token_type_embeddings)
+                self.decoder._tie_or_clone_weights(self.output_layer, self.decoder.embeddings.word_embeddings)
+            else:
+                self.output_layer = nn.ModuleList([BertOutputLayer(dec_config) for _ in text_processor.languages])
+
         else:
             dec = BertDecoderModel(dec_config)
             self.decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
@@ -154,7 +160,7 @@ class Seq2Seq(nn.Module):
             subseq_mask = subseq_mask.to(device)
 
         decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
-        output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
+        output_layer = self.output_layer if not (self.lang_dec or self.tie_embed) else self.output_layer[batch_lang]
 
         decoder_output = decoder(encoder_states=encoder_states, input_ids=tgt_inputs[:, :-1],
                                  encoder_attention_mask=src_mask, tgt_attention_mask=subseq_mask,

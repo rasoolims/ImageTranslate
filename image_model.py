@@ -138,7 +138,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             batch_lang = int(src_langs[0])
 
             decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
-            output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
+            output_layer = self.output_layer if not (self.lang_dec or self.tie_embed) else self.output_layer[batch_lang]
             tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
             if tgt_positions is not None:
                 tgt_positions = tgt_positions[:, :-1].to(device)

@@ -49,6 +49,8 @@ class Seq2Seq(nn.Module):
                                                self.decoder.embeddings.position_embeddings)
             self.encoder._tie_or_clone_weights(self.encoder.embeddings.token_type_embeddings,
                                                self.decoder.embeddings.token_type_embeddings)
+            self.encoder._tie_or_clone_weights(self.encoder.embeddings.word_embeddings,
+                                               self.decoder.embeddings.word_embeddings)
 
             if tie_embed:
                 self.output_layer = BertOutputLayer(dec_config)

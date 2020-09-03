@@ -60,6 +60,8 @@ with open(os.path.abspath(sys.argv[3]), "r") as dst_reader, open(os.path.abspath
                         src_first_sentence = src_first_sentence.replace("()", "").replace("  ", " ").strip()
                         if first_sentence.lower().startswith("early life"):
                             continue  # Common phrase in Wiki
+                        if has_number(first_sentence.lower()[0]):
+                            continue  # Common phrase in Wiki
                         if "list of" in first_sentence.lower():
                             continue  # Common phrase in Wiki
                         n1 = has_number(first_sentence)

@@ -32,7 +32,7 @@ with open(os.path.abspath(sys.argv[2]), "r") as src_reader:
         sentences = line.strip().split("</s>")
         title = sentences[0][sentences[0].find(">") + 1:].strip()
 
-        src_docs[title] = sentences
+        src_docs[title] = sentences[1:]
         print(i, end="\r")
 
 print("\nReading target docs")

@@ -15,3 +15,6 @@ with open(os.path.abspath(sys.argv[2]), "r") as r:
 
 print(len(s1), len(s2), len(s1 & s2))
 print(len(c1), len(c2), len(c1 & c2))
+print(c1)
+print(c2)
+print(c1 & c2)

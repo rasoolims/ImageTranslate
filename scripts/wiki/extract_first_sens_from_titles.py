@@ -16,6 +16,7 @@ with open(os.path.abspath(sys.argv[1]), "r") as title_reader:
         if len(spl) != 2:
             continue
         a, e = spl
+        title_dict[e] = a
         if "(" in a:
             a = a[:a.find("(")]
         if "(" is e:

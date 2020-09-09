@@ -3,7 +3,7 @@ import sys
 
 ap = lambda x: os.path.abspath(x)
 
-with open(ap(sys.argv[1]), "r") as r, open(ap(sys.argv[2]), "w") as w1, , open(ap(sys.argv[3]), "w") as w2:
+with open(ap(sys.argv[1]), "r") as r, open(ap(sys.argv[2]), "w") as w1, open(ap(sys.argv[3]), "w") as w2:
     for line in r:
         spl = line.strip().split("\t")
         for i in range(1, len(spl)):

@@ -101,26 +101,6 @@ if __name__ == "__main__":
     english_image_dir = options.en_folder
     pin_memory = torch.cuda.is_available()
 
-    en_folders, en_vectors = [], []
-
-    for en_folder in os.listdir(english_image_dir):
-        en_im_folder = os.path.join(english_image_dir, en_folder)
-        for en_im_dir in os.listdir(en_im_folder):
-            try:
-                en_dir = os.path.join(en_im_folder, en_im_dir)
-                en_mmid_data = MMID(en_dir)
-                data = en_mmid_data[0].to(device)
-                with torch.no_grad():
-                    vector = image_model(data)
-                    vnorm = torch.norm(vector, dim=-1, p=2).unsqueeze(-1)
-                    vector = torch.div(vector, vnorm)
-                    en_vectors.append(vector.cpu())
-                    en_folders.append(en_dir)
-
-                print(en_dir, len(en_vectors))
-            except:
-                pass
-
     foreign_folders, foreign_vectors = [], []
     for foreign_folder in os.listdir(foreign_image_dir):
         try:
@@ -138,18 +118,29 @@ if __name__ == "__main__":
         except:
             pass
 
+    print("Calculating cosine per foreign vector")
     with torch.no_grad(), open(options.output_file, "w") as writer:
-        for f_folder, f_vector in zip(foreign_folders, foreign_vectors):
-            for en_folder, en_vector in zip(en_folders, en_vectors):
-                fv = f_vector.to(device)
-                ev = en_vector.to(device)
-                cosines = torch.mm(fv, ev.T)
-                max_f = torch.max(cosines, dim=-1)[0].squeeze()
-                avg_max_sim = float((torch.sum(max_f) / len(fv)).cpu())
+        for en_folder in os.listdir(english_image_dir):
+            en_im_folder = os.path.join(english_image_dir, en_folder)
+            for en_im_dir in os.listdir(en_im_folder):
+                try:
+                    en_dir = os.path.join(en_im_folder, en_im_dir)
+                    en_mmid_data = MMID(en_dir)
+                    data = en_mmid_data[0].to(device)
 
-                writer.write("\t".join([f_folder, en_folder, str(avg_max_sim)]))
-                writer.write("\n")
-                print(f_folder, en_folder, avg_max_sim)
+                    with torch.no_grad():
+                        vector = image_model(data)
+                        vnorm = torch.norm(vector, dim=-1, p=2).unsqueeze(-1)
+                        ev = torch.div(vector, vnorm)
 
-                f_vector.cpu()
-                en_vector.cpu()
+                        for f_folder, f_vector in zip(foreign_folders, foreign_vectors):
+                            fv = f_vector.to(device)
+                            cosines = torch.mm(fv, ev.T)
+                            max_f = torch.max(cosines, dim=-1)[0].squeeze()
+                            avg_max_sim = float((torch.sum(max_f) / len(fv)).cpu())
+
+                            print(en_dir, f_folder)
+                except:
+                    pass
+
+    print("Finished")

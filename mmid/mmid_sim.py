@@ -167,7 +167,7 @@ if __name__ == "__main__":
                             cosines = torch.mm(fv, ev.T)
                             max_f = torch.max(cosines, dim=-1)[0].squeeze()
                             avg_max_sim = float((torch.sum(max_f) / len(fv)).cpu())
-
+                            fv.cpu()
                             print(en_dir, f_folder)
                 except:
                     pass

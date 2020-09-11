@@ -85,7 +85,7 @@ class MMID(Dataset):
             return torch.stack(
                 list(map(lambda item: self.img_normalize(self.to_tensor(self.get_img(item))), self.images)))
         except:
-            print(self.image_dir)
+            print("empty dir", self.image_dir)
 
 
 if __name__ == "__main__":
@@ -106,31 +106,37 @@ if __name__ == "__main__":
     for en_folder in os.listdir(english_image_dir):
         en_im_folder = os.path.join(english_image_dir, en_folder)
         for en_im_dir in os.listdir(en_im_folder):
-            en_dir = os.path.join(en_im_folder, en_im_dir)
-            en_mmid_data = MMID(en_dir)
-            data = en_mmid_data[0].to(device)
+            try:
+                en_dir = os.path.join(en_im_folder, en_im_dir)
+                en_mmid_data = MMID(en_dir)
+                data = en_mmid_data[0].to(device)
+                with torch.no_grad():
+                    vector = image_model(data)
+                    vnorm = torch.norm(vector, dim=-1, p=2).unsqueeze(-1)
+                    vector = torch.div(vector, vnorm)
+                    en_vectors.append(vector.cpu())
+                    en_folders.append(en_dir)
+
+                print(en_dir, len(en_vectors))
+            except:
+                pass
+
+    foreign_folders, foreign_vectors = [], []
+    for foreign_folder in os.listdir(foreign_image_dir):
+        try:
+            f_dir = os.path.join(foreign_image_dir, foreign_folder)
+            foreign_mmid_data = MMID(f_dir)
+            data = foreign_mmid_data[0].to(device)
             with torch.no_grad():
                 vector = image_model(data)
                 vnorm = torch.norm(vector, dim=-1, p=2).unsqueeze(-1)
                 vector = torch.div(vector, vnorm)
-                en_vectors.append(vector.cpu())
-                en_folders.append(en_dir)
+                foreign_vectors.append(vector.cpu())
+                foreign_folders.append(f_dir)
 
-            print(en_dir, len(en_vectors))
-
-    foreign_folders, foreign_vectors = [], []
-    for foreign_folder in os.listdir(foreign_image_dir):
-        f_dir = os.path.join(foreign_image_dir, foreign_folder)
-        foreign_mmid_data = MMID(f_dir)
-        data = foreign_mmid_data[0].to(device)
-        with torch.no_grad():
-            vector = image_model(data)
-            vnorm = torch.norm(vector, dim=-1, p=2).unsqueeze(-1)
-            vector = torch.div(vector, vnorm)
-            foreign_vectors.append(vector.cpu())
-            foreign_folders.append(f_dir)
-
-        print(f_dir, len(foreign_vectors))
+            print(f_dir, len(foreign_vectors))
+        except:
+            pass
 
     with torch.no_grad(), open(options.output_file, "w") as writer:
         for f_folder, f_vector in zip(foreign_folders, foreign_vectors):

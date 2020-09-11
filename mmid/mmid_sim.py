@@ -171,7 +171,7 @@ if __name__ == "__main__":
 
                             writer.write("\t".join([f_folder, en_folder, str(avg_max_sim)]))
                             writer.write("\n")
-                            print(en_dir, f_folder)
+                        print(en_dir)
                 except:
                     pass
 

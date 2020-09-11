@@ -55,6 +55,7 @@ def init_net(small):
 
 class MMID(Dataset):
     def __init__(self, image_dir: str):
+        self.image_dir = image_dir
         self.images = glob.glob(os.path.join(image_dir, "*.jpg"))
         self.size_transform = transforms.Resize(256)
         self.crop = transforms.CenterCrop(224)
@@ -80,7 +81,11 @@ class MMID(Dataset):
         return img
 
     def __getitem__(self, item):
-        return torch.stack(list(map(lambda item: self.img_normalize(self.to_tensor(self.get_img(item))), self.images)))
+        try:
+            return torch.stack(
+                list(map(lambda item: self.img_normalize(self.to_tensor(self.get_img(item))), self.images)))
+        except:
+            print(self.image_dir)
 
 
 if __name__ == "__main__":
@@ -126,8 +131,6 @@ if __name__ == "__main__":
             foreign_folders.append(f_dir)
 
         print(f_dir, len(foreign_vectors))
-
-
 
     with torch.no_grad(), open(options.output_file, "w") as writer:
         for f_folder, f_vector in zip(foreign_folders, foreign_vectors):

@@ -40,7 +40,7 @@ class ModifiedResnet(models.ResNet):
 
         grid_hidden = x8.view(x8.size(0), -1)
 
-        return x11 # torch.cat([x11, grid_hidden], dim=1)
+        return x11  # torch.cat([x11, grid_hidden], dim=1)
 
 
 def init_net(small):
@@ -168,6 +168,9 @@ if __name__ == "__main__":
                             max_f = torch.max(cosines, dim=-1)[0].squeeze()
                             avg_max_sim = float((torch.sum(max_f) / len(fv)).cpu())
                             fv.cpu()
+
+                            writer.write("\t".join([f_folder, en_folder, str(avg_max_sim)]))
+                            writer.write("\n")
                             print(en_dir, f_folder)
                 except:
                     pass

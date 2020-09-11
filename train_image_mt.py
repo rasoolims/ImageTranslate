@@ -77,7 +77,7 @@ class ImageMTTrainer:
 
     def train_epoch(self, img_data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     mass_data_iter: List[data_utils.DataLoader] = None, mt_dev_iter: List[data_utils.DataLoader] = None,
-                    mt_train_iter: List[data_utils.DataLoader] = None, max_step: int = 300000, accum=1,
+                    mt_train_iter: List[data_utils.DataLoader] = None, max_step: int = 300000, accum=1, beam_width=1,
                     fine_tune: bool = False, lang_directions: dict = False, lex_dict=None, save_opt: bool = False,
                     **kwargs):
         "Standard Training and Logging Function"
@@ -133,7 +133,7 @@ class ImageMTTrainer:
                                                      first_tokens=target_langs,
                                                      src_langs=langs, tgt_langs=dst_langs,
                                                      pad_idx=model.text_processor.pad_token_id(),
-                                                     src_mask=src_pad_mask, unpad_output=False, beam_width=1,
+                                                     src_mask=src_pad_mask, unpad_output=False, beam_width=beam_width,
                                                      images=images, proposals=proposal)
                             if self.num_gpu > 1:
                                 if is_mass_batch:
@@ -509,7 +509,7 @@ class ImageMTTrainer:
                                        mt_train_iter=mt_train_loader, max_step=options.finetune_step + options.step,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
                                        fine_tune=True, lang_directions=lang_directions, lex_dict=lex_dict,
-                                       save_opt=options.save_opt, accum=options.accum)
+                                       save_opt=options.save_opt, accum=options.accum, beam_width=options.beam_width)
             finetune_epoch += 1
 
     @staticmethod
@@ -573,8 +573,9 @@ class ImageMTTrainer:
         finetune_data, finetune_loader = [], []
         for i, mass_train_path in enumerate(mass_train_paths):
             fd = dataset.MassDataset(batch_pickle_dir=mass_train_path,
-                                     max_batch_capacity=int(num_processors * options.total_capacity / 2),
-                                     max_batch=int(num_processors * options.batch / 2),
+                                     max_batch_capacity=int(
+                                         num_processors * options.total_capacity / max(2, options.beam_width)),
+                                     max_batch=int(num_processors * options.batch / max(2, options.beam_width)),
                                      pad_idx=mt_model.text_processor.pad_token_id(),
                                      max_seq_len=options.max_seq_len, keep_examples=False,
                                      example_list=None if mass_train_data is None else mass_train_data[

@@ -127,7 +127,7 @@ if __name__ == "__main__":
                         foreign_folders.append(cache_folders[i])
                     cache_data, cache_sizes, cache_folders = [], [], []
 
-            print(f_dir, len(foreign_vectors))
+                print(f_dir, len(foreign_vectors))
         except:
             pass
 
@@ -144,7 +144,8 @@ if __name__ == "__main__":
                     foreign_vectors.append(v.cpu())
                     foreign_folders.append(cache_folders[i])
                 cache_data, cache_sizes, cache_folders = [], [], []
-        except: pass
+        except:
+            pass
 
     print("Calculating cosine per foreign vector")
     with torch.no_grad(), open(options.output_file, "w") as writer:

@@ -17,6 +17,7 @@ def get_option_parser():
     parser.add_option("--o", dest="output_file", metavar="FILE", default=None)
     parser.add_option("--fp16", action="store_true", dest="fp16", default=False)
     parser.add_option("--small", action="store_true", dest="small_resnet", default=False)
+    parser.add_option("--cache", dest="cache", type=int, default=5)
     return parser
 
 
@@ -86,6 +87,7 @@ class MMID(Dataset):
                 list(map(lambda item: self.img_normalize(self.to_tensor(self.get_img(item))), self.images)))
         except:
             print("empty dir", self.image_dir)
+            return None
 
 
 if __name__ == "__main__":
@@ -102,21 +104,47 @@ if __name__ == "__main__":
     pin_memory = torch.cuda.is_available()
 
     foreign_folders, foreign_vectors = [], []
+    cache_data, cache_sizes, cache_folders = [], [], []
     for foreign_folder in os.listdir(foreign_image_dir):
         try:
             f_dir = os.path.join(foreign_image_dir, foreign_folder)
             foreign_mmid_data = MMID(f_dir)
-            data = foreign_mmid_data[0].to(device)
-            with torch.no_grad():
-                vector = image_model(data)
-                vnorm = torch.norm(vector, dim=-1, p=2).unsqueeze(-1)
-                vector = torch.div(vector, vnorm)
-                foreign_vectors.append(vector.cpu())
-                foreign_folders.append(f_dir)
+            data = foreign_mmid_data[0]
+            if data is None:
+                continue
+            cache_data.append(data)
+            cache_sizes.append(int(data.size(0)))
+            cache_folders.append(f_dir)
+            if len(cache_data) >= options.cache:
+                with torch.no_grad():
+                    d = torch.cat(cache_data).to(device)
+                    vector = image_model(d)
+                    vnorm = torch.norm(vector, dim=-1, p=2).unsqueeze(-1)
+                    vector = torch.div(vector, vnorm)
+                    vector_split = torch.split(vector, cache_sizes)
+                    for i, v in enumerate(vector_split):
+                        foreign_vectors.append(v.cpu())
+                        foreign_folders.append(cache_folders[i])
+                    cache_data, cache_sizes, cache_folders = [], [], []
 
             print(f_dir, len(foreign_vectors))
         except:
             pass
+
+    data = foreign_mmid_data[0].to(device)
+    if len(cache_data) >= options.cache:
+        try:
+            with torch.no_grad():
+                d = torch.cat(cache_data).to(device)
+                vector = image_model(d)
+                vnorm = torch.norm(vector, dim=-1, p=2).unsqueeze(-1)
+                vector = torch.div(vector, vnorm)
+                vector_split = torch.split(vector, cache_sizes)
+                for i, v in enumerate(vector_split):
+                    foreign_vectors.append(v.cpu())
+                    foreign_folders.append(cache_folders[i])
+                cache_data, cache_sizes, cache_folders = [], [], []
+        except: pass
 
     print("Calculating cosine per foreign vector")
     with torch.no_grad(), open(options.output_file, "w") as writer:

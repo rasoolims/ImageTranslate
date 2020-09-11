@@ -40,7 +40,7 @@ class ModifiedResnet(models.ResNet):
 
         grid_hidden = x8.view(x8.size(0), -1)
 
-        return torch.cat([x11, grid_hidden], dim=1)
+        return x11 # torch.cat([x11, grid_hidden], dim=1)
 
 
 def init_net(small):

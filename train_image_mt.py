@@ -509,7 +509,7 @@ class ImageMTTrainer:
                                        mt_train_iter=mt_train_loader, max_step=options.finetune_step + options.step,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
                                        fine_tune=True, lang_directions=lang_directions, lex_dict=lex_dict,
-                                       save_opt=options.save_opt, accum=options.accum, beam_width=options.beam_width)
+                                       save_opt=options.save_opt, accum=options.accum, beam_width=options.bt_beam_width)
             finetune_epoch += 1
 
     @staticmethod

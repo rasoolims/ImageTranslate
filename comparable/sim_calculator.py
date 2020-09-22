@@ -25,7 +25,6 @@ class SimModel(nn.Module):
         self.dst_embed = nn.Embedding(dst_vectors.size(0), dst_vectors.size(1), _weight=dst_vectors)
 
     def forward(self, src_batch, dst_batch):
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         src_embed = self.src_embed(src_batch)
         dst_embed = self.dst_embed(dst_batch)
 

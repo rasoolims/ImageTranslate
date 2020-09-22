@@ -57,7 +57,7 @@ class ImageMTTrainer:
             self.criterion = SmoothedNLLLoss(ignore_index=model.text_processor.pad_token_id())
 
         self.fp16 = False
-        if self.num_gpu == 1 and fp16:
+        if fp16:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O2")
             self.fp16 = True
         self.generator = BeamDecoder(self.model, beam_width=beam_width, max_len_a=max_len_a, max_len_b=max_len_b,

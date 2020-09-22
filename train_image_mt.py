@@ -56,17 +56,20 @@ class ImageMTTrainer:
         else:
             self.criterion = SmoothedNLLLoss(ignore_index=model.text_processor.pad_token_id())
 
+        self.num_gpu = torch.cuda.device_count()
         self.fp16 = False
+        if rank>=0:
+            self.rank = rank
+            self.device = torch.device('cuda', rank)
+            torch.distributed.init_process_group(backend='nccl')
+            distributed.init_process_group(backend="mpi", group_name="main", rank=self.rank)
         if fp16:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O2")
             self.fp16 = True
+
         self.generator = BeamDecoder(self.model, beam_width=beam_width, max_len_a=max_len_a, max_len_b=max_len_b,
                                      len_penalty_ratio=len_penalty_ratio)
-        self.rank = -1
-        self.num_gpu = torch.cuda.device_count()
         if rank >= 0:
-            self.rank = rank
-            self.device = torch.device('cuda', rank)
             self.model = DistributedDataParallel(self.model, device_ids=[self.rank], output_device=self.rank,
                                                  find_unused_parameters=True)
             self.generator = DistributedDataParallel(self.generator, device_ids=[self.rank], output_device=self.rank,

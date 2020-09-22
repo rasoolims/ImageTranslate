@@ -61,7 +61,6 @@ class ImageMTTrainer:
         if rank>=0:
             self.rank = rank
             self.device = torch.device('cuda', rank)
-            distributed.init_process_group(backend="mpi", group_name="main", rank=self.rank)
         if fp16:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O2")
             self.fp16 = True

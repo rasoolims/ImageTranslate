@@ -647,7 +647,8 @@ class ImageMTTrainer:
 if __name__ == "__main__":
     parser = get_img_options_parser()
     (options, args) = parser.parse_args()
-    print(options)
+    if options.local_rank <=0:
+        print(options)
     init_distributed(options)
     ImageMTTrainer.train(options=options)
     if options.local_rank >= 0: cleanup_distributed(options)

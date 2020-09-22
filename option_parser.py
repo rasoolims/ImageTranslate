@@ -30,6 +30,7 @@ def get_lm_option_parser():
     parser.add_option("--enc", dest="encoder_layer", help="# encoder layers", type="int", default=6)
     parser.add_option("--embed", dest="embed_dim", help="Embedding dimension", type="int", default=768)
     parser.add_option("--intermediate", dest="intermediate_layer_dim", type="int", default=3072)
+    parser.add_option("--local_rank", dest="local_rank", type=int, default=-1)
     return parser
 
 

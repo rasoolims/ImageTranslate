@@ -1,7 +1,5 @@
 import datetime
-import os
 import pickle
-import random
 import sys
 import time
 from collections import defaultdict
@@ -9,12 +7,12 @@ from itertools import chain
 from typing import List
 
 import sacrebleu
-import torch
+import torch.distributed as distributed
 import torch.nn as nn
 import torch.utils.data as data_utils
 from IPython.core import ultratb
-from apex import amp
-from torch.nn.utils.rnn import pad_sequence
+from torch.nn.parallel import DistributedDataParallel
+from torch.utils.data.distributed import DistributedSampler
 
 import dataset
 from image_model import ImageMassSeq2Seq
@@ -24,8 +22,7 @@ from option_parser import get_img_options_parser
 from parallel import DataParallelModel, DataParallelCriterion
 from seq2seq import Seq2Seq
 from seq_gen import BeamDecoder, get_outputs_until_eos
-from textprocessor import TextProcessor
-from utils import build_optimizer, mass_mask, mass_unmask, backward
+from utils import *
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -42,8 +39,8 @@ def get_lex_dict(dict_path):
 
 class ImageMTTrainer:
     def __init__(self, model, mask_prob: float = 0.3, clip: int = 1, optimizer=None,
-                 beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5,
-                 len_penalty_ratio: float = 0.8, nll_loss: bool = False, fp16: bool = False, mm_mode="mixed"):
+                 beam_width: int = 5, max_len_a: float = 1.1, max_len_b: int = 5, len_penalty_ratio: float = 0.8,
+                 nll_loss: bool = False, fp16: bool = False, mm_mode="mixed", rank: int = -1):
         self.model = model
 
         self.clip = clip
@@ -65,7 +62,16 @@ class ImageMTTrainer:
             self.fp16 = True
         self.generator = BeamDecoder(self.model, beam_width=beam_width, max_len_a=max_len_a, max_len_b=max_len_b,
                                      len_penalty_ratio=len_penalty_ratio)
-        if self.num_gpu > 1:
+        self.rank = -1
+        self.num_gpu = torch.cuda.device_count()
+        if rank >= 0:
+            self.rank = rank
+            self.device = torch.device('cuda', rank)
+            self.model = DistributedDataParallel(self.model, device_ids=[self.rank], output_device=self.rank,
+                                                 find_unused_parameters=True)
+            self.generator = DistributedDataParallel(self.generator, device_ids=[self.rank], output_device=self.rank,
+                                                     find_unused_parameters=True)
+        elif self.num_gpu > 1:
             print("Let's use", self.num_gpu, "GPUs!")
             self.model = DataParallelModel(self.model)
             self.criterion = DataParallelCriterion(self.criterion)
@@ -268,6 +274,7 @@ class ImageMTTrainer:
                     elif ntokens > 0:
                         if self.num_gpu == 1:
                             targets = targets.to(predictions.device)
+                        if self.rank >= 0: targets = targets.to(self.device)
 
                         loss = self.criterion(predictions, targets).mean()
                         backward(loss, self.optimizer, self.fp16)
@@ -291,7 +298,7 @@ class ImageMTTrainer:
 
                     if step % 50 == 0 and tokens > 0:
                         elapsed = time.time() - start
-                        print(datetime.datetime.now(),
+                        print(self.rank, "->", datetime.datetime.now(),
                               "Epoch Step: %d Loss: %f Tokens per Sec: %f " % (
                                   step, cur_loss / tokens, tokens / elapsed))
 
@@ -300,11 +307,13 @@ class ImageMTTrainer:
                             print("BLEU:", bleu)
 
                         if step % 10000 == 0:
-                            model.cpu().save(saving_path + ".latest")
-                            if save_opt:
-                                with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
-                                    pickle.dump(self.optimizer, fp)
-                            model = model.to(self.device)
+                            if self.rank <= 0:
+                                model.cpu().save(saving_path + ".latest")
+                                if save_opt:
+                                    with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
+                                        pickle.dump(self.optimizer, fp)
+                                model = model.to(self.device)
+                            if self.rank >= 0: distributed.barrier()
 
                         start, tokens, cur_loss = time.time(), 0, 0
 
@@ -322,13 +331,15 @@ class ImageMTTrainer:
                 break
 
         try:
-            print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-            model.cpu().save(saving_path + ".latest")
-            model = model.to(self.device)
+            if self.rank <= 0:
+                print("Total loss in this epoch: %f" % (total_loss / total_tokens))
+                model.cpu().save(saving_path + ".latest")
+                model = model.to(self.device)
 
-            if mt_dev_iter is not None:
-                bleu = self.eval_bleu(mt_dev_iter, saving_path)
-                print("BLEU:", bleu)
+                if mt_dev_iter is not None:
+                    bleu = self.eval_bleu(mt_dev_iter, saving_path)
+                    print("BLEU:", bleu)
+            if self.rank >= 0: distributed.barrier()
         except RuntimeError as err:
             print(repr(err))
 
@@ -442,7 +453,7 @@ class ImageMTTrainer:
         trainer = ImageMTTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer, clip=options.clip,
                                  beam_width=options.beam_width, max_len_a=options.max_len_a,
                                  max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
-                                 fp16=options.fp16, mm_mode=options.mm_mode)
+                                 fp16=options.fp16, mm_mode=options.mm_mode, rank=options.local_rank)
 
         pin_memory = torch.cuda.is_available()
         img_train_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, options.train_path,
@@ -537,7 +548,9 @@ class ImageMTTrainer:
                                             max_batch_capacity=options.total_capacity, keep_pad_idx=True,
                                             max_batch=int(options.batch / (options.beam_width * 2)),
                                             pad_idx=mt_model.text_processor.pad_token_id(), lex_dict=lex_dict)
-            dl = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+            dl = data_utils.DataLoader(
+                mt_dev_data if options.local_rank < 0 else DistributedSampler(mt_dev_data, rank=options.local_rank),
+                batch_size=1, shuffle=False, pin_memory=pin_memory)
             mt_dev_loader.append(dl)
 
             print("creating reference")
@@ -563,7 +576,9 @@ class ImageMTTrainer:
                                               max_batch=int(num_processors * options.batch / 2),
                                               pad_idx=mt_model.text_processor.pad_token_id(), lex_dict=lex_dict,
                                               keep_pad_idx=False)
-            mtl = data_utils.DataLoader(mt_train_data, batch_size=1, shuffle=True, pin_memory=pin_memory)
+            mtl = data_utils.DataLoader(
+                mt_train_data if options.local_rank < 0 else DistributedSampler(mt_train_data, rank=options.local_rank),
+                batch_size=1, shuffle=True, pin_memory=pin_memory)
             mt_train_loader.append(mtl)
         return mt_train_loader
 
@@ -581,7 +596,9 @@ class ImageMTTrainer:
                                      example_list=None if mass_train_data is None else mass_train_data[
                                          i].examples_list, lex_dict=lex_dict)
             finetune_data.append(fd)
-            fl = data_utils.DataLoader(fd, batch_size=1, shuffle=True, pin_memory=pin_memory)
+            fl = data_utils.DataLoader(
+                fd if options.local_rank < 0 else DistributedSampler(fd, rank=options.local_rank), batch_size=1,
+                shuffle=True, pin_memory=pin_memory)
             finetune_loader.append(fl)
             if mass_train_data is not None:
                 mass_train_data[i].examples_list = []
@@ -598,7 +615,9 @@ class ImageMTTrainer:
                                      max_seq_len=options.max_seq_len, keep_examples=keep_examples, lex_dict=lex_dict)
             mass_train_data.append(td)
 
-            dl = data_utils.DataLoader(td, batch_size=1, shuffle=True, pin_memory=pin_memory)
+            dl = data_utils.DataLoader(
+                td if options.local_rank < 0 else DistributedSampler(td, rank=options.local_rank), batch_size=1,
+                shuffle=True, pin_memory=pin_memory)
             mass_train_loader.append(dl)
         return mass_train_data, mass_train_loader
 
@@ -614,9 +633,11 @@ class ImageMTTrainer:
                                      text_processor=mt_model.text_processor,
                                      max_img_per_batch=options.max_image / denom, lex_dict=lex_dict)
                 print(pth, "Length of training data", len(data))
-                tl = data_utils.DataLoader(data, batch_size=num_batches, shuffle=shuffle,
-                                           pin_memory=pin_memory,
-                                           collate_fn=collator)
+                tl = data_utils.DataLoader(
+                    data if options.local_rank < 0 else DistributedSampler(data, rank=options.local_rank),
+                    batch_size=num_batches, shuffle=shuffle,
+                    pin_memory=pin_memory,
+                    collate_fn=collator)
                 img_loader.append(tl)
             return img_loader
 
@@ -627,5 +648,7 @@ if __name__ == "__main__":
     parser = get_img_options_parser()
     (options, args) = parser.parse_args()
     print(options)
+    init_distributed(options)
     ImageMTTrainer.train(options=options)
+    if options.local_rank >= 0: cleanup_distributed(options)
     print("Finished Training!")

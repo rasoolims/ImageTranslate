@@ -6,7 +6,7 @@ import torch
 import torch.optim as optim
 from apex import amp
 from torch.nn.utils.rnn import pad_sequence
-
+import os
 from textprocessor import TextProcessor
 
 
@@ -88,6 +88,14 @@ def backward(loss, optimizer, fp16: bool = False):
     else:
         loss.backward()
 
+def init_distributed(options):
+    if options.local_rank >= 0:
+        os.environ['WORLD_SIZE'] = str(torch.cuda.device_count())
+        torch.distributed.init_process_group(backend='nccl', world_size=torch.cuda.device_count(),
+                                             rank=options.local_rank)
+def cleanup_distributed(options):
+    if options.fp16:
+        torch.distributed.destroy_process_group()
 
 class AdamInverseSqrtWithWarmup(optim.Adam):
     """

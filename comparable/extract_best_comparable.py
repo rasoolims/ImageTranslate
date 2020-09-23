@@ -47,7 +47,7 @@ if __name__ == "__main__":
             if i % 10000 == 0:
                 print(found, "/", i, end="\r")
 
-            if highest_d2s[dst_line][0] == src_line:
+            if highest_d2s[dst_line][0] == src_line and score > 0:
                 shared_dict[src_line + " ||| " + dst_line] = score
                 found += 1
         sorted = sorted(shared_dict.items(), key=lambda x: x[1], reverse=True)

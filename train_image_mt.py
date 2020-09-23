@@ -577,9 +577,10 @@ class ImageMTTrainer:
                                               max_batch=int(num_processors * options.batch / 2),
                                               pad_idx=mt_model.text_processor.pad_token_id(), lex_dict=lex_dict,
                                               keep_pad_idx=False)
-            mtl = data_utils.DataLoader(
-                mt_train_data if options.local_rank < 0 else DistributedSampler(mt_train_data, rank=options.local_rank),
-                batch_size=1, shuffle=(options.local_rank < 0), pin_memory=pin_memory)
+            mtl = data_utils.DataLoader(mt_train_data,
+                                        sampler=None if options.local_rank < 0 else DistributedSampler(mt_train_data,
+                                                                                                       rank=options.local_rank),
+                                        batch_size=1, shuffle=(options.local_rank < 0), pin_memory=pin_memory)
             mt_train_loader.append(mtl)
         return mt_train_loader
 
@@ -597,9 +598,11 @@ class ImageMTTrainer:
                                      example_list=None if mass_train_data is None else mass_train_data[
                                          i].examples_list, lex_dict=lex_dict)
             finetune_data.append(fd)
-            fl = data_utils.DataLoader(
-                fd if options.local_rank < 0 else DistributedSampler(fd, rank=options.local_rank), batch_size=1,
-                shuffle=(options.local_rank < 0), pin_memory=pin_memory)
+            fl = data_utils.DataLoader(fd,
+                                       sampler=None if options.local_rank < 0 else DistributedSampler(fd,
+                                                                                                      rank=options.local_rank),
+                                       batch_size=1,
+                                       shuffle=(options.local_rank < 0), pin_memory=pin_memory)
             finetune_loader.append(fl)
             if mass_train_data is not None:
                 mass_train_data[i].examples_list = []
@@ -616,9 +619,10 @@ class ImageMTTrainer:
                                      max_seq_len=options.max_seq_len, keep_examples=keep_examples, lex_dict=lex_dict)
             mass_train_data.append(td)
 
-            dl = data_utils.DataLoader(
-                td if options.local_rank < 0 else DistributedSampler(td, rank=options.local_rank), batch_size=1,
-                shuffle=(options.local_rank < 0), pin_memory=pin_memory)
+            dl = data_utils.DataLoader(td, sampler=None if options.local_rank < 0 else DistributedSampler(td,
+                                                                                                          rank=options.local_rank),
+                                       batch_size=1,
+                                       shuffle=(options.local_rank < 0), pin_memory=pin_memory)
             mass_train_loader.append(dl)
         return mass_train_data, mass_train_loader
 
@@ -634,11 +638,11 @@ class ImageMTTrainer:
                                      text_processor=mt_model.text_processor,
                                      max_img_per_batch=options.max_image / denom, lex_dict=lex_dict)
                 print(options.local_rank, pth, "Length of training data", len(data))
-                tl = data_utils.DataLoader(
-                    data if options.local_rank < 0 else DistributedSampler(data, rank=options.local_rank),
-                    batch_size=num_batches, shuffle=shuffle,
-                    pin_memory=pin_memory,
-                    collate_fn=collator)
+                tl = data_utils.DataLoader(data, sampler=None if options.local_rank < 0 else DistributedSampler(data,
+                                                                                                                rank=options.local_rank),
+                                           batch_size=num_batches, shuffle=shuffle,
+                                           pin_memory=pin_memory,
+                                           collate_fn=collator)
                 img_loader.append(tl)
             return img_loader
 

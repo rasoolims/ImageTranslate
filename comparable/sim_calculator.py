@@ -28,8 +28,8 @@ class SimModel(nn.Module):
         src_embed = self.src_embed(src_batch)
         dst_embed = self.dst_embed(dst_batch)
 
-        src_pad = (src_batch == 0).unsqueeze(-1).long()
-        dst_pad = (dst_batch == 0).unsqueeze(-1).long()
+        src_pad = (src_batch == 0).unsqueeze(-1).float()
+        dst_pad = (dst_batch == 0).unsqueeze(-1).float()
 
         mm = torch.bmm(src_embed, dst_embed.transpose(1, 2))
         pad_mm = (torch.bmm(src_pad, dst_pad.transpose(1, 2)) == 1)

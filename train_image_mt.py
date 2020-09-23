@@ -579,7 +579,7 @@ class ImageMTTrainer:
                                               keep_pad_idx=False)
             mtl = data_utils.DataLoader(
                 mt_train_data if options.local_rank < 0 else DistributedSampler(mt_train_data, rank=options.local_rank),
-                batch_size=1, shuffle=True, pin_memory=pin_memory)
+                batch_size=1, shuffle=(options.local_rank < 0), pin_memory=pin_memory)
             mt_train_loader.append(mtl)
         return mt_train_loader
 
@@ -599,7 +599,7 @@ class ImageMTTrainer:
             finetune_data.append(fd)
             fl = data_utils.DataLoader(
                 fd if options.local_rank < 0 else DistributedSampler(fd, rank=options.local_rank), batch_size=1,
-                shuffle=True, pin_memory=pin_memory)
+                shuffle=(options.local_rank < 0), pin_memory=pin_memory)
             finetune_loader.append(fl)
             if mass_train_data is not None:
                 mass_train_data[i].examples_list = []
@@ -618,7 +618,7 @@ class ImageMTTrainer:
 
             dl = data_utils.DataLoader(
                 td if options.local_rank < 0 else DistributedSampler(td, rank=options.local_rank), batch_size=1,
-                shuffle=True, pin_memory=pin_memory)
+                shuffle=(options.local_rank < 0), pin_memory=pin_memory)
             mass_train_loader.append(dl)
         return mass_train_data, mass_train_loader
 

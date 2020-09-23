@@ -7,6 +7,7 @@ def get_option_parser():
     parser.add_option("--dst", dest="dst_file", metavar="FILE", default=None)
     parser.add_option("--scores", dest="score_file", metavar="FILE", default=None)
     parser.add_option("--output", dest="output_file", metavar="FILE", default=None)
+    parser.add_option("--min", dest="min_sim", type="float", default=0.1)
     return parser
 
 
@@ -47,7 +48,7 @@ if __name__ == "__main__":
             if i % 10000 == 0:
                 print(found, "/", i, end="\r")
 
-            if highest_d2s[dst_line][0] == src_line and score > 0:
+            if highest_d2s[dst_line][0] == src_line and score >= options.min_sim:
                 shared_dict[src_line + " ||| " + dst_line] = score
                 found += 1
         sorted = sorted(shared_dict.items(), key=lambda x: x[1], reverse=True)

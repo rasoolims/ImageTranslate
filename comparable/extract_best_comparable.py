@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     print("Reading scores")
     with open(options.src_file, "r") as sr, open(options.dst_file, "r") as dr, open(options.score_file, "r") as scf:
-        for i, src_line, dst_line, score_line in enumerate(zip(sr, dr, scf)):
+        for i, (src_line, dst_line, score_line) in enumerate(zip(sr, dr, scf)):
             src_line = src_line.strip()
             dst_line = dst_line.strip()
             score = float(score_line.strip())

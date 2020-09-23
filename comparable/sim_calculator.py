@@ -114,4 +114,5 @@ if __name__ == "__main__":
             sims_txt = "\n".join(list(map(lambda x: str(float(x)), sims)))
             ow.write(sims_txt)
             ow.write("\n")
-    print("Done!")
+            print(i, end="\r")
+    print("\nDone!")

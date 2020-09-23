@@ -47,7 +47,6 @@ class ImageMTTrainer:
         self.optimizer = optimizer
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = self.model.to(self.device)
         self.num_gpu = torch.cuda.device_count()
 
         self.mask_prob = mask_prob
@@ -61,6 +60,9 @@ class ImageMTTrainer:
         if rank>=0:
             self.rank = rank
             self.device = torch.device('cuda', rank)
+        
+        self.model = self.model.to(self.device)
+
         if fp16:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O2")
             self.fp16 = True

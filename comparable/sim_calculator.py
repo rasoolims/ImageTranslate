@@ -32,7 +32,7 @@ class SimModel(nn.Module):
         dst_pad = (dst_batch == 0).unsqueeze(-1).long()
 
         mm = torch.bmm(src_embed, dst_embed.transpose(1, 2))
-        pad_mm = torch.bmm(src_pad, dst_pad.transpose(1, 2)).bool()
+        pad_mm = (torch.bmm(src_pad, dst_pad.transpose(1, 2)) == 1)
         mm[pad_mm].fill_(-10000.0)
 
         max_cos = torch.max(mm, dim=-1)[0]

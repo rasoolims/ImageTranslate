@@ -426,7 +426,7 @@ class ImageMTTrainer:
 
         text_processor = TextProcessor(options.tokenizer_path)
         assert text_processor.pad_token_id() == 0
-        num_processors = max(torch.cuda.device_count(), 1)
+        num_processors = max(torch.cuda.device_count(), 1) if options.local_rank < 0 else 1
 
         if options.pretrained_path is not None:
             mt_model = Seq2Seq.load(ImageMassSeq2Seq, options.pretrained_path, tok_dir=options.tokenizer_path)

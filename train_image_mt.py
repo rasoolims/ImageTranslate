@@ -60,7 +60,7 @@ class ImageMTTrainer:
         if rank>=0:
             self.rank = rank
             self.device = torch.device('cuda', rank)
-        
+
         self.model = self.model.to(self.device)
 
         if fp16:
@@ -505,9 +505,9 @@ class ImageMTTrainer:
             trainer.optimizer.reset()
 
         lang_directions = ImageMTTrainer.get_lang_dirs(options.bt_langs, text_processor)
-        print("lang dirs", lang_directions)
+        print(options.local_rank, "lang dirs", lang_directions)
 
-        print("Reloading image train data with new batch size...")
+        print(options.local_rank, "Reloading image train data with new batch size...")
 
         if options.finetune_step > 0 and img_train_loader is not None:
             img_train_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, options.train_path,
@@ -515,10 +515,10 @@ class ImageMTTrainer:
                                                              lex_dict=lex_dict)
         if options.ignore_mt_mass:
             mt_train_loader = None
-        print("Reloading image train data with new batch size done!")
+        print(options.local_rank, "Reloading image train data with new batch size done!")
 
         while options.finetune_step > 0 and step <= options.finetune_step + options.step:
-            print("finetune epoch", finetune_epoch)
+            print(options.local_rank, "finetune epoch", finetune_epoch)
             step = trainer.train_epoch(img_data_iter=img_train_loader, mass_data_iter=finetune_loader,
                                        mt_train_iter=mt_train_loader, max_step=options.finetune_step + options.step,
                                        mt_dev_iter=mt_dev_loader, saving_path=options.model_path, step=step,
@@ -556,7 +556,7 @@ class ImageMTTrainer:
                 batch_size=1, shuffle=False, pin_memory=pin_memory)
             mt_dev_loader.append(dl)
 
-            print("creating reference")
+            print(options.local_rank, "creating reference")
 
             generator = (
                 trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
@@ -635,7 +635,7 @@ class ImageMTTrainer:
                                      max_capacity=int(options.img_capacity / denom),
                                      text_processor=mt_model.text_processor,
                                      max_img_per_batch=options.max_image / denom, lex_dict=lex_dict)
-                print(pth, "Length of training data", len(data))
+                print(options.local_rank, pth, "Length of training data", len(data))
                 tl = data_utils.DataLoader(
                     data if options.local_rank < 0 else DistributedSampler(data, rank=options.local_rank),
                     batch_size=num_batches, shuffle=shuffle,

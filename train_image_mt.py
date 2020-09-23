@@ -57,7 +57,7 @@ class ImageMTTrainer:
 
         self.num_gpu = torch.cuda.device_count()
         self.fp16 = False
-        if rank>=0:
+        if rank >= 0:
             self.rank = rank
             self.device = torch.device('cuda', rank)
 
@@ -551,9 +551,7 @@ class ImageMTTrainer:
                                             max_batch_capacity=options.total_capacity, keep_pad_idx=True,
                                             max_batch=int(options.batch / (options.beam_width * 2)),
                                             pad_idx=mt_model.text_processor.pad_token_id(), lex_dict=lex_dict)
-            dl = data_utils.DataLoader(
-                mt_dev_data if options.local_rank < 0 else DistributedSampler(mt_dev_data, rank=options.local_rank),
-                batch_size=1, shuffle=False, pin_memory=pin_memory)
+            dl = data_utils.DataLoader(mt_dev_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
             mt_dev_loader.append(dl)
 
             print(options.local_rank, "creating reference")
@@ -650,7 +648,7 @@ class ImageMTTrainer:
 if __name__ == "__main__":
     parser = get_img_options_parser()
     (options, args) = parser.parse_args()
-    if options.local_rank <=0:
+    if options.local_rank <= 0:
         print(options)
     init_distributed(options)
     ImageMTTrainer.train(options=options)

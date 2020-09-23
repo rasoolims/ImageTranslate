@@ -72,14 +72,14 @@ class TextDataset(Dataset):
 class MTDataset(Dataset):
     def __init__(self, max_batch_capacity: int, max_batch: int,
                  pad_idx: int, max_seq_len: int = 175, batch_pickle_dir: str = None,
-                 examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = None, lex_dict=None, keep_pad_idx=True):
+                 examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = None, lex_dict=None, keep_pad_idx=True, ngpu=1):
         self.lex_dict = lex_dict
         self.keep_pad_idx = keep_pad_idx
+        self.ngpu = ngpu
         if examples is None:
             self.build_batches(batch_pickle_dir, max_batch_capacity, max_batch, pad_idx, max_seq_len)
         else:
-            num_gpu = torch.cuda.device_count()
-            self.batch_examples(examples, max_batch, max_batch_capacity, max_seq_len, num_gpu, pad_idx)
+            self.batch_examples(examples, max_batch, max_batch_capacity, max_seq_len, ngpu, pad_idx)
 
     def build_batches(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
                       pad_idx: int, max_seq_len: int = 175):
@@ -89,7 +89,6 @@ class MTDataset(Dataset):
         max_batch_capacity. We also need to make sure not to include those batches that has less than num_gpu
         sentence pairs (it will crash in multi-gpu).
         """
-        num_gpu = torch.cuda.device_count()
         with open(batch_pickle_dir, "rb") as fr:
             print("LOADING MT BATCHES")
             examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = marshal.load(fr)
@@ -173,9 +172,10 @@ class MTDataset(Dataset):
 class MassDataset(Dataset):
     def __init__(self, batch_pickle_dir: str, max_batch_capacity: int, max_batch: int,
                  pad_idx: int, max_seq_len: int = 512, keep_examples: bool = False, example_list: List = None,
-                 lex_dict=None, keep_pad_idx=True):
+                 lex_dict=None, keep_pad_idx=True, ngpu=1):
         self.lex_dict = lex_dict
         self.keep_pad_idx = keep_pad_idx
+        self.ngpu = ngpu
         if example_list is None:
             self.build_batches(batch_pickle_dir, max_batch_capacity, max_batch, pad_idx, max_seq_len, keep_examples)
         else:
@@ -212,7 +212,6 @@ class MassDataset(Dataset):
         self.batches = []
         batches, langs = [], []
         self.lang_ids = set()
-        num_gpu = torch.cuda.device_count()
         cur_src_batch, cur_langs, cur_max_src_len = [], [], 0
         cur_lex_cand_batch = []
         for examples in self.examples_list:
@@ -234,7 +233,7 @@ class MassDataset(Dataset):
                 batch_size = 2 * cur_max_src_len * len(cur_src_batch)
 
                 if (batch_size > max_batch or batch_capacity_size > max_batch_capacity * 1000000) and \
-                        len(cur_src_batch[:-1]) >= num_gpu and len(cur_langs) > 1:
+                        len(cur_src_batch[:-1]) >= self.ngpu and len(cur_langs) > 1:
                     batches.append((cur_src_batch[:-1], cur_lex_cand_batch[:-1] if self.lex_dict is not None else None))
                     langs.append(cur_langs[:-1])
                     cur_src_batch = [cur_src_batch[-1]]
@@ -244,7 +243,7 @@ class MassDataset(Dataset):
                     cur_max_src_len = len(cur_src_batch[0])
 
         if len(cur_src_batch) > 0:
-            if len(cur_src_batch) < num_gpu:
+            if len(cur_src_batch) < self.ngpu:
                 print("skipping", len(cur_src_batch))
             else:
                 batches.append((cur_src_batch, cur_lex_cand_batch if self.lex_dict is not None else None))
@@ -276,7 +275,8 @@ class MassDataset(Dataset):
 
 class ImageCaptionDataset(Dataset):
     def __init__(self, root_img_dir: str, data_bin_file: str, max_capacity: int, text_processor: TextProcessor,
-                 max_img_per_batch: int, lex_dict=None):
+                 max_img_per_batch: int, lex_dict=None, ngpu=1):
+        self.ngpu = ngpu
         self.lex_dict = lex_dict
         self.size_transform = transforms.Resize(256)
         self.crop = transforms.CenterCrop(224)
@@ -291,7 +291,6 @@ class ImageCaptionDataset(Dataset):
         max_capacity *= 1000000
         self.image_batches = []
         self.lang_ids = set()
-        num_gpu = torch.cuda.device_count()
         self.all_captions = []
 
         print("Start", datetime.datetime.now())
@@ -317,7 +316,7 @@ class ImageCaptionDataset(Dataset):
                 cur_max_len = max(cur_max_len, len(caption))
                 batch_capacity_size = 2 * (cur_max_len ** 3) * len(cur_batch)
                 if (len(cur_imgs) > max_img_per_batch or batch_capacity_size > max_capacity) and len(
-                        cur_batch[:-1]) >= num_gpu and len(cur_batch) > 1:
+                        cur_batch[:-1]) >= self.ngpu and len(cur_batch) > 1:
                     batch_tensor = pad_sequence(cur_batch[:-1], batch_first=True, padding_value=self.pad_idx)
                     lex_cand_batch = None
                     if self.lex_dict is not None:

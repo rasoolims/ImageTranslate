@@ -60,6 +60,7 @@ class ImageMTTrainer:
         if rank >= 0:
             self.rank = rank
             self.device = torch.device('cuda', rank)
+            torch.cuda.set_device(self.device)
 
         self.model = self.model.to(self.device)
 

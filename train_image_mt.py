@@ -57,8 +57,8 @@ class ImageMTTrainer:
 
         self.num_gpu = torch.cuda.device_count()
         self.fp16 = False
+        self.rank = rank
         if rank >= 0:
-            self.rank = rank
             self.device = torch.device('cuda', rank)
             torch.cuda.set_device(self.device)
 

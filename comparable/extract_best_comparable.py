@@ -38,16 +38,20 @@ if __name__ == "__main__":
                 print(i, end="\r")
 
     print("\nWriting shared highest scores")
-    wrote = 0
+    found = 0
+    shared_dict = dict()
     with open(options.output_file, "w") as w:
         for i, src_line in enumerate(highest_s2d.keys()):
             dst_line, score = highest_s2d[src_line]
 
             if i % 10000 == 0:
-                print(wrote, "/", i, end="\r")
+                print(found, "/", i, end="\r")
 
             if highest_d2s[dst_line][0] == src_line:
-                w.write(src_line + " ||| " + dst_line + "\t" + str(score) + "\n")
-                wrote += 1
+                shared_dict[src_line + " ||| " + dst_line] = score
+                found += 1
+        sorted = sorted(shared_dict.items(), key=lambda x: x[1], reverse=True)
+        for (sen, score) in sorted:
+            w.write(sen + "\t" + str(score) + "\n")
 
     print("\nDone!")

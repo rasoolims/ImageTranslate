@@ -92,7 +92,7 @@ class MTDataset(Dataset):
         with open(batch_pickle_dir, "rb") as fr:
             print("LOADING MT BATCHES")
             examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = marshal.load(fr)
-            self.batch_examples(examples, max_batch, max_batch_capacity, max_seq_len, num_gpu, pad_idx)
+            self.batch_examples(examples, max_batch, max_batch_capacity, max_seq_len, self.ngpu, pad_idx)
 
     def batch_examples(self, examples, max_batch, max_batch_capacity, max_seq_len, num_gpu, pad_idx):
         print("BUILDING MT BATCHES")

@@ -44,8 +44,8 @@ if __name__ == "__main__":
             except:
                 pass
 
-            if i % 1000000 == 0:
-                print((i / 1000000), "M", end="\r")
+            if i % 100000 == 0:
+                print((i / 1000000), "M", len(src2dst), len(dst2src), end="\r")
 
     print("Writing sims")
     with open(options.output_file, "w") as w:

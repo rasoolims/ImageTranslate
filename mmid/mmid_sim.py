@@ -169,7 +169,7 @@ if __name__ == "__main__":
                             avg_max_sim = float((torch.sum(max_f) / len(fv)).cpu())
                             fv.cpu()
 
-                            writer.write("\t".join([f_folder, en_folder, str(avg_max_sim)]))
+                            writer.write("\t".join([f_folder, en_dir, str(avg_max_sim)]))
                             writer.write("\n")
                         print(en_dir)
                 except:

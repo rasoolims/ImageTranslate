@@ -21,28 +21,25 @@ if __name__ == "__main__":
     print("Reading sims")
     with open(options.input_file, "r") as r:
         for i, line in enumerate(r):
-            try:
-                spl = line.strip().split("\t")
-                src_path, dst_path, sim = spl[1], spl[2], float(spl[2])
-                if not src_path.startswith("/"):
-                    src_path = os.path.join(options.root_path, src_path)
-                if not dst_path.startswith("/"):
-                    dst_path = os.path.join(options.root_path, dst_path)
+            spl = line.strip().split("\t")
+            src_path, dst_path, sim = spl[1], spl[2], float(spl[2])
+            if not src_path.startswith("/"):
+                src_path = os.path.join(options.root_path, src_path)
+            if not dst_path.startswith("/"):
+                dst_path = os.path.join(options.root_path, dst_path)
 
-                src_word = open(os.path.join(src_path, "word.txt"), "r").read().strip()
-                dst_word = open(os.path.join(dst_path, "word.txt"), "r").read().strip()
+            src_word = open(os.path.join(src_path, "word.txt"), "r").read().strip()
+            dst_word = open(os.path.join(dst_path, "word.txt"), "r").read().strip()
 
-                if src_word not in src2dst:
-                    src2dst[src_word] = (dst_word, sim)
-                elif sim > src2dst[src_word][1]:
-                    src2dst[src_word] = (dst_word, sim)
+            if src_word not in src2dst:
+                src2dst[src_word] = (dst_word, sim)
+            elif sim > src2dst[src_word][1]:
+                src2dst[src_word] = (dst_word, sim)
 
-                if dst_word not in dst2src:
-                    dst2src[dst_word] = (src_word, sim)
-                elif sim > dst2src[src_word][1]:
-                    dst2src[dst_word] = (src_word, sim)
-            except:
-                pass
+            if dst_word not in dst2src:
+                dst2src[dst_word] = (src_word, sim)
+            elif sim > dst2src[src_word][1]:
+                dst2src[dst_word] = (src_word, sim)
 
             if i % 100000 == 0:
                 print((i / 1000000), "M", len(src2dst), len(dst2src), end="\r")

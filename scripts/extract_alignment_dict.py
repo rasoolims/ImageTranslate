@@ -2,19 +2,19 @@ import os
 import sys
 from collections import Counter
 
-src_path = os.path.abspath(sys.argv[1])
-dst_path = os.path.abspath(sys.argv[2])
-alignment_path = os.path.abspath(sys.argv[3])
-min_cooc = int(sys.argv[4])
-dict_path = os.path.abspath(sys.argv[5])
+fast_align_path = os.path.abspath(sys.argv[1])
+alignment_path = os.path.abspath(sys.argv[2])
+min_cooc = int(sys.argv[3])
+dict_path = os.path.abspath(sys.argv[4])
 
 coocs = []
 alignment_counter = lambda alignment, src_words, dst_words: list(
     map(lambda a: src_words[int(a[0])] + "\t" + dst_words[int(a[1])], alignment))
 
 all_src_words, all_dst_words = [], []
-with open(src_path, "r") as sr, open(dst_path, "r") as dr, open(alignment_path, "r") as ar:
-    for i, (src, dst, alignment) in enumerate(zip(sr, dr, ar)):
+with open(fast_align_path, "r") as dr, open(alignment_path, "r") as ar:
+    for i, (src2dst, alignment) in enumerate(zip(dr, ar)):
+        src, dst = src2dst.strip().split(" ||| ")
         src_words = src.strip().split(" ")
         dst_words = dst.strip().split(" ")
         try:

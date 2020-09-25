@@ -44,6 +44,12 @@ with open(dict_path, "w") as writer:
             continue
         covered.add(src_word)
         writer.write(word_pair + "\n")
+
+        upper_cased = src_word[0].upper() + src_word[1:] + "\t" +  dst_word[0].upper() + dst_word[1:]
+        writer.write(word_pair + "\n")
         written += 1
+        if upper_cased != word_pair:
+            writer.write(upper_cased + "\n")
+            written += 1
         print(written, "/", i, end="\r")
 print("\nDone!")

@@ -317,7 +317,6 @@ class ImageMTTrainer:
                                     with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                                         pickle.dump(self.optimizer, fp)
                                 model = model.to(self.device)
-                            if self.rank >= 0: distributed.barrier()
 
                         start, tokens, cur_loss = time.time(), 0, 0
 
@@ -343,7 +342,6 @@ class ImageMTTrainer:
                 if mt_dev_iter is not None:
                     bleu = self.eval_bleu(mt_dev_iter, saving_path)
                     print("BLEU:", bleu)
-            if self.rank >= 0: distributed.barrier()
         except RuntimeError as err:
             print(repr(err))
 

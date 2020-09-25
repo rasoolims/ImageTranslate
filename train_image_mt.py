@@ -422,7 +422,7 @@ class ImageMTTrainer:
         lex_dict = None
         if options.dict_path is not None:
             lex_dict = get_lex_dict(options.dict_path)
-        if not os.path.exists(options.model_path):
+        if options.local_rank<=0 and not os.path.exists(options.model_path):
             os.makedirs(options.model_path)
 
         text_processor = TextProcessor(options.tokenizer_path)
@@ -499,7 +499,7 @@ class ImageMTTrainer:
             train_epoch += 1
 
         finetune_epoch = 0
-        if options.finetune_step > 0:
+        if options.local_rank<=0 and options.finetune_step > 0:
             mt_model.cpu().save(options.model_path + ".beam")
             mt_model = mt_model.to(trainer.device)
             # Resetting the optimizer for the purpose of finetuning.

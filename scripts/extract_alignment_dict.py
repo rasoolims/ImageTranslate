@@ -20,8 +20,8 @@ with open(fast_align_path, "r") as dr, open(alignment_path, "r") as ar:
         try:
             alignments = filter(lambda x: len(x) == 2, map(lambda a: a.split("-"), alignment.strip().split(" ")))
             coocs += alignment_counter(alignments, src_words, dst_words)
-        except:
-            pass
+        except Exception as err:
+            print(repr(err))
         print(i, end="\r")
 
 cooc_count = Counter(coocs)

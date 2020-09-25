@@ -22,6 +22,8 @@ with open(fast_align_path, "r") as dr, open(alignment_path, "r") as ar:
             coocs += alignment_counter(alignments, src_words, dst_words)
         except Exception as err:
             print(repr(err))
+            print(src)
+            print(dst)
         print(i, end="\r")
 
 cooc_count = Counter(coocs)

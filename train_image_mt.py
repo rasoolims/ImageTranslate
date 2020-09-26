@@ -7,7 +7,6 @@ from itertools import chain
 from typing import List
 
 import sacrebleu
-import torch.distributed as distributed
 import torch.nn as nn
 import torch.utils.data as data_utils
 from IPython.core import ultratb
@@ -312,11 +311,16 @@ class ImageMTTrainer:
 
                         if step % 10000 == 0:
                             if self.rank <= 0:
-                                model.cpu().save(saving_path + ".latest")
+                                if self.rank < 0:
+                                    model.cpu().save(saving_path + ".latest")
+                                elif self.rank == 0:
+                                    model.save(saving_path + ".latest")
+
                                 if save_opt:
                                     with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
                                         pickle.dump(self.optimizer, fp)
-                                model = model.to(self.device)
+                                if self.rank < 0:
+                                    model = model.to(self.device)
 
                         start, tokens, cur_loss = time.time(), 0, 0
 
@@ -336,8 +340,11 @@ class ImageMTTrainer:
         try:
             if self.rank <= 0:
                 print("Total loss in this epoch: %f" % (total_loss / total_tokens))
-                model.cpu().save(saving_path + ".latest")
-                model = model.to(self.device)
+                if self.rank < 0:
+                    model.cpu().save(saving_path + ".latest")
+                    model = model.to(self.device)
+                elif self.rank == 0:
+                    model.save(saving_path + ".latest")
 
                 if mt_dev_iter is not None:
                     bleu = self.eval_bleu(mt_dev_iter, saving_path)
@@ -406,9 +413,12 @@ class ImageMTTrainer:
                 writer.write("\n".join(
                     [src + "\n" + ref + "\n" + o + "\n\n***************\n" for src, ref, o in
                      zip(src_text, mt_output, self.reference[:len(mt_output)])]))
+            if self.rank < 0:
+                model.cpu().save(saving_path)
+                model = model.to(self.device)
+            elif self.rank == 0:
+                model.save(saving_path)
 
-            model.cpu().save(saving_path)
-            model = model.to(self.device)
             if save_opt:
                 with open(os.path.join(saving_path, "optim"), "wb") as fp:
                     pickle.dump(self.optimizer, fp)
@@ -420,7 +430,7 @@ class ImageMTTrainer:
         lex_dict = None
         if options.dict_path is not None:
             lex_dict = get_lex_dict(options.dict_path)
-        if options.local_rank<=0 and not os.path.exists(options.model_path):
+        if options.local_rank <= 0 and not os.path.exists(options.model_path):
             os.makedirs(options.model_path)
 
         text_processor = TextProcessor(options.tokenizer_path)
@@ -497,9 +507,13 @@ class ImageMTTrainer:
             train_epoch += 1
 
         finetune_epoch = 0
-        if options.local_rank<=0 and options.finetune_step > 0:
-            mt_model.cpu().save(options.model_path + ".beam")
-            mt_model = mt_model.to(trainer.device)
+        if options.local_rank <= 0 and options.finetune_step > 0:
+            if options.local_rank < 0:
+                mt_model.cpu().save(options.model_path + ".beam")
+                mt_model = mt_model.to(trainer.device)
+            elif options.local_rank == 0:
+                mt_model.save(options.model_path + ".beam")
+
             # Resetting the optimizer for the purpose of finetuning.
             trainer.optimizer.reset()
 

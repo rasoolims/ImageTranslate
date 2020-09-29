@@ -48,7 +48,7 @@ with open(os.path.abspath(sys.argv[3]), "w") as writer:
     for i, src_sen in enumerate(src2dst_sen_max_sim.keys()):
         dst_sen, sen_sim = src2dst_sen_max_sim[src_sen]
         if dst2src_sen_max_sim[dst_sen][0] == src_sen:
-            writer.write(src_sen + " ||| " + dst_sen + "\n")
+            writer.write(src_sen + " ||| " + dst_sen + "\t" + str(sen_sim) + "\n")
             wrote += 1
         print(i, wrote, end="\r")
 print("\nDone!")

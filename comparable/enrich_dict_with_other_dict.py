@@ -12,7 +12,7 @@ with open(os.path.abspath(sys.argv[1]), "r") as r, open(os.path.abspath(sys.argv
         src_words.add(spl[0])
         dst_words.add(spl[1])
         w.write(line.strip() + "\n")
-    for line in r:
+    for line in r2:
         spl = line.strip().split("\t")
         if spl[0] not in src_words and spl[1] not in dst_words:
             w.write(line.strip() + "\n")

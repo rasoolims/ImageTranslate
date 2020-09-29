@@ -21,10 +21,7 @@ with open(fast_align_path, "r") as dr, open(alignment_path, "r") as ar:
             alignments = filter(lambda x: len(x) == 2, map(lambda a: a.split("-"), alignment.strip().split(" ")))
             coocs += alignment_counter(alignments, src_words, dst_words)
         except Exception as err:
-            print(repr(err))
-            print(alignment.strip().split(" "))
-            print(src)
-            print(dst)
+            pass
         print(i, end="\r")
 
 cooc_count = Counter(coocs)
@@ -35,20 +32,23 @@ print("\nDict processing")
 written = 0
 with open(dict_path, "w") as writer:
     for i, (word_pair, count) in enumerate(pair_dict):
-        src_word, dst_word = word_pair.split("\t")
-        if src_word.lower().strip() == dst_word.lower().strip():
-            continue
-        if src_word in covered:
-            continue
-        if count < min_cooc:
-            continue
-        covered.add(src_word)
-        writer.write(word_pair + "\n")
+        try:
+            src_word, dst_word = word_pair.split("\t")
+            if src_word.lower().strip() == dst_word.lower().strip():
+                continue
+            if src_word in covered:
+                continue
+            if count < min_cooc:
+                continue
+            covered.add(src_word)
+            writer.write(word_pair + "\n")
 
-        upper_cased = src_word[0].upper() + src_word[1:] + "\t" +  dst_word[0].upper() + dst_word[1:]
-        written += 1
-        if upper_cased != word_pair:
-            writer.write(upper_cased + "\n")
+            upper_cased = src_word[0].upper() + src_word[1:] + "\t" +  dst_word[0].upper() + dst_word[1:]
             written += 1
-        print(written, "/", i, end="\r")
+            if upper_cased != word_pair:
+                writer.write(upper_cased + "\n")
+                written += 1
+            print(written, "/", i, end="\r")
+        except:
+            pass
 print("\nDone!")

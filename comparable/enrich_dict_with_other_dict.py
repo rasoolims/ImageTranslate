@@ -5,7 +5,7 @@ src_words = set()
 dst_words = set()
 
 dict_entries = list()
-with open(os.path.abspath(sys.argv[1]), "r") as r, open(os.path.abspath(sys.argv[2]), "r2") as r2, open(
+with open(os.path.abspath(sys.argv[1]), "r") as r, open(os.path.abspath(sys.argv[2]), "r") as r2, open(
         os.path.abspath(sys.argv[3]), "w") as w:
     for line in r:
         spl = line.strip().split("\t")

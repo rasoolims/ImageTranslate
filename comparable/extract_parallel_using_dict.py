@@ -36,7 +36,7 @@ with open(os.path.abspath(sys.argv[2]), "r") as corpus_reader, open(os.path.absp
             elif src2dst_sen_max_sim[sen_spl[0]][1] < sen_sim:
                 src2dst_sen_max_sim[sen_spl[0]] = (sen_spl[1], sen_sim)
 
-            if spl[1] not in dst2src_sen_max_sim:
+            if sen_spl[1] not in dst2src_sen_max_sim:
                 dst2src_sen_max_sim[sen_spl[1]] = (sen_spl[0], sen_sim)
             elif dst2src_sen_max_sim[sen_spl[1]][1] < sen_sim:
                 dst2src_sen_max_sim[sen_spl[1]] = (sen_spl[0], sen_sim)

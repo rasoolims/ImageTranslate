@@ -14,5 +14,8 @@ with open(os.path.abspath(sys.argv[1]), "r") as r, open(os.path.abspath(sys.argv
         w.write(line.strip() + "\n")
     for line in r2:
         spl = line.strip().split("\t")
-        if spl[0] not in src_words and spl[1] not in dst_words:
-            w.write(line.strip() + "\n")
+        try:
+            if spl[0] not in src_words and spl[1] not in dst_words:
+                w.write(line.strip() + "\n")
+        except:
+            print(spl)

@@ -73,7 +73,7 @@ def build_batches(src_file, dst_file, src_embed_dict, dst_embed_dict, src2dst_di
             dict_match_vector = [0] * len(src_words)
             for i, w in enumerate(src_words):
                 for t in dst_words:
-                    if t in src2dst_dict[w]:
+                    if t in src2dst_dict[w] or t == w:
                         dict_match_vector[i] = 1.0
                         break
 

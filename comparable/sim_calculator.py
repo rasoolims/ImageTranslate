@@ -145,6 +145,7 @@ if __name__ == "__main__":
                               options.batch)):
             src_batch = src_batch.to(device)
             dst_batch = dst_batch.to(device)
+            dict_match_batch = dict_match_batch.to(device)
             sims = sim_model(src_batch, dst_batch, dict_match_batch)
             sims_txt = "\n".join(list(map(lambda x: str(float(x)), sims)))
             ow.write(sims_txt)

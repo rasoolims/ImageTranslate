@@ -90,7 +90,7 @@ def build_batches(src_file, dst_file, src_embed_dict, dst_embed_dict, src2dst_di
             digit_mask = [1.0] * len(src_words)
             for i, w in enumerate(src_words):
                 if is_digit_src[i]:
-                    digit_mask[i] = -10
+                    digit_mask[i] = -1
                 for j, t in enumerate(dst_words):
                     if t in src2dst_dict[w] or t == w:
                         dict_match_vector[i] = 1.0

@@ -6,15 +6,14 @@ import torch.nn as nn
 from apex import amp
 from torch.nn.utils.rnn import pad_sequence
 
+replacements = {"۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4", "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
+                "٫": ".", "૦": "0", "०": "0", "૧": "1", "१": "1", "૨": "2", "२": "2", "૩": "3", "३": "3", "૪": "4",
+                "४": "4", "૫": "5", "५": "5", "૬": "6", "६": "6", "૭": "7", "७": "7", "૮": "8", "८": "8", "૯": "9",
+                "९": "9"}
+
 
 def digit_replace(tok):
-    new_tok = tok
-    replacements = {"۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4", "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
-                    "٫": ".", "૦": "0", "०": "0", "૧": "1", "१": "1", "૨": "2", "२": "2", "૩": "3", "३": "3", "૪": "4",
-                    "४": "4", "૫": "5", "५": "5", "૬": "6", "६": "6", "૭": "7", "७": "7", "૮": "8", "८": "8", "૯": "9",
-                    "९": "9"}
-    for r in replacements.keys():
-        new_tok = new_tok.replace(r, replacements[r])
+    new_tok = "".join(map(lambda char: replacements[char] if char in replacements else char, list(tok)))
     return new_tok
 
 
@@ -90,7 +89,7 @@ def build_batches(src_file, dst_file, src_embed_dict, dst_embed_dict, src2dst_di
             digit_mask = [1.0] * len(src_words)
             for i, w in enumerate(src_words):
                 if is_digit_src[i]:
-                    digit_mask[i] = -1
+                    digit_mask[i] = -10
                 for j, t in enumerate(dst_words):
                     if t in src2dst_dict[w] or t == w:
                         dict_match_vector[i] = 1.0

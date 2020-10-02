@@ -49,8 +49,8 @@ class SimModel(nn.Module):
         mm[pad_mm].fill_(-0.0001)
 
         max_cos = torch.max(mm, dim=-1)[0]
-        max_cos = torch.max(max_cos, match_vectors)  # Incorporating dictionary information.
         max_cos = torch.min(max_cos, digit_mask)
+        max_cos = torch.max(max_cos, match_vectors)  # Incorporating dictionary information.
         avg_cos = torch.div(torch.sum(max_cos, dim=-1), int(max_cos.size(-1)))
         return avg_cos
 

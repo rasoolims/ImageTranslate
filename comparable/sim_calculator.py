@@ -45,12 +45,13 @@ class SimModel(nn.Module):
 
         mm = torch.bmm(src_embed, dst_embed.transpose(1, 2))
         pad_mm = (torch.bmm(src_pad, dst_pad.transpose(1, 2)) == 1)
-        mm[pad_mm].fill_(-0.0001)
+        mm[pad_mm].fill_(0)
+        sizes = torch.sum(src_pad.squeeze(-1), dim=-1)
 
         max_cos = torch.max(mm, dim=-1)[0]
         max_cos = torch.max(max_cos, match_vectors)  # Incorporating dictionary information.
         max_cos = torch.min(max_cos, digit_mask)
-        avg_cos = torch.div(torch.sum(max_cos, dim=-1), int(max_cos.size(-1)))
+        avg_cos = torch.div(torch.sum(max_cos, dim=-1), sizes)
         return avg_cos
 
 

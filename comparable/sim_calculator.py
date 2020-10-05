@@ -41,12 +41,13 @@ class SimModel(nn.Module):
         dst_embed = self.dst_embed(dst_batch)
 
         src_pad = (src_batch == 0).unsqueeze(-1).float()
+        src_unpad = (src_batch != 0).unsqueeze(-1).float()
         dst_pad = (dst_batch == 0).unsqueeze(-1).float()
 
         mm = torch.bmm(src_embed, dst_embed.transpose(1, 2))
         pad_mm = (torch.bmm(src_pad, dst_pad.transpose(1, 2)) == 1)
         mm[pad_mm].fill_(0)
-        sizes = torch.sum((~src_pad).squeeze(-1), dim=-1)
+        sizes = torch.sum(src_unpad.squeeze(-1), dim=-1)
 
         max_cos = torch.max(mm, dim=-1)[0]
         max_cos = torch.max(max_cos, match_vectors)  # Incorporating dictionary information.

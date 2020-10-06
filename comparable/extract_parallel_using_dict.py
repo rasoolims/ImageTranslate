@@ -20,6 +20,7 @@ with open(os.path.abspath(sys.argv[1]), "r") as dict_reader:
     for line in dict_reader:
         spl = line.strip().split("\t")
         src2dst_dict[spl[0]].add(spl[1])
+        src2dst_dict[spl[0]].add(spl[1].lower())
 
 print("Reading corpus")
 src2dst_sen_max_sim = dict()

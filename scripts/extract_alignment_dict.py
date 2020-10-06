@@ -25,6 +25,8 @@ with open(fast_align_path, "r") as dr, open(alignment_path, "r") as ar:
 
 cooc_count = Counter(coocs)
 src2dst_dict = dict()
+dst2src_dict = dict()
+
 for word_pair in cooc_count.keys():
     count = cooc_count[word_pair]
     src_word, dst_word = word_pair.split("\t")
@@ -33,6 +35,11 @@ for word_pair in cooc_count.keys():
     elif src2dst_dict[src_word][1] < count:
         src2dst_dict[src_word] = (dst_word, count)
 
+    if dst_word not in dst2src_dict.keys():
+        dst2src_dict[dst_word] = (src_word, count)
+    elif dst2src_dict[dst_word][1] < count:
+        dst2src_dict[dst_word] = (src_word, count)
+
 pair_dict = sorted(cooc_count.items(), key=lambda x: x[1], reverse=True)
 
 print("\nDict processing")
@@ -40,6 +47,8 @@ written = 0
 with open(dict_path, "w") as writer:
     for src_word in src2dst_dict.keys():
         dst_word = src2dst_dict[src_word][0]
+        if dst2src_dict[dst_word][0] != src_word:
+            continue
         try:
             if src_word.lower().strip() == dst_word.lower().strip():
                 continue

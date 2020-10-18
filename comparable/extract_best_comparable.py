@@ -11,6 +11,37 @@ def get_option_parser():
     return parser
 
 
+replacements = {"۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4", "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
+                "٫": ".", "૦": "0", "०": "0", "૧": "1", "१": "1", "૨": "2", "२": "2", "૩": "3", "३": "3", "૪": "4",
+                "४": "4", "૫": "5", "५": "5", "૬": "6", "६": "6", "૭": "7", "७": "7", "૮": "8", "८": "8", "૯": "9",
+                "९": "9"}
+
+
+def digit_replace(tok):
+    new_tok = "".join(map(lambda char: replacements[char] if char in replacements else char, list(tok)))
+
+    return new_tok
+
+
+def number_match(src_txt, dst_txt):
+    src_words = src_txt.split(" ")
+    dst_words = dst_txt.split(" ")
+    digit_src = list(map(lambda x: digit_replace(x), src_words))
+    digit_dst = list(map(lambda x: digit_replace(x), dst_words))
+    is_digit_src = list(map(lambda x: x.replace('.', '', 1).isdigit(), digit_src))
+    is_digit_dst = list(map(lambda x: x.replace('.', '', 1).isdigit(), digit_dst))
+    digit_mask = [1.0] * len(src_words)
+    for i, w in enumerate(src_words):
+        if is_digit_src[i]:
+            digit_mask[i] = -10
+        for j, t in enumerate(dst_words):
+            if (is_digit_src[i] and is_digit_dst[j]) and digit_src[i] == digit_dst[j]:
+                digit_mask[i] = 1.0
+        if digit_mask[i] < 0:
+            return False
+    return True
+
+
 if __name__ == "__main__":
     parser = get_option_parser()
     (options, args) = parser.parse_args()
@@ -23,6 +54,9 @@ if __name__ == "__main__":
         for i, (src_line, dst_line, score_line) in enumerate(zip(sr, dr, scf)):
             src_line = src_line.strip()
             dst_line = dst_line.strip()
+            if not number_match(src_line, dst_line):
+                continue
+
             score = float(score_line.strip())
 
             if src_line not in highest_s2d:

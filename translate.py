@@ -17,7 +17,7 @@ def get_lm_option_parser():
     parser.add_option("--src", dest="src_lang", type="str", default=None)
     parser.add_option("--target", dest="target_lang", type="str", default=None)
     parser.add_option("--output", dest="output_path", metavar="FILE", default=None)
-    parser.add_option("--batch", dest="batch", help="Batch size", type="int", default=512)
+    parser.add_option("--batch", dest="batch", help="Batch size", type="int", default=4000)
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--cache_size", dest="cache_size", help="Number of blocks in cache", type="int", default=300)
     parser.add_option("--model", dest="model_path", metavar="FILE", default=None)
@@ -26,7 +26,7 @@ def get_lm_option_parser():
     parser.add_option("--max_len_a", dest="max_len_a", help="a for beam search (a*l+b)", type="float", default=1.3)
     parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)
     parser.add_option("--len-penalty", dest="len_penalty_ratio", help="Length penalty", type="float", default=0.8)
-    parser.add_option("--capacity", dest="total_capacity", help="Batch capacity", type="int", default=150)
+    parser.add_option("--capacity", dest="total_capacity", help="Batch capacity", type="int", default=600)
     parser.add_option("--fp16", action="store_true", dest="fp16", default=False)
     return parser
 

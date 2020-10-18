@@ -16,10 +16,14 @@ replacements = {"۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4", "۵": "5"
                 "४": "4", "૫": "5", "५": "5", "૬": "6", "६": "6", "૭": "7", "७": "7", "૮": "8", "८": "8", "૯": "9",
                 "९": "9"}
 
+tok_replacements = {}
+
 
 def digit_replace(tok):
+    if tok in tok_replacements:
+        return tok_replacements[tok]
     new_tok = "".join(map(lambda char: replacements[char] if char in replacements else char, list(tok)))
-
+    tok_replacements[tok] = new_tok
     return new_tok
 
 

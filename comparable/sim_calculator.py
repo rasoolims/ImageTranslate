@@ -6,20 +6,6 @@ import torch.nn as nn
 from apex import amp
 from torch.nn.utils.rnn import pad_sequence
 
-replacements = {"۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4", "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
-                "٫": ".", "૦": "0", "०": "0", "૧": "1", "१": "1", "૨": "2", "२": "2", "૩": "3", "३": "3", "૪": "4",
-                "४": "4", "૫": "5", "५": "5", "૬": "6", "६": "6", "૭": "7", "७": "7", "૮": "8", "८": "8", "૯": "9",
-                "९": "9"}
-
-tok_replacements = {}
-
-
-def digit_replace(tok):
-    if tok in tok_replacements:
-        return tok_replacements[tok]
-    new_tok = "".join(map(lambda char: replacements[char] if char in replacements else char, list(tok)))
-    return new_tok
-
 
 def get_option_parser():
     parser = OptionParser()
@@ -40,7 +26,7 @@ class SimModel(nn.Module):
         self.src_embed = nn.Embedding(src_vectors.size(0), src_vectors.size(1), _weight=src_vectors)
         self.dst_embed = nn.Embedding(dst_vectors.size(0), dst_vectors.size(1), _weight=dst_vectors)
 
-    def forward(self, src_batch, dst_batch, match_vectors, digit_mask):
+    def forward(self, src_batch, dst_batch, match_vectors):
         src_embed = self.src_embed(src_batch)
         dst_embed = self.dst_embed(dst_batch)
 
@@ -55,7 +41,6 @@ class SimModel(nn.Module):
 
         max_cos = torch.max(mm, dim=-1)[0]
         max_cos = torch.max(max_cos, match_vectors)  # Incorporating dictionary information.
-        max_cos = torch.min(max_cos, digit_mask)
         avg_cos = torch.div(torch.sum(max_cos, dim=-1), sizes)
         return avg_cos
 
@@ -88,26 +73,15 @@ def build_batches(src_file, dst_file, src_embed_dict, dst_embed_dict, src2dst_di
             src_words = src_line.lower().strip().split(" ")
             dst_words = dst_line.lower().strip().split(" ")
             dict_match_vector = [0] * len(src_words)
-            digit_src = list(map(lambda x: digit_replace(x), src_words))
-            digit_dst = list(map(lambda x: digit_replace(x), dst_words))
-            is_digit_src = list(map(lambda x: x.replace('.', '', 1).isdigit(), digit_src))
-            is_digit_dst = list(map(lambda x: x.replace('.', '', 1).isdigit(), digit_dst))
-            digit_mask = [1.0] * len(src_words)
             for i, w in enumerate(src_words):
-                if is_digit_src[i]:
-                    digit_mask[i] = -10
                 for j, t in enumerate(dst_words):
                     if t in src2dst_dict[w] or t == w:
                         dict_match_vector[i] = 1.0
                         digit_mask[i] = 1.0
                         break
-                    if (is_digit_src[i] and is_digit_dst[j]) and digit_src[i] == digit_dst[j]:
-                        digit_mask[i] = 1.0
 
             dict_match_vector = torch.Tensor(dict_match_vector)
             dict_match_vectors.append(dict_match_vector)
-            digit_mask = torch.Tensor(digit_mask)
-            digit_masks.append(digit_mask)
             src_ids = torch.LongTensor(get_src_ids(src_line.strip(), src_embed_dict))
             dst_ids = torch.LongTensor(get_ids(dst_line.strip(), dst_embed_dict))
             current_src_batch.append(src_ids)
@@ -119,15 +93,14 @@ def build_batches(src_file, dst_file, src_embed_dict, dst_embed_dict, src2dst_di
                 dict_match_vectors = pad_sequence(dict_match_vectors, batch_first=True, padding_value=0)
                 digit_masks = pad_sequence(digit_masks, batch_first=True,
                                            padding_value=1)  # Padding is one for digit mask
-                yield src_batch, dst_batch, dict_match_vectors, digit_masks
+                yield src_batch, dst_batch, dict_match_vectors
                 current_src_batch, current_dst_batch, dict_match_vectors, digit_masks, num_tok = [], [], [], [], 0
 
     if num_tok > 0:
         src_batch = pad_sequence(current_src_batch, batch_first=True, padding_value=0)
         dst_batch = pad_sequence(current_dst_batch, batch_first=True, padding_value=0)
         dict_match_vectors = pad_sequence(dict_match_vectors, batch_first=True, padding_value=0)
-        digit_masks = pad_sequence(digit_masks, batch_first=True, padding_value=1)  # Padding is one for digit mask
-        yield src_batch, dst_batch, dict_match_vectors, digit_masks
+        yield src_batch, dst_batch, dict_match_vectors
 
 
 if __name__ == "__main__":
@@ -173,14 +146,13 @@ if __name__ == "__main__":
         sim_model = amp.initialize(sim_model, opt_level="O2")
 
     with torch.no_grad(), open(options.output_file, "w") as ow:
-        for i, (src_batch, dst_batch, dict_match_batch, digit_mask) in enumerate(
+        for i, (src_batch, dst_batch, dict_match_batch) in enumerate(
                 build_batches(options.src_file, options.dst_file, src_embed_dict, dst_embed_dict, src2dst_dict,
                               options.batch)):
             src_batch = src_batch.to(device)
             dst_batch = dst_batch.to(device)
             dict_match_batch = dict_match_batch.to(device)
-            digit_mask = digit_mask.to(device)
-            sims = sim_model(src_batch, dst_batch, dict_match_batch, digit_mask)
+            sims = sim_model(src_batch, dst_batch, dict_match_batch)
             sims_txt = "\n".join(list(map(lambda x: str(float(x)), sims)))
             ow.write(sims_txt)
             ow.write("\n")

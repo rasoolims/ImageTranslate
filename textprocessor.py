@@ -69,7 +69,7 @@ class TextProcessor:
         spl = line.strip().split(" ")
         lang_id, sen, eos = spl[0], " ".join(spl[1:-1]), spl[-1]
         tokenized = [self.token_id(lang_id)] + self._tokenize(sen).ids + [self.token_id(eos)]
-        return tokenized
+        return tokenized[:512]
 
     def tokenize_lines(self, line, blind_split: bool = False, split_len: int = 512) -> List[List[int]]:
         """

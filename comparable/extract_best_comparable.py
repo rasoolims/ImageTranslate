@@ -10,6 +10,7 @@ def get_option_parser():
     parser.add_option("--scores", dest="score_file", metavar="FILE", default=None)
     parser.add_option("--output", dest="output_file", metavar="FILE", default=None)
     parser.add_option("--min", dest="min_sim", type="float", default=0.1)
+    parser.add_option("--convert", action="store_true", dest="convert_numbers", default=False)
     return parser
 
 
@@ -32,11 +33,11 @@ def digit_replace(tok):
 is_digit = lambda x: x.replace('.', '', 1).isdigit()
 
 
-def number_match(src_txt, dst_txt):
+def number_match(src_txt, dst_txt, convert_numbers=False):
     src_words = src_txt.split(" ")
     dst_words = dst_txt.split(" ")
-    digit_src = set(filter(lambda x: is_digit(x), map(lambda x: digit_replace(x), src_words)))
-    digit_dst = set(filter(lambda x: is_digit(x), map(lambda x: digit_replace(x), dst_words)))
+    digit_src = set(filter(lambda x: is_digit(x), map(lambda x: digit_replace(x) if convert_numbers else x, src_words)))
+    digit_dst = set(filter(lambda x: is_digit(x), map(lambda x: digit_replace(x) if convert_numbers else x, dst_words)))
     return digit_dst == digit_src
 
 
@@ -48,11 +49,13 @@ if __name__ == "__main__":
     highest_d2s = dict()
 
     print("Reading scores")
-    with open(options.src_file, "r") as sr, open(options.dst_file, "r") as dr, open(options.src_tok_file, "r") as stokr, open(options.dst_tok_file, "r") as dtokr, open(options.score_file, "r") as scf:
+    with open(options.src_file, "r") as sr, open(options.dst_file, "r") as dr, open(options.src_tok_file,
+                                                                                    "r") as stokr, open(
+            options.dst_tok_file, "r") as dtokr, open(options.score_file, "r") as scf:
         for i, (src_line, dst_line, score_line, stok_line, dtok_line) in enumerate(zip(sr, dr, scf, stokr, dtokr)):
             src_line = src_line.strip()
             dst_line = dst_line.strip()
-            if not number_match(stok_line.strip(), dtok_line.strip()):
+            if not number_match(stok_line.strip(), dtok_line.strip(), options.convert_numbers):
                 continue
 
             score = float(score_line.strip())

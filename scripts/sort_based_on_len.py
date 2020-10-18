@@ -13,6 +13,6 @@ with open(os.path.abspath(sys.argv[1]), "r") as r:
 
 with open(os.path.abspath(sys.argv[2]), "w") as w:
     for ln in sorted(len_dict.keys(), reverse=True):
-        if ln >= min_len:
+        if 150 >= ln >= min_len:
             w.write("\n".join(len_dict[ln]))
             w.write("\n")

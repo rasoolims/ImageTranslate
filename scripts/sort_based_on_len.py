@@ -2,6 +2,8 @@ import os
 import sys
 from collections import defaultdict
 
+min_len = int(sys.argv[3])
+
 len_dict = defaultdict(set)
 with open(os.path.abspath(sys.argv[1]), "r") as r:
     for line in r:
@@ -11,5 +13,6 @@ with open(os.path.abspath(sys.argv[1]), "r") as r:
 
 with open(os.path.abspath(sys.argv[2]), "w") as w:
     for ln in sorted(len_dict.keys()):
-        w.write("\n".join(len_dict[ln]))
-        w.write("\n")
+        if ln >= min_len:
+            w.write("\n".join(len_dict[ln]))
+            w.write("\n")

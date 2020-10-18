@@ -5,6 +5,8 @@ def get_option_parser():
     parser = OptionParser()
     parser.add_option("--src", dest="src_file", metavar="FILE", default=None)
     parser.add_option("--dst", dest="dst_file", metavar="FILE", default=None)
+    parser.add_option("--src-tok", dest="src_tok_file", metavar="FILE", default=None)
+    parser.add_option("--dst-tok", dest="dst_tok_file", metavar="FILE", default=None)
     parser.add_option("--scores", dest="score_file", metavar="FILE", default=None)
     parser.add_option("--output", dest="output_file", metavar="FILE", default=None)
     parser.add_option("--min", dest="min_sim", type="float", default=0.1)
@@ -35,10 +37,7 @@ def number_match(src_txt, dst_txt):
     dst_words = dst_txt.split(" ")
     digit_src = set(filter(lambda x: is_digit(x), map(lambda x: digit_replace(x), src_words)))
     digit_dst = set(filter(lambda x: is_digit(x), map(lambda x: digit_replace(x), dst_words)))
-    for i, w in enumerate(digit_src):
-        if w not in digit_dst:
-            return False
-    return True
+    return digit_dst == digit_src
 
 
 if __name__ == "__main__":
@@ -49,11 +48,11 @@ if __name__ == "__main__":
     highest_d2s = dict()
 
     print("Reading scores")
-    with open(options.src_file, "r") as sr, open(options.dst_file, "r") as dr, open(options.score_file, "r") as scf:
-        for i, (src_line, dst_line, score_line) in enumerate(zip(sr, dr, scf)):
+    with open(options.src_file, "r") as sr, open(options.dst_file, "r") as dr, open(options.src_tok_file, "r") as stokr, open(options.dst_tok_file, "r") as dtokr, open(options.score_file, "r") as scf:
+        for i, (src_line, dst_line, score_line, stok_line, dtok_line) in enumerate(zip(sr, dr, scf, stokr, dtokr)):
             src_line = src_line.strip()
             dst_line = dst_line.strip()
-            if not number_match(src_line, dst_line):
+            if not number_match(stok_line.strip(), dtok_line.strip()):
                 continue
 
             score = float(score_line.strip())

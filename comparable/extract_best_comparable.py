@@ -33,10 +33,10 @@ is_digit = lambda x: x.replace('.', '', 1).isdigit()
 def number_match(src_txt, dst_txt):
     src_words = src_txt.split(" ")
     dst_words = dst_txt.split(" ")
-    digit_src = set(map(lambda x: digit_replace(x), src_words))
-    digit_dst = set(map(lambda x: digit_replace(x), dst_words))
+    digit_src = set(filter(lambda x: is_digit(x), map(lambda x: digit_replace(x), src_words)))
+    digit_dst = set(filter(lambda x: is_digit(x), map(lambda x: digit_replace(x), dst_words)))
     for i, w in enumerate(digit_src):
-        if is_digit(w) and w not in digit_dst:
+        if w not in digit_dst:
             return False
     return True
 

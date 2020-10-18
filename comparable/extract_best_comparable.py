@@ -27,21 +27,16 @@ def digit_replace(tok):
     return new_tok
 
 
+is_digit = lambda x: x.replace('.', '', 1).isdigit()
+
+
 def number_match(src_txt, dst_txt):
     src_words = src_txt.split(" ")
     dst_words = dst_txt.split(" ")
-    digit_src = list(map(lambda x: digit_replace(x), src_words))
-    digit_dst = list(map(lambda x: digit_replace(x), dst_words))
-    is_digit_src = list(map(lambda x: x.replace('.', '', 1).isdigit(), digit_src))
-    is_digit_dst = list(map(lambda x: x.replace('.', '', 1).isdigit(), digit_dst))
-    digit_mask = [1.0] * len(src_words)
-    for i, w in enumerate(src_words):
-        if is_digit_src[i]:
-            digit_mask[i] = -10
-        for j, t in enumerate(dst_words):
-            if (is_digit_src[i] and is_digit_dst[j]) and digit_src[i] == digit_dst[j]:
-                digit_mask[i] = 1.0
-        if digit_mask[i] < 0:
+    digit_src = set(map(lambda x: digit_replace(x), src_words))
+    digit_dst = set(map(lambda x: digit_replace(x), dst_words))
+    for i, w in enumerate(digit_src):
+        if is_digit(w) and w not in digit_dst:
             return False
     return True
 

@@ -5,40 +5,10 @@ def get_option_parser():
     parser = OptionParser()
     parser.add_option("--src", dest="src_file", metavar="FILE", default=None)
     parser.add_option("--dst", dest="dst_file", metavar="FILE", default=None)
-    parser.add_option("--src-tok", dest="src_tok_file", metavar="FILE", default=None)
-    parser.add_option("--dst-tok", dest="dst_tok_file", metavar="FILE", default=None)
     parser.add_option("--scores", dest="score_file", metavar="FILE", default=None)
     parser.add_option("--output", dest="output_file", metavar="FILE", default=None)
     parser.add_option("--min", dest="min_sim", type="float", default=0.1)
-    parser.add_option("--convert", action="store_true", dest="convert_numbers", default=False)
     return parser
-
-
-replacements = {"۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4", "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
-                "٫": ".", "૦": "0", "०": "0", "૧": "1", "१": "1", "૨": "2", "२": "2", "૩": "3", "३": "3", "૪": "4",
-                "४": "4", "૫": "5", "५": "5", "૬": "6", "६": "6", "૭": "7", "७": "7", "૮": "8", "८": "8", "૯": "9",
-                "९": "9"}
-
-tok_replacements = {}
-
-
-def digit_replace(tok):
-    if tok in tok_replacements:
-        return tok_replacements[tok]
-    new_tok = "".join(map(lambda char: replacements[char] if char in replacements else char, list(tok)))
-    tok_replacements[tok] = new_tok
-    return new_tok
-
-
-is_digit = lambda x: x.replace('.', '', 1).isdigit()
-
-
-def number_match(src_txt, dst_txt, convert_numbers=False):
-    src_words = src_txt.split(" ")
-    dst_words = dst_txt.split(" ")
-    digit_src = set(filter(lambda x: is_digit(x), map(lambda x: digit_replace(x) if convert_numbers else x, src_words)))
-    digit_dst = set(filter(lambda x: is_digit(x), map(lambda x: digit_replace(x) if convert_numbers else x, dst_words)))
-    return digit_dst == digit_src
 
 
 if __name__ == "__main__":
@@ -49,14 +19,10 @@ if __name__ == "__main__":
     highest_d2s = dict()
 
     print("Reading scores")
-    with open(options.src_file, "r") as sr, open(options.dst_file, "r") as dr, open(options.src_tok_file,
-                                                                                    "r") as stokr, open(
-            options.dst_tok_file, "r") as dtokr, open(options.score_file, "r") as scf:
-        for i, (src_line, dst_line, score_line, stok_line, dtok_line) in enumerate(zip(sr, dr, scf, stokr, dtokr)):
+    with open(options.src_file, "r") as sr, open(options.dst_file, "r") as dr, open(options.score_file, "r") as scf:
+        for i, (src_line, dst_line, score_line) in enumerate(zip(sr, dr, scf)):
             src_line = src_line.strip()
             dst_line = dst_line.strip()
-            if not number_match(stok_line.strip(), dtok_line.strip(), options.convert_numbers):
-                continue
 
             score = float(score_line.strip())
 

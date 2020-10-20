@@ -144,7 +144,9 @@ if __name__ == "__main__":
         for line in r:
             spl = line.strip().split(" ")
             if len(spl) < 3: continue
-            src_vectors.append(torch.Tensor(list(map(lambda x: float(x), spl[1:]))))
+            v = list(map(lambda x: float(x), spl[1:]))
+            if len(v) != 150: continue
+            src_vectors.append(torch.Tensor(v))
             vec_length = len(src_vectors[-1])
             src_embed_dict[spl[0]] = len(src_embed_dict) + 1
     src_vectors.insert(0, torch.Tensor([1e-4] * vec_length))

@@ -14,7 +14,9 @@ replacements = {"۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4", "۵": "5"
 tok_replacements = {}
 
 
-def digit_replace(tok):
+def digit_replace(tok, convert_numbers=False):
+    if not convert_numbers:
+        return tok
     if tok in tok_replacements:
         return tok_replacements[tok]
     new_tok = "".join(map(lambda char: replacements[char] if char in replacements else char, list(tok)))
@@ -32,6 +34,7 @@ def get_option_parser():
     parser.add_option("--output", dest="output_file", metavar="FILE", default=None)
     parser.add_option("--batch", dest="batch", help="Batch size", type="int", default=40000)
     parser.add_option("--fp16", action="store_true", dest="fp16", default=False)
+    parser.add_option("--convert", action="store_true", dest="convert_numbers", default=False)
     return parser
 
 
@@ -92,8 +95,8 @@ def build_batches(src_file, dst_file, src_embed_dict, dst_embed_dict, src2dst_di
             src_words = src_line.lower().strip().split(" ")
             dst_words = dst_line.lower().strip().split(" ")
             dict_match_vector = [0] * len(src_words)
-            digit_src = list(map(lambda x: digit_replace(x), src_words))
-            digit_dst = list(map(lambda x: digit_replace(x), dst_words))
+            digit_src = list(map(lambda x: digit_replace(x, options.convert_numbers), src_words))
+            digit_dst = list(map(lambda x: digit_replace(x, options.convert_numbers), dst_words))
             is_digit_src = list(map(lambda x: x.replace('.', '', 1).isdigit(), digit_src))
             is_digit_dst = list(map(lambda x: x.replace('.', '', 1).isdigit(), digit_dst))
             digit_mask = [1.0] * len(src_words)

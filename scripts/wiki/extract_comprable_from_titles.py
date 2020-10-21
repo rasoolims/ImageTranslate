@@ -3,8 +3,8 @@ import re
 import sys
 
 has_number = lambda i: bool(re.search(r'\d', i))
-len_condition = lambda words1, words2: True if (.5 <= len(words1) / len(words2) <= 2 or abs(
-    len(words1) - len(words2))) <= 5 and len(words1) >= 5 and len(words2) >= 5 else False
+len_condition = lambda words1, words2: True if ((.7 <= len(words1) / len(words2) <= 1.3 or abs(
+    len(words1) - len(words2))) <= 5) and len(words1) >= 5 and len(words2) >= 5 else False
 
 print("Reading titles")
 title_dict = {}

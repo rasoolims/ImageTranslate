@@ -43,6 +43,7 @@ class SimModel(nn.Module):
         super(SimModel, self).__init__()
         self.src_embed = nn.Embedding(src_vectors.size(0), src_vectors.size(1), _weight=src_vectors)
         self.dst_embed = nn.Embedding(dst_vectors.size(0), dst_vectors.size(1), _weight=dst_vectors)
+        self.cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
 
     def forward(self, src_batch, dst_batch, match_vectors, digit_mask):
         try:
@@ -61,7 +62,7 @@ class SimModel(nn.Module):
             max_cos = torch.max(mm, dim=-1)[0]
             max_cos = torch.max(max_cos, match_vectors)  # Incorporating dictionary information.
             max_cos = torch.min(max_cos, digit_mask)
-            avg_cos = torch.div(torch.sum(max_cos, dim=-1), sizes)
+            avg_cos = torch.div(torch.sum(max_cos, dim=-1), src_batch.size(1))
             return avg_cos
         except RuntimeError as err:
             return torch.zeros(src_batch.size(0)).fill_(-1)
@@ -102,7 +103,7 @@ def build_batches(src_file, dst_file, src_embed_dict, dst_embed_dict, src2dst_di
             digit_mask = [1.0] * len(src_words)
             for i, w in enumerate(src_words):
                 if is_digit_src[i]:
-                    digit_mask[i] = -10
+                    digit_mask[i] = -100
                 for j, t in enumerate(dst_words):
                     if t in src2dst_dict[w] or t == w:
                         dict_match_vector[i] = 1.0

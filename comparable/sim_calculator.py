@@ -43,7 +43,6 @@ class SimModel(nn.Module):
         super(SimModel, self).__init__()
         self.src_embed = nn.Embedding(src_vectors.size(0), src_vectors.size(1), _weight=src_vectors)
         self.dst_embed = nn.Embedding(dst_vectors.size(0), dst_vectors.size(1), _weight=dst_vectors)
-        self.cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
 
     def forward(self, src_batch, dst_batch, match_vectors, digit_mask):
         try:
@@ -57,7 +56,6 @@ class SimModel(nn.Module):
             mm = torch.bmm(src_embed, dst_embed.transpose(1, 2))
             pad_mm = (torch.bmm(src_pad, dst_pad.transpose(1, 2)) == 1)
             mm[pad_mm].fill_(0)
-            sizes = torch.sum(src_unpad.squeeze(-1), dim=-1)
 
             max_cos = torch.max(mm, dim=-1)[0]
             max_cos = torch.max(max_cos, match_vectors)  # Incorporating dictionary information.

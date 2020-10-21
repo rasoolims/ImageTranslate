@@ -41,23 +41,26 @@ class SimModel(nn.Module):
         self.dst_embed = nn.Embedding(dst_vectors.size(0), dst_vectors.size(1), _weight=dst_vectors)
 
     def forward(self, src_batch, dst_batch, match_vectors, digit_mask):
-        src_embed = self.src_embed(src_batch)
-        dst_embed = self.dst_embed(dst_batch)
+        try:
+            src_embed = self.src_embed(src_batch)
+            dst_embed = self.dst_embed(dst_batch)
 
-        src_pad = (src_batch == 0).unsqueeze(-1).float()
-        src_unpad = (src_batch != 0).unsqueeze(-1).float()
-        dst_pad = (dst_batch == 0).unsqueeze(-1).float()
+            src_pad = (src_batch == 0).unsqueeze(-1).float()
+            src_unpad = (src_batch != 0).unsqueeze(-1).float()
+            dst_pad = (dst_batch == 0).unsqueeze(-1).float()
 
-        mm = torch.bmm(src_embed, dst_embed.transpose(1, 2))
-        pad_mm = (torch.bmm(src_pad, dst_pad.transpose(1, 2)) == 1)
-        mm[pad_mm].fill_(0)
-        sizes = torch.sum(src_unpad.squeeze(-1), dim=-1)
+            mm = torch.bmm(src_embed, dst_embed.transpose(1, 2))
+            pad_mm = (torch.bmm(src_pad, dst_pad.transpose(1, 2)) == 1)
+            mm[pad_mm].fill_(0)
+            sizes = torch.sum(src_unpad.squeeze(-1), dim=-1)
 
-        max_cos = torch.max(mm, dim=-1)[0]
-        max_cos = torch.max(max_cos, match_vectors)  # Incorporating dictionary information.
-        max_cos = torch.min(max_cos, digit_mask)
-        avg_cos = torch.div(torch.sum(max_cos, dim=-1), sizes)
-        return avg_cos
+            max_cos = torch.max(mm, dim=-1)[0]
+            max_cos = torch.max(max_cos, match_vectors)  # Incorporating dictionary information.
+            max_cos = torch.min(max_cos, digit_mask)
+            avg_cos = torch.div(torch.sum(max_cos, dim=-1), sizes)
+            return avg_cos
+        except RuntimeError as err:
+            return torch.zeros(src_batch.size(0)).fill_(-1)
 
 
 get_id = lambda x, dct: dct[x] if x in dct else (dct[x.lower()] if x.lower() in dct else None)

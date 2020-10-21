@@ -18,6 +18,7 @@ def digit_replace(tok):
     if tok in tok_replacements:
         return tok_replacements[tok]
     new_tok = "".join(map(lambda char: replacements[char] if char in replacements else char, list(tok)))
+    tok_replacements[tok] = new_tok
     return new_tok
 
 

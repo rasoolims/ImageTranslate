@@ -24,7 +24,7 @@ if __name__ == "__main__":
             src_line = src_line.strip()
             dst_line = dst_line.strip()
 
-            score = float(score_line.strip())
+            score = float(score_line.strip())/len(src_line.strip().split(" "))
 
             if src_line not in highest_s2d:
                 highest_s2d[src_line] = (dst_line, score)

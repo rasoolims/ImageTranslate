@@ -59,8 +59,7 @@ class SimModel(nn.Module):
             max_cos = torch.max(mm, dim=-1)[0]
             max_cos = torch.max(max_cos, match_vectors)  # Incorporating dictionary information.
             max_cos = torch.min(max_cos, digit_mask)
-            avg_cos = torch.div(torch.sum(max_cos, dim=-1), src_batch.size(1))
-            return avg_cos
+            return torch.sum(max_cos, dim=-1)
         except RuntimeError as err:
             return torch.zeros(src_batch.size(0)).fill_(-1)
 

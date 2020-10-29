@@ -61,9 +61,9 @@ class Seq2Seq(nn.Module):
             else:
                 self.output_layer = nn.ModuleList([BertOutputLayer(dec_config) for _ in text_processor.languages])
 
-            if len(self.encoder.encoder.layer) == len(self.decoder.decoder.layer):
-                for i in range(len(self.encoder.encoder.layer)):
-                    self.decoder.decoder.layer[i].attention = self.encoder.encoder.layer[i].attention
+            # if len(self.encoder.encoder.layer) == len(self.decoder.decoder.layer):
+            #     for i in range(len(self.encoder.encoder.layer)):
+            #         self.decoder.decoder.layer[i].attention = self.encoder.encoder.layer[i].attention
 
         else:
             dec = BertDecoderModel(dec_config)

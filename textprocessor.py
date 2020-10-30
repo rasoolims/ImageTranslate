@@ -71,6 +71,10 @@ class TextProcessor:
         tokenized = [self.token_id(lang_id)] + self._tokenize(sen).ids + [self.token_id(eos)]
         return tokenized[:512]
 
+    def tokenize_one_sentence_with_langid(self, line, lang_id) -> List[int]:
+        tokenized = [lang_id] + self._tokenize(line).ids + [self.token_id("</s>")]
+        return tokenized[:512]
+
     def tokenize_lines(self, line, blind_split: bool = False, split_len: int = 512) -> List[List[int]]:
         """
 

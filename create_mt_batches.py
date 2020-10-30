@@ -5,9 +5,8 @@ from optparse import OptionParser
 from textprocessor import TextProcessor
 
 
-def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, dst_txt_file: str = None,
-          min_len: int = 1,
-          max_len: int = 175):
+def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, src_lang: int,
+          dst_txt_file: str = None, dst_lang: int = None, min_len: int = 1, max_len: int = 175):
     examples = {}
     line_num = 0
 
@@ -16,10 +15,8 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
         with open(src_txt_file, "r") as s_fp, open(dst_txt_file, "r") as d_fp:
             for src_line, dst_line in zip(s_fp, d_fp):
                 if len(src_line.strip()) == 0 or len(dst_line.strip()) == 0: continue
-                src_tok_line = text_processor.tokenize_one_sentence(src_line.strip().replace(" </s> ", " "))
-                src_lang = text_processor.languages[text_processor.id2token(src_tok_line[0])]
-                dst_tok_line = text_processor.tokenize_one_sentence(dst_line.strip().replace(" </s> ", " "))
-                dst_lang = text_processor.languages[text_processor.id2token(dst_tok_line[0])]
+                src_tok_line = text_processor.tokenize_one_sentence_with_langid(src_line.strip(), src_lang)
+                dst_tok_line = text_processor.tokenize_one_sentence_with_langid(dst_line.strip(), dst_lang)
 
                 if min_len <= len(src_tok_line) <= max_len and min_len <= len(dst_tok_line) <= max_len:
                     examples[line_num] = (src_tok_line, dst_tok_line, src_lang, dst_lang)
@@ -47,8 +44,7 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, ds
         with open(src_txt_file, "r") as s_fp:
             for src_line in s_fp:
                 if len(src_line.strip()) == 0: continue
-                src_tok_line = text_processor.tokenize_one_sentence(src_line.strip())
-                src_lang = text_processor.languages[text_processor.id2token(src_tok_line[0])]
+                src_tok_line = text_processor.tokenize_one_sentence_with_langid(src_line.strip(), src_lang)
                 if min_len <= len(src_tok_line) <= max_len:
                     examples[line_num] = (src_tok_line, src_lang)
                     lens[line_num] = len(src_tok_line)
@@ -83,6 +79,8 @@ def get_options():
     parser.add_option("--tok", dest="tokenizer_path", help="Path to the tokenizer folder", metavar="FILE", default=None)
     parser.add_option("--max_seq_len", dest="max_seq_len", help="Max sequence length", type="int", default=175)
     parser.add_option("--min_seq_len", dest="min_seq_len", help="Max sequence length", type="int", default=1)
+    parser.add_option("--src-lang", dest="src_lang", type="str", default=None)
+    parser.add_option("--dst-lang", dest="dst_lang", type="str", default=None)
     (options, args) = parser.parse_args()
     return options
 
@@ -92,6 +90,8 @@ if __name__ == "__main__":
     tokenizer = TextProcessor(options.tokenizer_path)
 
     print(datetime.datetime.now(), "Writing batches")
+    src_lang = tokenizer.token_id("<" + options.src_lang + ">")
+    dst_lang = tokenizer.token_id("<" + options.dst_lang + ">") if options.dst_lang is not None else None
     write(text_processor=tokenizer, output_file=options.output_path, src_txt_file=options.src_data_path,
-          dst_txt_file=options.dst_data_path)
+          dst_txt_file=options.dst_data_path, src_lang=src_lang, dst_lang=dst_lang)
     print(datetime.datetime.now(), "Finished")

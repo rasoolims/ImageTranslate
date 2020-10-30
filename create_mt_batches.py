@@ -9,9 +9,10 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, sr
           dst_txt_file: str = None, dst_lang: int = None, min_len: int = 1, max_len: int = 175):
     examples = {}
     line_num = 0
-
+    src_lang_str = text_processor.languages[text_processor.id2token(src_lang)]
     lens = {}
     if dst_txt_file is not None:
+        dst_lang_str = text_processor.languages[text_processor.id2token(dst_lang)]
         with open(src_txt_file, "r") as s_fp, open(dst_txt_file, "r") as d_fp:
             for src_line, dst_line in zip(s_fp, d_fp):
                 if len(src_line.strip()) == 0 or len(dst_line.strip()) == 0: continue
@@ -19,7 +20,7 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, sr
                 dst_tok_line = text_processor.tokenize_one_sentence_with_langid(dst_line.strip(), dst_lang)
 
                 if min_len <= len(src_tok_line) <= max_len and min_len <= len(dst_tok_line) <= max_len:
-                    examples[line_num] = (src_tok_line, dst_tok_line, src_lang, dst_lang)
+                    examples[line_num] = (src_tok_line, dst_tok_line, src_lang_str, dst_lang_str)
                     lens[line_num] = len(dst_tok_line)
                     line_num += 1
 
@@ -46,7 +47,7 @@ def write(text_processor: TextProcessor, output_file: str, src_txt_file: str, sr
                 if len(src_line.strip()) == 0: continue
                 src_tok_line = text_processor.tokenize_one_sentence_with_langid(src_line.strip(), src_lang)
                 if min_len <= len(src_tok_line) <= max_len:
-                    examples[line_num] = (src_tok_line, src_lang)
+                    examples[line_num] = (src_tok_line, src_lang_str)
                     lens[line_num] = len(src_tok_line)
                     line_num += 1
                     if line_num % 1000 == 0:

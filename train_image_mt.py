@@ -604,8 +604,8 @@ class ImageMTTrainer:
         for i, mass_train_path in enumerate(mass_train_paths):
             fd = dataset.MassDataset(batch_pickle_dir=mass_train_path,
                                      max_batch_capacity=int(
-                                         num_processors * options.total_capacity / max(2, options.beam_width)),
-                                     max_batch=int(num_processors * options.batch / max(2, options.beam_width)),
+                                         num_processors * options.total_capacity / max(2, options.bt_beam_width)),
+                                     max_batch=int(num_processors * options.batch / max(2, options.bt_beam_width)),
                                      pad_idx=mt_model.text_processor.pad_token_id(),
                                      max_seq_len=options.max_seq_len, keep_examples=False,
                                      example_list=None if mass_train_data is None else mass_train_data[

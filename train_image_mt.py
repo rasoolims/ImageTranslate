@@ -153,7 +153,7 @@ class ImageMTTrainer:
 
                             if is_mass_batch or self.num_gpu <= 1:
                                 if self.rank >= 0:
-                                    translations = torch.cat(outputs, dim=0)
+                                    translations = torch.stack(outputs)
                                 else:
                                     translations = pad_sequence(outputs, batch_first=True,
                                                                 padding_value=model.text_processor.pad_token_id())

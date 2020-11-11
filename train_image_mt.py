@@ -152,8 +152,11 @@ class ImageMTTrainer:
                                     outputs = new_outputs
 
                             if is_mass_batch or self.num_gpu <= 1:
-                                translations = pad_sequence(outputs, batch_first=True,
-                                                            padding_value=model.text_processor.pad_token_id())
+                                if self.rank >= 0:
+                                    translations = torch.cat(outputs, dim=0)
+                                else:
+                                    translations = pad_sequence(outputs, batch_first=True,
+                                                                padding_value=model.text_processor.pad_token_id())
                                 translation_proposals = None
                                 if lex_dict is not None:
                                     translation_proposals = list(map(lambda o: dataset.get_lex_suggestions(lex_dict, o,

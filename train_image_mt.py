@@ -507,15 +507,8 @@ class ImageMTTrainer:
             train_epoch += 1
 
         finetune_epoch = 0
-        if options.local_rank <= 0 and options.finetune_step > 0:
-            if options.local_rank < 0:
-                mt_model.cpu().save(options.model_path + ".beam")
-                mt_model = mt_model.to(trainer.device)
-            elif options.local_rank == 0:
-                mt_model.save(options.model_path + ".beam")
-
-            # Resetting the optimizer for the purpose of finetuning.
-            trainer.optimizer.reset()
+        # Resetting the optimizer for the purpose of finetuning.
+        trainer.optimizer.reset()
 
         lang_directions = ImageMTTrainer.get_lang_dirs(options.bt_langs, text_processor)
         print(options.local_rank, "lang dirs", lang_directions)

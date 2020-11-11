@@ -144,7 +144,7 @@ class ImageMTTrainer:
                                                      pad_idx=model.text_processor.pad_token_id(),
                                                      src_mask=src_pad_mask, unpad_output=False, beam_width=beam_width,
                                                      images=images, proposals=proposal)
-                            if self.num_gpu > 1:
+                            if self.num_gpu > 1 or self.rank>=0:
                                 if is_mass_batch:
                                     new_outputs = []
                                     for output in outputs:

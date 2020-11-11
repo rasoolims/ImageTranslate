@@ -144,7 +144,7 @@ class ImageMTTrainer:
                                                      pad_idx=model.text_processor.pad_token_id(),
                                                      src_mask=src_pad_mask, unpad_output=False, beam_width=beam_width,
                                                      images=images, proposals=proposal)
-                            if self.num_gpu > 1:
+                            if self.num_gpu > 1 and self.rank < 0:
                                 if is_mass_batch:
                                     new_outputs = []
                                     for output in outputs:
@@ -152,11 +152,8 @@ class ImageMTTrainer:
                                     outputs = new_outputs
 
                             if is_mass_batch or self.num_gpu <= 1:
-                                if self.rank >= 0:
-                                    translations = torch.stack(outputs)
-                                else:
-                                    translations = pad_sequence(outputs, batch_first=True,
-                                                                padding_value=model.text_processor.pad_token_id())
+                                translations = pad_sequence(outputs, batch_first=True,
+                                                            padding_value=model.text_processor.pad_token_id())
                                 translation_proposals = None
                                 if lex_dict is not None:
                                     translation_proposals = list(map(lambda o: dataset.get_lex_suggestions(lex_dict, o,

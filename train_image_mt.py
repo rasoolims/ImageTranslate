@@ -98,6 +98,7 @@ class ImageMTTrainer:
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
+        generator = self.generator.module if hasattr(self.generator, "module") else self.generator
         self.optimizer.zero_grad()
         for i, batches in enumerate(batch_zip):
             for batch in batches:
@@ -137,7 +138,7 @@ class ImageMTTrainer:
                             images = None
                             if is_img_batch:
                                 images = [b["images"] for b in batch]
-                            outputs = self.generator(src_inputs=src_inputs,
+                            outputs = generator(src_inputs=src_inputs,
                                                      src_sizes=pad_indices,
                                                      first_tokens=target_langs,
                                                      src_langs=langs, tgt_langs=dst_langs,

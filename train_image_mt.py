@@ -183,7 +183,7 @@ class ImageMTTrainer:
                         else:
                             langs = torch.cat([b["langs"] for b in batch])
                         # Now use it for back-translation loss.
-                        predictions = self.model(src_inputs=translations,
+                        predictions = model(src_inputs=translations,
                                                  tgt_inputs=src_inputs,
                                                  src_pads=translation_pad_mask,
                                                  pad_idx=model.text_processor.pad_token_id(),

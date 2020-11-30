@@ -1,17 +1,23 @@
 import pickle
 
-import torch.nn.functional as F
 from torchvision import models
 from transformers.modeling_albert import *
 
 import lm_config
 from bert_seq2seq import BertEncoderModel, BertConfig
+from faster_rcnn_feats import *
 from mass_seq2seq import MassSeq2Seq, future_mask
 from seq2seq import Seq2Seq
 from textprocessor import TextProcessor
 
 
 class ModifiedResnet(models.ResNet):
+    def __init__(self, block, layers, num_classes=1000, zero_init_residual=False, groups=1, width_per_group=64,
+                 replace_stride_with_dilation=None, norm_layer=None):
+
+        super().__init__(block, layers, num_classes, zero_init_residual, groups, width_per_group,
+                         replace_stride_with_dilation, norm_layer)
+
     def _forward_impl(self, x):
         input = x
         x1 = self.conv1(input)
@@ -30,9 +36,35 @@ class ModifiedResnet(models.ResNet):
         grid_outputs = F.relu(self.fc(grid_hidden))
         location_embedding = self.location_embedding.weight.unsqueeze(0)
         out = grid_outputs + location_embedding
-        out_norm = self.layer_norm(out)
-        if self.dropout > 0:
+
+        # Getting object features from faster RCNN
+        fcnn_results = self.fcnn(x)
+        max_feature_nums = max(map(lambda x: x["boxes"].size(0), fcnn_results))
+        feat_dim = fcnn_results[0]["features"].size(-1)
+        features = torch.zeros((len(fcnn_results), max_feature_nums, feat_dim + 7)).to(location_embedding.device)
+        object_labels = torch.zeros((len(fcnn_results), max_feature_nums), dtype=torch.long).to(
+            location_embedding.device)
+        for i in range(len(fcnn_results)):
+            x1 = fcnn_results[i]["boxes"][:, 0]
+            x2 = fcnn_results[i]["boxes"][:, 2]
+            y1 = fcnn_results[i]["boxes"][:, 1]
+            y2 = fcnn_results[i]["boxes"][:, 3]
+            w = x2 - x1
+            h = y2 - y1
+            wh = h * w
+            locs = torch.stack([x1, x2, y1, y2, w, h, wh], dim=-1)
+            features[i, :fcnn_results[i]["features"].size(0)] = torch.cat([fcnn_results[i]["features"], locs], dim=-1)
+            object_labels[i, :fcnn_results[i]["labels"].size(0)] = fcnn_results[i]["labels"]
+        object_embed = self.object_embedding(object_labels)
+        object_feats = torch.cat([object_embed, features], dim=-1)
+        object_feat_fc = self.object_feat_fc(object_feats)
+
+        compound_out = torch.cat([object_feat_fc, out], dim=1)
+
+        out_norm = self.layer_norm(compound_out)
+        if self.dropout > 0 and self.training:
             out_norm = F.dropout(out_norm, p=self.dropout)
+
         return out_norm
 
 
@@ -52,6 +84,9 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
     model.dropout = dropout
     model.layer_norm = torch.nn.LayerNorm(embed_dim, eps=1e-12)
 
+    model.fcnn = fasterrcnn_resnet50_fpn(pretrained=True)
+    model.fcnn.eval()
+
     if freeze:
         for param in model.parameters():
             param.requires_grad = False
@@ -60,9 +95,14 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
     model.fc = torch.nn.Linear(in_features=current_weight.size()[1], out_features=embed_dim, bias=False)
     model.fc.train()
 
+    model.object_feat_fc = torch.nn.Linear(in_features=1024 + 7 + embed_dim, out_features=embed_dim, bias=False)
+    model.object_feat_fc.train()
+
     # Learning embedding of each CNN region.
     model.location_embedding = nn.Embedding(49, embed_dim)
     model.location_embedding.train(True)
+    model.object_embedding = nn.Embedding(91, embed_dim)
+    model.object_embedding.train(True)
 
     return model
 

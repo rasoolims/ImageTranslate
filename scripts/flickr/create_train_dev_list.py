@@ -21,7 +21,7 @@ with open(caption_txt_f, "r") as r, open(output_file + ".train.en", "w") as trai
             path, caption = os.path.join(image_folder, spl[0]), " ".join(spl[1:])
             if spl[0] in train_paths:
                 train_en.write(path + "\t" + caption + "\n")
-            elif path in dev_paths:
+            elif spl[0] in dev_paths:
                 dev_en.write(path + "\t" + caption + "\n")
             elif spl[0] in test_paths:
                 test_en.write(path + "\t" + caption + "\n")

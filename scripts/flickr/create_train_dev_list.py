@@ -23,7 +23,7 @@ with open(caption_txt_f, "r") as r, open(output_file + ".train.en", "w") as trai
                 train_en.write(path + "\t" + caption + "\n")
             elif path in dev_paths:
                 dev_en.write(path + "\t" + caption + "\n")
-            elif spl[0] in dev_paths:
+            elif spl[0] in test_paths:
                 test_en.write(path + "\t" + caption + "\n")
 with open(os.path.join(split_folder, "Flickr8k.arabic.full.txt"), "r") as r, \
         open(output_file + ".train.ar", "w") as train_ar, open(output_file + ".dev.ar", "w") as dev_ar, \
@@ -36,5 +36,5 @@ with open(os.path.join(split_folder, "Flickr8k.arabic.full.txt"), "r") as r, \
                 train_ar.write(path + "\t" + caption + "\n")
             elif spl[0][:-2] in dev_paths:
                 dev_ar.write(path + "\t" + caption + "\n")
-            elif spl[0][:-2] in dev_paths:
+            elif spl[0][:-2] in test_paths:
                 test_ar.write(path + "\t" + caption + "\n")

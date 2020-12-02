@@ -4,7 +4,8 @@ import sys
 from collections import defaultdict
 
 input_path = os.path.abspath(sys.argv[1])
-output_path = os.path.abspath(sys.argv[2])
+image_folder = os.path.abspath(sys.argv[2])
+output_path = os.path.abspath(sys.argv[3])
 
 with open(input_path, "r") as r:
     obj = json.load(r)
@@ -23,7 +24,7 @@ with open(output_path, "w") as w:
     max_len = 0
     min_len = 1000
     for image_path in caption_dict.keys():
-        output = [image_path] + caption_dict[image_path]
+        output = [os.path.join(image_folder,image_path)] + caption_dict[image_path]
         w.write("\t".join(output))
         w.write("\n")
         max_len = max(len(caption_dict[image_path]), max_len)

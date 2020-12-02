@@ -60,7 +60,7 @@ def get_img_options_parser():
     parser.add_option("--fstep", dest="finetune_step", help="Number of finetuneing steps", type="int", default=125000)
     parser.set_default("mask_prob", 0.5)
     parser.add_option("--mass_train", dest="mass_train_path", metavar="FILE", default=None)
-    parser.add_option("--image", dest="image_dir", help="Path to the image files", metavar="FILE", default=None)
+    parser.add_option("--image", dest="image_dir", help="Path to the image files", metavar="FILE", default="")
     parser.add_option("--img_capacity", dest="img_capacity", help="Batch capacity", type="int", default=50)
     parser.add_option("--max-image", dest="max_image", help="Maximum number of images in batch", type="int", default=32)
     parser.add_option("--img-depth", dest="resnet_depth", help="1 (18), 2 (34), 3 (50), 4 (101), 5 (152)", type="int",

@@ -26,7 +26,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class ImageCaptionTrainer(ImageMTTrainer):
     def train_epoch(self, img_data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     img_dev_data_iter: List[data_utils.DataLoader] = None, max_step: int = 300000,
-                    lex_dict=None, **kwargs):
+                    lex_dict=None, accum=1, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -39,7 +39,6 @@ class ImageCaptionTrainer(ImageMTTrainer):
         for i, batches in enumerate(batch_zip):
             for batch in batches:
                 try:
-                    self.optimizer.zero_grad()
                     captions = [b["captions"] for b in batch]
                     caption_pad_mask = [b["caption_mask"] for b in batch]
                     proposals = [b["proposal"] for b in batch] if lex_dict is not None else None
@@ -73,8 +72,11 @@ class ImageCaptionTrainer(ImageMTTrainer):
 
                         # We accumulate the gradients for both tasks!
                         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip)
-                        self.optimizer.step()
                         step += 1
+
+                        if step % accum == 0:
+                            self.optimizer.step()
+                            self.optimizer.zero_grad()
 
                         if step % 50 == 0 and tokens > 0:
                             elapsed = time.time() - start
@@ -232,7 +234,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
             print("train epoch", train_epoch)
             step = trainer.train_epoch(img_data_iter=img_train_loader, img_dev_data_iter=img_dev_loader,
                                        max_step=options.step, lex_dict=lex_dict,
-                                       saving_path=options.model_path, step=step)
+                                       saving_path=options.model_path, step=step, accum=options.accum)
             train_epoch += 1
 
 

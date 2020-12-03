@@ -58,7 +58,7 @@ class ModifiedResnet(models.ResNet):
             object_labels[i, :fcnn_results[i]["labels"].size(0)] = fcnn_results[i]["labels"]
         object_embed = self.object_embedding(object_labels)
         object_feats = torch.cat([object_embed, features], dim=-1)
-        object_feat_fc = self.object_feat_fc(object_feats)
+        object_feat_fc = F.relu(self.object_feat_fc(object_feats))
 
         compound_out = torch.cat([object_feat_fc, out], dim=1)
 

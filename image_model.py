@@ -46,10 +46,10 @@ class ModifiedResnet(models.ResNet):
         object_labels = torch.zeros((len(fcnn_results), max_feature_nums), dtype=torch.long).to(
             location_embedding.device)
         for i in range(len(fcnn_results)):
-            x1 = fcnn_results[i]["boxes"][:, 0]
-            x2 = fcnn_results[i]["boxes"][:, 2]
-            y1 = fcnn_results[i]["boxes"][:, 1]
-            y2 = fcnn_results[i]["boxes"][:, 3]
+            x1 = fcnn_results[i]["boxes"][:, 0] / 800
+            x2 = fcnn_results[i]["boxes"][:, 2] / 800
+            y1 = fcnn_results[i]["boxes"][:, 1] / 800
+            y2 = fcnn_results[i]["boxes"][:, 3] / 800
             w = x2 - x1
             h = y2 - y1
             wh = h * w

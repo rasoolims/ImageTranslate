@@ -39,30 +39,35 @@ class ModifiedResnet(models.ResNet):
 
         # Getting object features from faster RCNN
         fcnn_results = self.fcnn(x)
-        max_feature_nums = max(1, max(map(lambda x: x["boxes"].size(0), fcnn_results)))
-        feat_dim = fcnn_results[0]["features"].size(-1)
-        features = torch.zeros((len(fcnn_results), max_feature_nums, feat_dim + 7),
-                               dtype=location_embedding.dtype).fill_(1e-4).to(location_embedding.device)
-        object_labels = torch.zeros((len(fcnn_results), max_feature_nums), dtype=torch.long).to(
-            location_embedding.device)
-        for i in range(len(fcnn_results)):
-            x1 = fcnn_results[i]["boxes"][:, 0] / 800
-            x2 = fcnn_results[i]["boxes"][:, 2] / 800
-            y1 = fcnn_results[i]["boxes"][:, 1] / 800
-            y2 = fcnn_results[i]["boxes"][:, 3] / 800
-            w = x2 - x1
-            h = y2 - y1
-            wh = h * w
-            locs = torch.stack([x1, x2, y1, y2, w, h, wh], dim=-1)
-            features[i, :fcnn_results[i]["features"].size(0)] = torch.cat([fcnn_results[i]["features"], locs], dim=-1)
-            object_labels[i, :fcnn_results[i]["labels"].size(0)] = fcnn_results[i]["labels"]
-        object_embed = self.object_embedding(object_labels)
-        object_feats = torch.cat([object_embed, features], dim=-1)
-        object_feat_fc = F.relu(self.object_feat_fc(object_feats))
+        max_feature_nums = max(map(lambda x: x["boxes"].size(0), fcnn_results))
+        if max_feature_nums > 0:  # Found objects
+            feat_dim = fcnn_results[0]["features"].size(-1)
+            features = torch.zeros((len(fcnn_results), max_feature_nums, feat_dim + 7),
+                                   dtype=location_embedding.dtype).fill_(1e-4).to(location_embedding.device)
+            object_labels = torch.zeros((len(fcnn_results), max_feature_nums), dtype=torch.long).to(
+                location_embedding.device)
+            for i in range(len(fcnn_results)):
+                x1 = fcnn_results[i]["boxes"][:, 0] / 800
+                x2 = fcnn_results[i]["boxes"][:, 2] / 800
+                y1 = fcnn_results[i]["boxes"][:, 1] / 800
+                y2 = fcnn_results[i]["boxes"][:, 3] / 800
+                w = x2 - x1
+                h = y2 - y1
+                wh = h * w
+                locs = torch.stack([x1, x2, y1, y2, w, h, wh], dim=-1)
+                features[i, :fcnn_results[i]["features"].size(0)] = torch.cat([fcnn_results[i]["features"], locs],
+                                                                              dim=-1)
+                object_labels[i, :fcnn_results[i]["labels"].size(0)] = fcnn_results[i]["labels"]
+            object_embed = self.object_embedding(object_labels)
+            object_feats = torch.cat([object_embed, features], dim=-1)
+            object_feat_fc = F.relu(self.object_feat_fc(object_feats))
 
-        compound_out = torch.cat([object_feat_fc, out], dim=1)
+            compound_out = torch.cat([object_feat_fc, out], dim=1)
 
-        out_norm = self.layer_norm(compound_out)
+            out_norm = self.layer_norm(compound_out)
+        else:
+            out_norm = self.layer_norm(out)
+
         if self.dropout > 0 and self.training:
             out_norm = F.dropout(out_norm, p=self.dropout)
 

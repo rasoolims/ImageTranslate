@@ -42,7 +42,7 @@ class ModifiedResnet(models.ResNet):
         max_feature_nums = max(map(lambda x: x["boxes"].size(0), fcnn_results))
         feat_dim = fcnn_results[0]["features"].size(-1)
         features = torch.zeros((len(fcnn_results), max_feature_nums, feat_dim + 7),
-                               dtype=location_embedding.dtype).fill_(1e-8).to(location_embedding.device)
+                               dtype=location_embedding.dtype).fill_(1e-4).to(location_embedding.device)
         object_labels = torch.zeros((len(fcnn_results), max_feature_nums), dtype=torch.long).to(
             location_embedding.device)
         for i in range(len(fcnn_results)):

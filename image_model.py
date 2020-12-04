@@ -18,7 +18,10 @@ class ModifiedResnet(models.ResNet):
         super().__init__(block, layers, num_classes, zero_init_residual, groups, width_per_group,
                          replace_stride_with_dilation, norm_layer)
 
-    def _forward_impl(self, x):
+    def forward(self, x, fcnn: ModifiedFasterRCNN = None):
+        return self._forward_impl(x, fcnn=fcnn)
+
+    def _forward_impl(self, x, fcnn: ModifiedFasterRCNN = None):
         input = x
         x1 = self.conv1(input)
         x2 = self.bn1(x1)
@@ -38,9 +41,12 @@ class ModifiedResnet(models.ResNet):
         out = grid_outputs + location_embedding
 
         # Getting object features from faster RCNN
-        with torch.no_grad():
-            fcnn_results = self.fcnn(x)
-            max_feature_nums = max(map(lambda x: x["boxes"].size(0), fcnn_results))
+        if fcnn is not None:
+            with torch.no_grad():
+                fcnn_results = fcnn(x)
+                max_feature_nums = max(map(lambda x: x["boxes"].size(0), fcnn_results))
+        else:
+            max_feature_nums = 0
 
         if max_feature_nums > 0:  # Found objects
             with torch.no_grad():
@@ -93,9 +99,6 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
     model.dropout = dropout
     model.layer_norm = torch.nn.LayerNorm(embed_dim, eps=1e-12)
 
-    model.fcnn = fasterrcnn_resnet50_fpn(pretrained=True)
-    model.fcnn.eval()
-
     if freeze:
         for param in model.parameters():
             param.requires_grad = False
@@ -134,7 +137,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
         self.image_attention_w = nn.Linear(self.config.hidden_size, 1)  # For Constrastive loss
         self.encoder_attention_w = nn.Linear(self.config.hidden_size, 1)  # For Constrastive loss
 
-    def encode(self, src_inputs, src_mask, src_langs, images=None):
+    def encode(self, src_inputs, src_mask, src_langs, images=None, fcnn: ModifiedFasterRCNN = None):
         encoder_states = super().encode(src_inputs, src_mask, src_langs)
         if images is not None:
             device = self.encoder.embeddings.word_embeddings.weight.device
@@ -142,7 +145,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
                 images = images[0]
             if images.device != device:
                 images = images.to(device)
-            image_embeddings = self.image_model(images)
+            image_embeddings = self.image_model(images, fcnn=fcnn)
             return encoder_states[0], image_embeddings
         return encoder_states
 
@@ -267,14 +270,14 @@ class ImageCaptioning(Seq2Seq):
                                                     dropout=self.config.hidden_dropout_prob,
                                                     freeze=freeze_image, depth=resnet_depth)
 
-    def encode(self, src_inputs=None, src_mask=None, src_langs=None, images=None):
+    def encode(self, src_inputs=None, src_mask=None, src_langs=None, images=None, fcnn: ModifiedFasterRCNN = None):
         if images is not None:
             device = self.encoder.embeddings.word_embeddings.weight.device
             if isinstance(images, list):
                 images = images[0]
             if images.device != device:
                 images = images.to(device)
-            image_embeddings = self.image_model(images)
+            image_embeddings = self.image_model(images, fcnn=fcnn)
             return image_embeddings
         else:
             encoder_states = super().encode(src_inputs, src_mask, src_langs)

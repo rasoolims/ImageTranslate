@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from faster_rcnn_feats import ModifiedFasterRCNN
 
 
 def get_outputs_until_eos(eos, outputs, size_limit=None, remove_first_token: bool = False):
@@ -45,7 +46,7 @@ class BeamDecoder(nn.Module):
 
     def forward(self, src_inputs=None, src_sizes=None, first_tokens=None, src_mask=None, src_langs=None, tgt_langs=None,
                 pad_idx=None, max_len: int = None, unpad_output: bool = True, beam_width: int = None, images=None,
-                proposals=None, image_embed=None):
+                proposals=None, image_embed=None, fcnn:ModifiedFasterRCNN=None):
         """
 
         :param device:
@@ -93,14 +94,14 @@ class BeamDecoder(nn.Module):
             encoder_states = self.seq2seq_model.encode(src_inputs, src_mask, src_langs)[0]
         elif src_inputs is None:
             if image_embed is None:
-                encoder_states = self.seq2seq_model.encode(images=images)  # = image embeddings
+                encoder_states = self.seq2seq_model.encode(images=images, fcnn=fcnn)  # = image embeddings
             else:
                 encoder_states = image_embed
                 if image_embed.device != device:
                     encoder_states = encoder_states.to(device)
 
         else:
-            encoder_states, image_embeddings = self.seq2seq_model.encode(src_inputs, src_mask, src_langs, images)
+            encoder_states, image_embeddings = self.seq2seq_model.encode(src_inputs, src_mask, src_langs, images, fcnn=fcnn)
         eos = self.seq2seq_model.text_processor.sep_token_id()
 
         first_position_output = first_tokens.unsqueeze(1).to(device)

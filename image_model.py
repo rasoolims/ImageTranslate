@@ -285,7 +285,7 @@ class ImageCaptioning(Seq2Seq):
 
     def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, tgt_mask=None,
                 pad_idx: int = 0, tgt_positions=None, batch=None, proposals=None, log_softmax: bool = False,
-                encode_only: bool = False, **kwargs):
+                encode_only: bool = False, fcnn: ModifiedFasterRCNN = None, **kwargs):
         device = self.encoder.embeddings.word_embeddings.weight.device
         if isinstance(batch, list):
             assert len(batch) == 1
@@ -310,7 +310,7 @@ class ImageCaptioning(Seq2Seq):
                                    tgt_langs=tgt_langs, proposals=proposals, log_softmax=log_softmax)
 
         images = batch["images"].to(device)
-        image_embeddings = self.encode(images=images)
+        image_embeddings = self.encode(images=images, fcnn=fcnn)
         if encode_only:
             return image_embeddings
 

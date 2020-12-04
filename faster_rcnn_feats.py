@@ -82,7 +82,7 @@ class ModifiedRoIHeads(RoIHeads):
             all_labels.append(labels)
             all_box_features.append(box_feat)
 
-        return all_boxes, all_scores, all_labels,all_box_features
+        return all_boxes, all_scores, all_labels, all_box_features
 
     def forward(self, features, proposals, image_shapes, targets=None):
         """
@@ -123,8 +123,9 @@ class ModifiedRoIHeads(RoIHeads):
                 "loss_box_reg": loss_box_reg
             }
         else:
-            boxes, scores, labels,box_feats = self.postprocess_detections(class_logits, box_regression, proposals, image_shapes,
-                                                                box_features)
+            boxes, scores, labels, box_feats = self.postprocess_detections(class_logits, box_regression, proposals,
+                                                                           image_shapes,
+                                                                           box_features)
             num_images = len(boxes)
             for i in range(num_images):
                 result.append(

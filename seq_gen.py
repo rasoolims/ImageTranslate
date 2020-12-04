@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from faster_rcnn_feats import ModifiedFasterRCNN
 
 
@@ -46,7 +47,7 @@ class BeamDecoder(nn.Module):
 
     def forward(self, src_inputs=None, src_sizes=None, first_tokens=None, src_mask=None, src_langs=None, tgt_langs=None,
                 pad_idx=None, max_len: int = None, unpad_output: bool = True, beam_width: int = None, images=None,
-                proposals=None, image_embed=None, fcnn:ModifiedFasterRCNN=None):
+                proposals=None, image_embed=None, fcnn: ModifiedFasterRCNN = None):
         """
 
         :param device:
@@ -101,7 +102,8 @@ class BeamDecoder(nn.Module):
                     encoder_states = encoder_states.to(device)
 
         else:
-            encoder_states, image_embeddings = self.seq2seq_model.encode(src_inputs, src_mask, src_langs, images, fcnn=fcnn)
+            encoder_states, image_embeddings = self.seq2seq_model.encode(src_inputs, src_mask, src_langs, images,
+                                                                         fcnn=fcnn)
         eos = self.seq2seq_model.text_processor.sep_token_id()
 
         first_position_output = first_tokens.unsqueeze(1).to(device)
@@ -154,8 +156,8 @@ class BeamDecoder(nn.Module):
                 batch_lang]
             output_layer = self.seq2seq_model.output_layer if (
                                                                   not self.seq2seq_model.lang_dec) and self.seq2seq_model.tie_embed else \
-            self.seq2seq_model.output_layer[
-                batch_lang]
+                self.seq2seq_model.output_layer[
+                    batch_lang]
 
             if images is None or src_inputs is None:
                 decoder_states = decoder(encoder_states=enc_states, input_ids=cur_outputs,

@@ -3,14 +3,13 @@ import os
 import pickle
 import sys
 import time
-from typing import List
 
 import sacrebleu
-import torch
 import torch.utils.data as data_utils
 from IPython.core import ultratb
 
 import dataset
+from faster_rcnn_feats import *
 from image_model import ImageCaptioning
 from lm import LM
 from option_parser import get_img_options_parser
@@ -19,7 +18,6 @@ from seq_gen import get_outputs_until_eos
 from textprocessor import TextProcessor
 from train_image_mt import ImageMTTrainer, get_lex_dict
 from utils import build_optimizer, backward
-from faster_rcnn_feats import *
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 
@@ -27,7 +25,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class ImageCaptionTrainer(ImageMTTrainer):
     def train_epoch(self, img_data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     img_dev_data_iter: List[data_utils.DataLoader] = None, max_step: int = 300000,
-                    lex_dict=None, accum=1, fcnn:ModifiedFasterRCNN=None, **kwargs):
+                    lex_dict=None, accum=1, fcnn: ModifiedFasterRCNN = None, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -116,7 +114,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
 
         return step
 
-    def eval_bleu(self, dev_data_iter, saving_path, fcnn:ModifiedFasterRCNN=None):
+    def eval_bleu(self, dev_data_iter, saving_path, fcnn: ModifiedFasterRCNN = None):
         mt_output = []
         src_text = []
         model = (
@@ -136,7 +134,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
                                              first_tokens=[c[:, 0] for c in captions],
                                              tgt_langs=dst_langs,
                                              pad_idx=model.text_processor.pad_token_id(), proposals=proposals,
-                                             max_len=max_len,fcnn=fcnn)
+                                             max_len=max_len, fcnn=fcnn)
                     if self.num_gpu > 1:
                         new_outputs = []
                         for output in outputs:
@@ -231,6 +229,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
                         trainer.reference += ref
 
         fcnn = fasterrcnn_resnet50_fpn(pretrained=True)
+        fcnn.eval()
         step, train_epoch = 0, 1
         while options.step > 0 and step < options.step:
             print("train epoch", train_epoch)

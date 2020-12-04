@@ -25,7 +25,8 @@ with open(os.path.abspath(sys.argv[1]), "r") as dict_reader:
 print("Reading corpus")
 src2dst_sen_max_sim = dict()
 dst2src_sen_max_sim = dict()
-with open(os.path.abspath(sys.argv[2]), "r") as corpus_reader, open(os.path.abspath(sys.argv[3]), "r") as corpus_tok_reader:
+with open(os.path.abspath(sys.argv[2]), "r") as corpus_reader, open(os.path.abspath(sys.argv[3]),
+                                                                    "r") as corpus_tok_reader:
     for i, (line1, line2) in enumerate(zip(corpus_reader, corpus_tok_reader)):
         sen_spl = line1.strip().split(" ||| ")
         spl = line2.strip().split(" ||| ")

@@ -23,9 +23,9 @@ if __name__ == "__main__":
         for i, (src_line, dst_line, score_line) in enumerate(zip(sr, dr, scf)):
             src_line = src_line.strip()
             dst_line = dst_line.strip()
-            src_len, dst_len = len(src_line.strip().split(" ")),len(dst_line.strip().split(" "))
+            src_len, dst_len = len(src_line.strip().split(" ")), len(dst_line.strip().split(" "))
 
-            score = float(score_line.strip())/max(src_len, dst_len)
+            score = float(score_line.strip()) / max(src_len, dst_len)
 
             if src_line not in highest_s2d:
                 highest_s2d[src_line] = (dst_line, score)

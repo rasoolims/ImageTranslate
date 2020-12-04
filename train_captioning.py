@@ -229,6 +229,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
                         trainer.reference += ref
 
         fcnn = fasterrcnn_resnet50_fpn(pretrained=True)
+        fcnn = fcnn.to(trainer.device)
         fcnn.eval()
         step, train_epoch = 0, 1
         while options.step > 0 and step < options.step:

@@ -28,6 +28,8 @@ def write(text_processor: TextProcessor, output_file: str, input_file: str, max_
                 if len(tok_sen) > max_len:
                     skipped_long_sens += 1
                     continue
+                if "." not in path: # Does not have extension; will add jpg.
+                    path = path + ".jpg"
 
                 if path not in image_path_dict:
                     image_id = len(unique_images)

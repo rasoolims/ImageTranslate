@@ -25,7 +25,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class ImageCaptionTrainer(ImageMTTrainer):
     def train_epoch(self, img_data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     img_dev_data_iter: List[data_utils.DataLoader] = None, max_step: int = 300000,
-                    lex_dict=None, accum=1, fcnn: ModifiedFasterRCNN = None, **kwargs):
+                    lex_dict=None, accum=1, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -49,7 +49,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
                                              tgt_mask=caption_pad_mask,
                                              pad_idx=model.text_processor.pad_token_id(),
                                              src_langs=langs, batch=batch, proposals=proposals,
-                                             log_softmax=True, fcnn=fcnn)
+                                             log_softmax=True)
                     targets = torch.cat(list(map(lambda c: c[:, 1:].contiguous().view(-1), captions)))
                     tgt_mask_flat = torch.cat(list(map(lambda c: c[:, 1:].contiguous().view(-1), caption_pad_mask)))
                     targets = targets[tgt_mask_flat]
@@ -114,7 +114,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
 
         return step
 
-    def eval_bleu(self, dev_data_iter, saving_path, fcnn: ModifiedFasterRCNN = None):
+    def eval_bleu(self, dev_data_iter, saving_path):
         mt_output = []
         src_text = []
         model = (
@@ -134,7 +134,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
                                              first_tokens=[c[:, 0] for c in captions],
                                              tgt_langs=dst_langs,
                                              pad_idx=model.text_processor.pad_token_id(), proposals=proposals,
-                                             max_len=max_len, fcnn=fcnn)
+                                             max_len=max_len)
                     if self.num_gpu > 1:
                         new_outputs = []
                         for output in outputs:
@@ -228,15 +228,12 @@ class ImageCaptionTrainer(ImageMTTrainer):
                         ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
                         trainer.reference += ref
 
-        fcnn = fasterrcnn_resnet50_fpn(pretrained=True)
-        fcnn = fcnn.to(trainer.device)
-        fcnn.eval()
         step, train_epoch = 0, 1
         while options.step > 0 and step < options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(img_data_iter=img_train_loader, img_dev_data_iter=img_dev_loader,
                                        max_step=options.step, lex_dict=lex_dict,
-                                       saving_path=options.model_path, step=step, accum=options.accum, fcnn=fcnn)
+                                       saving_path=options.model_path, step=step, accum=options.accum)
             train_epoch += 1
 
 

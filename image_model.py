@@ -18,10 +18,10 @@ class ModifiedResnet(models.ResNet):
         super().__init__(block, layers, num_classes, zero_init_residual, groups, width_per_group,
                          replace_stride_with_dilation, norm_layer)
 
-    def forward(self, x, fcnn: ModifiedFasterRCNN = None):
-        return self._forward_impl(x, fcnn=fcnn)
+    def forward(self, x):
+        return self._forward_impl(x)
 
-    def _forward_impl(self, x, fcnn: ModifiedFasterRCNN = None):
+    def _forward_impl(self, x):
         input = x
         x1 = self.conv1(input)
         x2 = self.bn1(x1)
@@ -41,9 +41,10 @@ class ModifiedResnet(models.ResNet):
         out = grid_outputs + location_embedding
 
         # Getting object features from faster RCNN
-        if fcnn is not None:
+        if self.fcnn is not None:
+            self.fcnn.eval() # Make sure other components have not converted it in training mode.
             with torch.no_grad():
-                fcnn_results = fcnn(x)
+                fcnn_results = self.fcnn(x)
                 max_feature_nums = max(map(lambda x: x["boxes"].size(0), fcnn_results))
         else:
             max_feature_nums = 0
@@ -84,7 +85,7 @@ class ModifiedResnet(models.ResNet):
         return out_norm
 
 
-def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: int = 1):
+def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: int = 1, use_obj: bool = True):
     if depth == 1:
         model = models.resnet18(pretrained=True)
     elif depth == 2:
@@ -116,6 +117,10 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
     model.location_embedding.train(True)
     model.object_embedding = nn.Embedding(91, embed_dim)
     model.object_embedding.train(True)
+    model.fcnn = None
+    if use_obj:
+        model.fcnn = fasterrcnn_resnet50_fpn(pretrained=True)
+        model.fcnn.eval()
 
     return model
 
@@ -146,7 +151,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
                 images = images[0]
             if images.device != device:
                 images = images.to(device)
-            image_embeddings = self.image_model(images, fcnn=fcnn)
+            image_embeddings = self.image_model(images)
             return encoder_states[0], image_embeddings
         return encoder_states
 
@@ -278,7 +283,7 @@ class ImageCaptioning(Seq2Seq):
                 images = images[0]
             if images.device != device:
                 images = images.to(device)
-            image_embeddings = self.image_model(images, fcnn=fcnn)
+            image_embeddings = self.image_model(images)
             return image_embeddings
         else:
             encoder_states = super().encode(src_inputs, src_mask, src_langs)
@@ -311,7 +316,7 @@ class ImageCaptioning(Seq2Seq):
                                    tgt_langs=tgt_langs, proposals=proposals, log_softmax=log_softmax)
 
         images = batch["images"].to(device)
-        image_embeddings = self.encode(images=images, fcnn=fcnn)
+        image_embeddings = self.encode(images=images)
         if encode_only:
             return image_embeddings
 

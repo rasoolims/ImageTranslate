@@ -95,15 +95,14 @@ class BeamDecoder(nn.Module):
             encoder_states = self.seq2seq_model.encode(src_inputs, src_mask, src_langs)[0]
         elif src_inputs is None:
             if image_embed is None:
-                encoder_states = self.seq2seq_model.encode(images=images, fcnn=fcnn)  # = image embeddings
+                encoder_states = self.seq2seq_model.encode(images=images)  # = image embeddings
             else:
                 encoder_states = image_embed
                 if image_embed.device != device:
                     encoder_states = encoder_states.to(device)
 
         else:
-            encoder_states, image_embeddings = self.seq2seq_model.encode(src_inputs, src_mask, src_langs, images,
-                                                                         fcnn=fcnn)
+            encoder_states, image_embeddings = self.seq2seq_model.encode(src_inputs, src_mask, src_langs, images)
         eos = self.seq2seq_model.text_processor.sep_token_id()
 
         first_position_output = first_tokens.unsqueeze(1).to(device)

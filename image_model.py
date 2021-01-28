@@ -42,7 +42,7 @@ class ModifiedResnet(models.ResNet):
 
         # Getting object features from faster RCNN
         if self.fcnn is not None:
-            self.fcnn.eval() # Make sure other components have not converted it in training mode.
+            self.fcnn.eval()  # Make sure other components have not converted it in training mode.
             with torch.no_grad():
                 fcnn_results = self.fcnn(x)
                 max_feature_nums = max(map(lambda x: x["boxes"].size(0), fcnn_results))
@@ -128,7 +128,7 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
 class ImageMassSeq2Seq(MassSeq2Seq):
     def __init__(self, text_processor: TextProcessor, freeze_image: bool = False, resnet_depth: int = 1,
                  lang_dec: bool = False, use_proposals: bool = False, tie_embed: bool = False, enc_layer: int = 6,
-                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072):
+                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072, use_obj: bool = True):
         super(ImageMassSeq2Seq, self).__init__(text_processor=text_processor, tie_embed=tie_embed,
                                                lang_dec=lang_dec, use_proposals=use_proposals, enc_layer=enc_layer,
                                                dec_layer=dec_layer, embed_dim=embed_dim,
@@ -136,7 +136,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
                                                resnet_depth=resnet_depth)
         self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
                                                     dropout=self.config.hidden_dropout_prob,
-                                                    freeze=freeze_image, depth=resnet_depth)
+                                                    freeze=freeze_image, depth=resnet_depth, use_obj=use_obj)
         self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, self.config.hidden_size).fill_(0.1),
                                                       requires_grad=True)
 
@@ -266,7 +266,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
 class ImageCaptioning(Seq2Seq):
     def __init__(self, text_processor: TextProcessor, freeze_image: bool = False, resnet_depth: int = 1,
                  lang_dec: bool = False, use_proposals: bool = False, tie_embed: bool = False, enc_layer: int = 6,
-                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072):
+                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072, use_obj: bool = True):
         super(ImageCaptioning, self).__init__(text_processor=text_processor, tie_embed=tie_embed,
                                               lang_dec=lang_dec, use_proposals=use_proposals, enc_layer=enc_layer,
                                               dec_layer=dec_layer, embed_dim=embed_dim,
@@ -274,7 +274,7 @@ class ImageCaptioning(Seq2Seq):
                                               resnet_depth=resnet_depth)
         self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
                                                     dropout=self.config.hidden_dropout_prob,
-                                                    freeze=freeze_image, depth=resnet_depth)
+                                                    freeze=freeze_image, depth=resnet_depth, use_obj=use_obj)
 
     def encode(self, src_inputs=None, src_mask=None, src_langs=None, images=None, fcnn: ModifiedFasterRCNN = None):
         if images is not None:

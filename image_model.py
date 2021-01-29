@@ -36,7 +36,7 @@ class ModifiedResnet(models.ResNet):
         grid_hidden = grid_hidden.permute((0, 2, 1))
         if self.dropout > 0:
             grid_hidden = F.dropout(grid_hidden, p=self.dropout)
-        grid_outputs = F.relu(self.fc(grid_hidden))
+        grid_outputs = self.fc(grid_hidden)
         location_embedding = self.location_embedding.weight.unsqueeze(0)
         out = grid_outputs + location_embedding
 
@@ -71,18 +71,14 @@ class ModifiedResnet(models.ResNet):
             object_embed = self.object_embedding(object_labels)
             object_feats = torch.cat([object_embed, features], dim=-1)
             object_feats[object_labels == 0] = 0
-            object_feat_fc = F.relu(self.object_feat_fc(object_feats))
+            object_feat_fc = self.object_feat_fc(object_feats)
 
-            compound_out = torch.cat([object_feat_fc, out], dim=1)
-
-            out_norm = self.layer_norm(compound_out)
-        else:
-            out_norm = self.layer_norm(out)
+            out = torch.cat([object_feat_fc, out], dim=1)
 
         if self.dropout > 0 and self.training:
-            out_norm = F.dropout(out_norm, p=self.dropout)
+            out = F.dropout(out, p=self.dropout)
 
-        return out_norm
+        return out
 
 
 def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: int = 1, use_obj: bool = True):

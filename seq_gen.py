@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from faster_rcnn_feats import ModifiedFasterRCNN
-
 
 def get_outputs_until_eos(eos, outputs, size_limit=None, remove_first_token: bool = False):
     if outputs.dim() == 1:
@@ -47,7 +45,7 @@ class BeamDecoder(nn.Module):
 
     def forward(self, src_inputs=None, src_sizes=None, first_tokens=None, src_mask=None, src_langs=None, tgt_langs=None,
                 pad_idx=None, max_len: int = None, unpad_output: bool = True, beam_width: int = None, images=None,
-                proposals=None, image_embed=None, fcnn: ModifiedFasterRCNN = None):
+                proposals=None, image_embed=None):
         """
 
         :param device:
@@ -96,7 +94,7 @@ class BeamDecoder(nn.Module):
             encoder_states = self.seq2seq_model.encode(src_inputs, src_mask, src_langs)[0]
         elif src_inputs is None:
             if image_embed is None:
-                encoder_states = self.seq2seq_model.encode(images=images)  # = image embeddings
+                encoder_states, obj_feat_fc = self.seq2seq_model.encode(images=images)  # = image embeddings
             else:
                 encoder_states = image_embed
                 if image_embed.device != device:
@@ -144,6 +142,7 @@ class BeamDecoder(nn.Module):
             cur_scores = top_beam_scores.view(-1).unsqueeze(-1)
             output_mask = torch.ones(cur_outputs.size()).to(cur_outputs.device)
             enc_states = encoder_states if i == 1 else torch.repeat_interleave(encoder_states, beam_width, 0)
+
             dst_langs = tgt_langs.unsqueeze(-1).expand(-1, cur_outputs.size(1)).to(device)
             if i > 1:
                 dst_langs = torch.repeat_interleave(dst_langs, beam_width, 0)
@@ -163,6 +162,19 @@ class BeamDecoder(nn.Module):
                 decoder_states = decoder(encoder_states=enc_states, input_ids=cur_outputs,
                                          encoder_attention_mask=cur_src_mask,
                                          tgt_attention_mask=output_mask, token_type_ids=dst_langs)
+                if obj_feat_fc is not None:
+                    obj_decoder = self.seq2seq_model.obj_decoder if not self.seq2seq_model.lang_dec else \
+                        self.seq2seq_model.obj_decoder[batch_lang]
+
+                    # We only repeat objects once when it is in the second token of beam search and then use it multiple
+                    # times.
+                    obj_feat_fc = obj_feat_fc if i != 2 else torch.repeat_interleave(obj_feat_fc, beam_width, 0)
+                    object_decoder_output = obj_decoder(encoder_states=obj_feat_fc, input_ids=cur_outputs,
+                                                        encoder_attention_mask=cur_src_mask,
+                                                        tgt_attention_mask=output_mask, token_type_ids=dst_langs)
+                    eps = 1e-7
+                    sig_gate = torch.sigmoid(self.seq2seq_model.multistream_attention_gate + eps)
+                    decoder_states = sig_gate * decoder_states + (1 - sig_gate) * object_decoder_output
             else:
                 text_decoder_output = decoder(encoder_states=enc_states, input_ids=cur_outputs,
                                               encoder_attention_mask=cur_src_mask, tgt_attention_mask=output_mask,

@@ -1,10 +1,11 @@
+import copy
 import pickle
 
 from torchvision import models
 from transformers.modeling_albert import *
 
 import lm_config
-from bert_seq2seq import BertEncoderModel, BertConfig
+from bert_seq2seq import BertEncoderModel, BertConfig, BertDecoderModel
 from faster_rcnn_feats import *
 from mass_seq2seq import MassSeq2Seq, future_mask
 from seq2seq import Seq2Seq
@@ -39,6 +40,7 @@ class ModifiedResnet(models.ResNet):
         grid_outputs = self.fc(grid_hidden)
         location_embedding = self.location_embedding.weight.unsqueeze(0)
         out = grid_outputs + location_embedding
+        object_feat_fc = None
 
         # Getting object features from faster RCNN
         if self.fcnn is not None:
@@ -71,14 +73,14 @@ class ModifiedResnet(models.ResNet):
             object_embed = self.object_embedding(object_labels)
             object_feats = torch.cat([object_embed, features], dim=-1)
             object_feats[object_labels == 0] = 0
-            object_feat_fc = self.object_feat_fc(object_feats)
-
-            out = torch.cat([object_feat_fc, out], dim=1)
+            object_feat_fc = F.relu(self.object_feat_fc(object_feats))
 
         if self.dropout > 0 and self.training:
             out = F.dropout(out, p=self.dropout)
+            if object_feat_fc is not None:
+                object_feat_fc = F.dropout(object_feat_fc, p=self.dropout)
 
-        return out
+        return out, object_feat_fc
 
 
 def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: int = 1, use_obj: bool = True):
@@ -271,6 +273,24 @@ class ImageCaptioning(Seq2Seq):
         self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
                                                     dropout=self.config.hidden_dropout_prob,
                                                     freeze=freeze_image, depth=resnet_depth, use_obj=use_obj)
+        if use_obj:
+            if not lang_dec:
+                self.obj_decoder = BertDecoderModel(self.config)
+
+                if tie_embed:
+                    self.obj_decoder._tie_or_clone_weights(self.output_layer, self.decoder.embeddings.word_embeddings)
+
+            else:
+                dec = BertDecoderModel(self.config)
+                self.obj_decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
+                for i, dec in enumerate(self.obj_decoder):
+                    if tie_embed:
+                        dec.embeddings.position_embeddings = self.encoder.embeddings.position_embeddings
+                    dec._tie_or_clone_weights(self.output_layer[i], dec.embeddings.word_embeddings)
+                    dec._tie_or_clone_weights(self.encoder.embeddings.token_type_embeddings,
+                                              dec.embeddings.token_type_embeddings)
+            self.multistream_attention_gate = nn.Parameter(torch.zeros(1, self.config.hidden_size).fill_(0.1),
+                                                           requires_grad=True)
 
     def encode(self, src_inputs=None, src_mask=None, src_langs=None, images=None, fcnn: ModifiedFasterRCNN = None):
         if images is not None:
@@ -279,8 +299,8 @@ class ImageCaptioning(Seq2Seq):
                 images = images[0]
             if images.device != device:
                 images = images.to(device)
-            image_embeddings = self.image_model(images)
-            return image_embeddings
+            image_embeddings, object_fc = self.image_model(images)
+            return image_embeddings, object_fc
         else:
             encoder_states = super().encode(src_inputs, src_mask, src_langs)
             return encoder_states
@@ -312,7 +332,7 @@ class ImageCaptioning(Seq2Seq):
                                    tgt_langs=tgt_langs, proposals=proposals, log_softmax=log_softmax)
 
         images = batch["images"].to(device)
-        image_embeddings = self.encode(images=images)
+        image_embeddings, object_fc = self.encode(images=images)
         if encode_only:
             return image_embeddings
 
@@ -335,6 +355,16 @@ class ImageCaptioning(Seq2Seq):
                                  tgt_attention_mask=subseq_mask,
                                  position_ids=tgt_positions,
                                  token_type_ids=tgt_langs[:, :-1])
+        if object_fc is not None:
+            obj_decoder = self.obj_decoder if not self.lang_dec else self.obj_decoder[batch_lang]
+            object_decoder_output = obj_decoder(encoder_states=object_fc, input_ids=tgt_inputs[:, :-1],
+                                                encoder_attention_mask=src_pads,
+                                                tgt_attention_mask=subseq_mask,
+                                                position_ids=tgt_positions,
+                                                token_type_ids=tgt_langs[:, :-1])
+            eps = 1e-7
+            sig_gate = torch.sigmoid(self.multistream_attention_gate + eps)
+            decoder_output = sig_gate * decoder_output + (1 - sig_gate) * object_decoder_output
 
         if self.use_proposals:
             decoder_output = self.attend_proposal(decoder_output, proposals, pad_idx)

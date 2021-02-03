@@ -10,8 +10,7 @@ from IPython.core import ultratb
 
 import dataset
 from faster_rcnn_feats import *
-from image_model import ImageCaptioning
-from lm import LM
+from image_model import ImageCaptioning, ImageMassSeq2Seq
 from option_parser import get_img_options_parser
 from seq2seq import Seq2Seq
 from seq_gen import get_outputs_until_eos
@@ -175,18 +174,19 @@ class ImageCaptionTrainer(ImageMTTrainer):
         assert text_processor.pad_token_id() == 0
 
         if options.pretrained_path is not None:
-            mt_model = Seq2Seq.load(ImageCaptioning, options.pretrained_path, tok_dir=options.tokenizer_path)
+            caption_model = Seq2Seq.load(ImageCaptioning, options.pretrained_path, tok_dir=options.tokenizer_path)
         else:
-            mt_model = ImageCaptioning(use_proposals=lex_dict is not None, tie_embed=options.tie_embed,
-                                       text_processor=text_processor, resnet_depth=options.resnet_depth,
-                                       lang_dec=options.lang_decoder, enc_layer=options.encoder_layer,
-                                       dec_layer=options.decoder_layer, embed_dim=options.embed_dim,
-                                       intermediate_dim=options.intermediate_layer_dim, use_obj=not options.no_obj)
+            caption_model = ImageCaptioning(use_proposals=lex_dict is not None, tie_embed=options.tie_embed,
+                                            text_processor=text_processor, resnet_depth=options.resnet_depth,
+                                            lang_dec=options.lang_decoder, enc_layer=options.encoder_layer,
+                                            dec_layer=options.decoder_layer, embed_dim=options.embed_dim,
+                                            intermediate_dim=options.intermediate_layer_dim, use_obj=not options.no_obj)
 
-        if options.lm_path is not None:
-            lm = LM(text_processor=text_processor, enc_layer=options.encoder_layer,
-                    embed_dim=options.embed_dim, intermediate_dim=options.intermediate_layer_dim)
-            mt_model.init_from_lm(lm)
+        if options.lm_path is not None:  # In our case, this is an MT model.
+            mt_pret_model = Seq2Seq.load(ImageMassSeq2Seq, options.pretrained_path, tok_dir=options.tokenizer_path)
+            caption_model.encoder = mt_pret_model.encoder
+            caption_model.decoder = mt_pret_model.decoder
+            caption_model.output_layer = mt_pret_model.output_layer
 
         print("Model initialization done!")
 
@@ -198,8 +198,8 @@ class ImageCaptionTrainer(ImageMTTrainer):
             with open(os.path.join(options.pretrained_path, "optim"), "rb") as fp:
                 optimizer = pickle.load(fp)
         else:
-            optimizer = build_optimizer(mt_model, options.learning_rate, warump_steps=options.warmup)
-        trainer = ImageCaptionTrainer(model=mt_model, mask_prob=options.mask_prob, optimizer=optimizer,
+            optimizer = build_optimizer(caption_model, options.learning_rate, warump_steps=options.warmup)
+        trainer = ImageCaptionTrainer(model=caption_model, mask_prob=options.mask_prob, optimizer=optimizer,
                                       clip=options.clip,
                                       beam_width=options.beam_width, max_len_a=options.max_len_a,
                                       max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio,
@@ -207,11 +207,12 @@ class ImageCaptionTrainer(ImageMTTrainer):
 
         pin_memory = torch.cuda.is_available()
         img_train_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, options.train_path,
-                                                         mt_model, num_batches, options, pin_memory,
+                                                         caption_model, num_batches, options, pin_memory,
                                                          lex_dict=lex_dict, shuffle=(options.local_rank < 0))
 
         img_dev_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, options.dev_path,
-                                                       mt_model, num_batches, options, pin_memory, lex_dict=lex_dict,
+                                                       caption_model, num_batches, options, pin_memory,
+                                                       lex_dict=lex_dict,
                                                        shuffle=False, denom=2)
 
         trainer.reference = None

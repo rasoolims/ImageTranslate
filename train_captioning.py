@@ -183,7 +183,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
                                             intermediate_dim=options.intermediate_layer_dim, use_obj=not options.no_obj)
 
         if options.lm_path is not None:  # In our case, this is an MT model.
-            mt_pret_model = Seq2Seq.load(ImageMassSeq2Seq, options.pretrained_path, tok_dir=options.tokenizer_path)
+            mt_pret_model = Seq2Seq.load(ImageMassSeq2Seq, options.lm_path, tok_dir=options.tokenizer_path)
             caption_model.encoder = mt_pret_model.encoder
             caption_model.decoder = mt_pret_model.decoder
             caption_model.output_layer = mt_pret_model.output_layer

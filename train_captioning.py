@@ -24,12 +24,12 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class ImageCaptionTrainer(ImageMTTrainer):
     def train_epoch(self, img_data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     img_dev_data_iter: List[data_utils.DataLoader] = None, max_step: int = 300000,
-                    lex_dict=None, accum=1, **kwargs):
+                    lex_dict=None, accum=1, mt_train_iter: List[data_utils.DataLoader] = None, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
         cur_loss = 0
-        batch_zip, shortest = self.get_batch_zip(img_data_iter, None, None)
+        batch_zip, shortest = self.get_batch_zip(img_data_iter, None, mt_train_iter)
 
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
@@ -37,22 +37,40 @@ class ImageCaptionTrainer(ImageMTTrainer):
         for i, batches in enumerate(batch_zip):
             for batch in batches:
                 try:
-                    captions = [b["captions"] for b in batch]
-                    caption_pad_mask = [b["caption_mask"] for b in batch]
-                    proposals = [b["proposal"] for b in batch] if lex_dict is not None else None
-                    langs = [b["langs"] for b in batch]
-                    if len(batch) < self.num_gpu:
-                        continue
+                    is_img_batch = isinstance(batch, list) and "captions" in batch[0]
+                    if is_img_batch:  # Captioning training data.
+                        captions = [b["captions"] for b in batch]
+                        caption_pad_mask = [b["caption_mask"] for b in batch]
+                        proposals = [b["proposal"] for b in batch] if lex_dict is not None else None
+                        langs = [b["langs"] for b in batch]
+                        if len(batch) < self.num_gpu:
+                            continue
 
-                    predictions = self.model(tgt_inputs=captions,
-                                             tgt_mask=caption_pad_mask,
-                                             pad_idx=model.text_processor.pad_token_id(),
-                                             tgt_langs=langs, batch=batch, proposals=proposals,
-                                             log_softmax=True)
-                    targets = torch.cat(list(map(lambda c: c[:, 1:].contiguous().view(-1), captions)))
-                    tgt_mask_flat = torch.cat(list(map(lambda c: c[:, 1:].contiguous().view(-1), caption_pad_mask)))
-                    targets = targets[tgt_mask_flat]
-
+                        predictions = self.model(tgt_inputs=captions,
+                                                 tgt_mask=caption_pad_mask,
+                                                 pad_idx=model.text_processor.pad_token_id(),
+                                                 tgt_langs=langs, batch=batch, proposals=proposals,
+                                                 log_softmax=True)
+                        targets = torch.cat(list(map(lambda c: c[:, 1:].contiguous().view(-1), captions)))
+                        tgt_mask_flat = torch.cat(list(map(lambda c: c[:, 1:].contiguous().view(-1), caption_pad_mask)))
+                        targets = targets[tgt_mask_flat]
+                    else:  # MT data!
+                        src_inputs = batch["src_texts"].squeeze(0)
+                        src_mask = batch["src_pad_mask"].squeeze(0)
+                        tgt_inputs = batch["dst_texts"].squeeze(0)
+                        tgt_mask = batch["dst_pad_mask"].squeeze(0)
+                        src_langs = batch["src_langs"].squeeze(0)
+                        dst_langs = batch["dst_langs"].squeeze(0)
+                        proposals = batch["proposal"].squeeze(0) if lex_dict is not None else None
+                        if src_inputs.size(0) < self.num_gpu:
+                            continue
+                        predictions = self.model(src_inputs=src_inputs, tgt_inputs=tgt_inputs,
+                                                 src_pads=src_mask, tgt_mask=tgt_mask, src_langs=src_langs,
+                                                 tgt_langs=dst_langs, proposals=proposals,
+                                                 pad_idx=model.text_processor.pad_token_id(), log_softmax=True)
+                        targets = tgt_inputs[:, 1:].contiguous().view(-1)
+                        tgt_mask_flat = tgt_mask[:, 1:].contiguous().view(-1)
+                        targets = targets[tgt_mask_flat]
                     ntokens = targets.size(0)
 
                     if ntokens > 0:
@@ -209,6 +227,11 @@ class ImageCaptionTrainer(ImageMTTrainer):
         img_train_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, options.train_path,
                                                          caption_model, num_batches, options, pin_memory,
                                                          lex_dict=lex_dict, shuffle=(options.local_rank < 0))
+        num_processors = max(torch.cuda.device_count(), 1) if options.local_rank < 0 else 1
+        mt_train_loader = None
+        if options.mt_train_path is not None:
+            mt_train_loader = ImageMTTrainer.get_mt_train_data(caption_model, num_processors, options, pin_memory,
+                                                               lex_dict=lex_dict)
 
         img_dev_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, options.dev_path,
                                                        caption_model, num_batches, options, pin_memory,
@@ -233,7 +256,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
         while options.step > 0 and step < options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(img_data_iter=img_train_loader, img_dev_data_iter=img_dev_loader,
-                                       max_step=options.step, lex_dict=lex_dict,
+                                       max_step=options.step, lex_dict=lex_dict, mt_train_iter=mt_train_loader,
                                        saving_path=options.model_path, step=step, accum=options.accum)
             train_epoch += 1
 

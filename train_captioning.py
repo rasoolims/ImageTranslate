@@ -47,7 +47,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
                     predictions = self.model(tgt_inputs=captions,
                                              tgt_mask=caption_pad_mask,
                                              pad_idx=model.text_processor.pad_token_id(),
-                                             src_langs=langs, batch=batch, proposals=proposals,
+                                             tgt_langs=langs, batch=batch, proposals=proposals,
                                              log_softmax=True)
                     targets = torch.cat(list(map(lambda c: c[:, 1:].contiguous().view(-1), captions)))
                     tgt_mask_flat = torch.cat(list(map(lambda c: c[:, 1:].contiguous().view(-1), caption_pad_mask)))

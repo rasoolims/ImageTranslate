@@ -8,7 +8,6 @@ import lm_config
 from bert_seq2seq import BertEncoderModel, BertConfig, BertDecoderModel
 from faster_rcnn_feats import *
 from mass_seq2seq import MassSeq2Seq, future_mask
-from seq2seq import Seq2Seq
 from textprocessor import TextProcessor
 
 
@@ -261,7 +260,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             return log_neg
 
 
-class ImageCaptioning(Seq2Seq):
+class ImageCaptioning(ImageMassSeq2Seq):
     def __init__(self, text_processor: TextProcessor, freeze_image: bool = False, resnet_depth: int = 1,
                  lang_dec: bool = False, use_proposals: bool = False, tie_embed: bool = False, enc_layer: int = 6,
                  dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072, use_obj: bool = True):
@@ -308,28 +307,22 @@ class ImageCaptioning(Seq2Seq):
     def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, tgt_mask=None,
                 pad_idx: int = 0, tgt_positions=None, batch=None, proposals=None, log_softmax: bool = False,
                 encode_only: bool = False, **kwargs):
-        device = self.encoder.embeddings.word_embeddings.weight.device
         if isinstance(batch, list):
             assert len(batch) == 1
             batch = batch[0]
-        if isinstance(src_langs, list):
-            src_langs = src_langs[0]
-        if isinstance(src_pads, list):
-            src_pads = src_pads[0]
-        if isinstance(src_inputs, list):
-            src_inputs = src_inputs[0]
+
+        if batch is None or src_inputs is not None:  # Text-based input
+            return super().forward(src_inputs=src_inputs, src_mask=src_pads, tgt_inputs=tgt_inputs, src_langs=src_langs,
+                                   tgt_langs=tgt_langs, proposals=proposals, log_softmax=log_softmax)
+
+        device = self.encoder.embeddings.word_embeddings.weight.device
+
         if isinstance(tgt_positions, list):
             tgt_positions = tgt_positions[0]
         if isinstance(tgt_inputs, list):
             tgt_inputs = tgt_inputs[0]
-        if isinstance(proposals, list):
-            proposals = proposals[0]
         if isinstance(tgt_mask, list):
             tgt_mask = tgt_mask[0]
-
-        if batch is None:
-            return super().forward(src_inputs=src_inputs, src_mask=src_pads, tgt_inputs=tgt_inputs, src_langs=src_langs,
-                                   tgt_langs=tgt_langs, proposals=proposals, log_softmax=log_softmax)
 
         images = batch["images"].to(device)
         image_embeddings, object_fc = self.encode(images=images)

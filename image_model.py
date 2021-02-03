@@ -161,6 +161,8 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             batch = batch[0]
         if isinstance(src_langs, list):
             src_langs = src_langs[0]
+        if isinstance(tgt_langs, list):
+            tgt_langs = tgt_langs[0]
         if isinstance(src_pads, list):
             src_pads = src_pads[0]
         if isinstance(src_inputs, list):
@@ -190,12 +192,12 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             tgt_inputs = tgt_inputs.to(device)
             tgt_mask = tgt_inputs != pad_idx
 
-            batch_lang = int(src_langs[0])
+            batch_lang = int(tgt_langs[0])
 
             decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
             output_layer = self.output_layer if (not self.lang_dec) and self.tie_embed else self.output_layer[
                 batch_lang]
-            tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
+            tgt_langs = tgt_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
             if tgt_positions is not None:
                 tgt_positions = tgt_positions[:, :-1].to(device)
 
@@ -228,7 +230,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             if isinstance(neg_samples, list):
                 neg_samples = neg_samples[0]
                 neg_mask = neg_mask[0]
-            neg_langs = src_langs[0].squeeze().unsqueeze(-1).expand(len(neg_samples), neg_samples.size(-1)).to(device)
+            neg_langs = tgt_langs[0].squeeze().unsqueeze(-1).expand(len(neg_samples), neg_samples.size(-1)).to(device)
 
             neg_samples = neg_samples.to(device)
             neg_mask = neg_mask.to(device)
@@ -323,6 +325,8 @@ class ImageCaptioning(ImageMassSeq2Seq):
             tgt_inputs = tgt_inputs[0]
         if isinstance(tgt_mask, list):
             tgt_mask = tgt_mask[0]
+        if isinstance(tgt_langs, list):
+            tgt_langs = tgt_langs[0]
 
         images = batch["images"].to(device)
         image_embeddings, object_fc = self.encode(images=images)
@@ -333,11 +337,11 @@ class ImageCaptioning(ImageMassSeq2Seq):
         tgt_inputs = tgt_inputs.to(device)
         tgt_mask = tgt_mask.to(device)
 
-        batch_lang = int(src_langs[0])
+        batch_lang = int(tgt_langs[0])
 
         decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
         output_layer = self.output_layer if (not self.lang_dec) and self.tie_embed else self.output_layer[batch_lang]
-        tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
+        tgt_langs = tgt_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
         if tgt_positions is not None:
             tgt_positions = tgt_positions[:, :-1].to(device)
 

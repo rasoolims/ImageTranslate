@@ -24,7 +24,8 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 class ImageCaptionTrainer(ImageMTTrainer):
     def train_epoch(self, img_data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     img_dev_data_iter: List[data_utils.DataLoader] = None, max_step: int = 300000,
-                    lex_dict=None, accum=1, mt_train_iter: List[data_utils.DataLoader] = None, **kwargs):
+                    lex_dict=None, accum=1, mt_train_iter: List[data_utils.DataLoader] = None,
+                    mt_dev_iter: List[data_utils.DataLoader] = None, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -123,6 +124,9 @@ class ImageCaptionTrainer(ImageMTTrainer):
             if img_dev_data_iter is not None:
                 bleu = self.eval_bleu(img_dev_data_iter, saving_path)
                 print("BLEU:", bleu)
+            if mt_dev_iter is not None:
+                bleu = super().eval_bleu(mt_dev_iter, saving_path + ".mt_model")
+                print("BLEU:", bleu)
 
             print("Total loss in this epoch: %f" % (total_loss / total_tokens))
             model.save(saving_path + ".latest")
@@ -163,7 +167,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
             model.train()
         bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]], lowercase=True, tokenize="intl")
 
-        with open(os.path.join(saving_path, "bleu.output"), "w") as writer:
+        with open(os.path.join(saving_path, "bleu.caption.output"), "w") as writer:
             writer.write("\n".join([o + "\n" + ref + "\n\n***************\n" for o, ref in
                                     zip(mt_output, self.reference[:len(mt_output)])]))
 
@@ -174,7 +178,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
             with open(os.path.join(saving_path, "optim"), "wb") as fp:
                 pickle.dump(self.optimizer, fp)
 
-            with open(os.path.join(saving_path, "bleu.best.output"), "w") as writer:
+            with open(os.path.join(saving_path, "bleu.caption.best.output"), "w") as writer:
                 writer.write("\n".join([o + "\n" + ref + "\n\n***************\n" for o, ref in
                                         zip(mt_output, self.reference[:len(mt_output)])]))
 
@@ -252,12 +256,18 @@ class ImageCaptionTrainer(ImageMTTrainer):
                         ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
                         trainer.reference += ref
 
+        mt_dev_loader = None
+        if options.mt_dev_path is not None:
+            mt_dev_loader = ImageMTTrainer.get_mt_dev_data(caption_model, options, pin_memory, text_processor, trainer,
+                                                           lex_dict=lex_dict)
+
         step, train_epoch = 0, 1
         while options.step > 0 and step < options.step:
             print("train epoch", train_epoch)
             step = trainer.train_epoch(img_data_iter=img_train_loader, img_dev_data_iter=img_dev_loader,
                                        max_step=options.step, lex_dict=lex_dict, mt_train_iter=mt_train_loader,
-                                       saving_path=options.model_path, step=step, accum=options.accum)
+                                       saving_path=options.model_path, step=step, accum=options.accum,
+                                       mt_dev_iter=mt_dev_loader)
             train_epoch += 1
 
 

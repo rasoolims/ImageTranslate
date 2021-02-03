@@ -89,6 +89,7 @@ class BeamDecoder(nn.Module):
                 images = images.half()
             max_len = 512
 
+        obj_feat_fc = None
         if src_inputs is not None and images is None:
             src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
             encoder_states = self.seq2seq_model.encode(src_inputs, src_mask, src_langs)[0]

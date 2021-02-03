@@ -141,7 +141,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
         self.image_attention_w = nn.Linear(self.config.hidden_size, 1)  # For Constrastive loss
         self.encoder_attention_w = nn.Linear(self.config.hidden_size, 1)  # For Constrastive loss
 
-    def encode(self, src_inputs, src_mask, src_langs, images=None, fcnn: ModifiedFasterRCNN = None):
+    def encode(self, src_inputs, src_mask, src_langs, images=None):
         encoder_states = super().encode(src_inputs, src_mask, src_langs)
         if images is not None:
             device = self.encoder.embeddings.word_embeddings.weight.device
@@ -292,7 +292,7 @@ class ImageCaptioning(Seq2Seq):
             self.multistream_attention_gate = nn.Parameter(torch.zeros(1, self.config.hidden_size).fill_(0.1),
                                                            requires_grad=True)
 
-    def encode(self, src_inputs=None, src_mask=None, src_langs=None, images=None, fcnn: ModifiedFasterRCNN = None):
+    def encode(self, src_inputs=None, src_mask=None, src_langs=None, images=None):
         if images is not None:
             device = self.encoder.embeddings.word_embeddings.weight.device
             if isinstance(images, list):
@@ -307,7 +307,7 @@ class ImageCaptioning(Seq2Seq):
 
     def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, tgt_mask=None,
                 pad_idx: int = 0, tgt_positions=None, batch=None, proposals=None, log_softmax: bool = False,
-                encode_only: bool = False, fcnn: ModifiedFasterRCNN = None, **kwargs):
+                encode_only: bool = False, **kwargs):
         device = self.encoder.embeddings.word_embeddings.weight.device
         if isinstance(batch, list):
             assert len(batch) == 1

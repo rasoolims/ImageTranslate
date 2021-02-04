@@ -259,11 +259,13 @@ class ImageCaptionTrainer(ImageMTTrainer):
                         refs = get_outputs_until_eos(text_processor.sep_token_id(), caption, remove_first_token=True)
                         ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
                         trainer.caption_reference += ref
+            print("Number of dev image/captions", len(trainer.caption_reference))
 
         mt_dev_loader = None
         if options.mt_dev_path is not None:
             mt_dev_loader = ImageMTTrainer.get_mt_dev_data(caption_model, options, pin_memory, text_processor, trainer,
                                                            lex_dict=lex_dict)
+            print("Number of dev sentences", len(trainer.reference))
 
         step, train_epoch = 0, 1
         while options.step > 0 and step < options.step:

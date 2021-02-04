@@ -105,7 +105,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
                                 if img_dev_data_iter is not None and step % 5000 == 0:
                                     bleu = self.eval_bleu(img_dev_data_iter, saving_path)
                                     print("Captioning BLEU:", bleu)
-                                if mt_dev_iter is not None:
+                                if mt_dev_iter is not None and step % 5000 == 0:
                                     bleu = super().eval_bleu(mt_dev_iter, saving_path + ".mt_model")
                                     print("MT BLEU:", bleu)
 
@@ -168,7 +168,8 @@ class ImageCaptionTrainer(ImageMTTrainer):
                     mt_output += list(map(lambda x: model.text_processor.tokenizer.decode(x[1:].numpy()), outputs))
 
             model.train()
-        bleu = sacrebleu.corpus_bleu(mt_output, [self.caption_reference[:len(mt_output)]], lowercase=True, tokenize="intl")
+        bleu = sacrebleu.corpus_bleu(mt_output, [self.caption_reference[:len(mt_output)]], lowercase=True,
+                                     tokenize="intl")
 
         with open(os.path.join(saving_path, "bleu.caption.output"), "w") as writer:
             writer.write("\n".join([o + "\n" + ref + "\n\n***************\n" for o, ref in

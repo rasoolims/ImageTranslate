@@ -104,7 +104,10 @@ class ImageCaptionTrainer(ImageMTTrainer):
                             if step % 500 == 0:
                                 if img_dev_data_iter is not None and step % 5000 == 0:
                                     bleu = self.eval_bleu(img_dev_data_iter, saving_path)
-                                    print("BLEU:", bleu)
+                                    print("Captioning BLEU:", bleu)
+                                if mt_dev_iter is not None:
+                                    bleu = super().eval_bleu(mt_dev_iter, saving_path + ".mt_model")
+                                    print("MT BLEU:", bleu)
 
                                 model.save(saving_path + ".latest")
                                 with open(os.path.join(saving_path + ".latest", "optim"), "wb") as fp:
@@ -123,10 +126,10 @@ class ImageCaptionTrainer(ImageMTTrainer):
         try:
             if img_dev_data_iter is not None:
                 bleu = self.eval_bleu(img_dev_data_iter, saving_path)
-                print("BLEU:", bleu)
+                print("Captioning BLEU:", bleu)
             if mt_dev_iter is not None:
                 bleu = super().eval_bleu(mt_dev_iter, saving_path + ".mt_model")
-                print("BLEU:", bleu)
+                print("MT BLEU:", bleu)
 
             print("Total loss in this epoch: %f" % (total_loss / total_tokens))
             model.save(saving_path + ".latest")

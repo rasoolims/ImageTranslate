@@ -165,11 +165,11 @@ class ImageCaptionTrainer(ImageMTTrainer):
                     mt_output += list(map(lambda x: model.text_processor.tokenizer.decode(x[1:].numpy()), outputs))
 
             model.train()
-        bleu = sacrebleu.corpus_bleu(mt_output, [self.reference[:len(mt_output)]], lowercase=True, tokenize="intl")
+        bleu = sacrebleu.corpus_bleu(mt_output, [self.caption_reference[:len(mt_output)]], lowercase=True, tokenize="intl")
 
         with open(os.path.join(saving_path, "bleu.caption.output"), "w") as writer:
             writer.write("\n".join([o + "\n" + ref + "\n\n***************\n" for o, ref in
-                                    zip(mt_output, self.reference[:len(mt_output)])]))
+                                    zip(mt_output, self.caption_reference[:len(mt_output)])]))
 
         if bleu.score > self.best_bleu:
             self.best_bleu = bleu.score
@@ -180,7 +180,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
 
             with open(os.path.join(saving_path, "bleu.caption.best.output"), "w") as writer:
                 writer.write("\n".join([o + "\n" + ref + "\n\n***************\n" for o, ref in
-                                        zip(mt_output, self.reference[:len(mt_output)])]))
+                                        zip(mt_output, self.caption_reference[:len(mt_output)])]))
 
         return bleu.score
 
@@ -242,9 +242,9 @@ class ImageCaptionTrainer(ImageMTTrainer):
                                                        lex_dict=lex_dict,
                                                        shuffle=False, denom=2)
 
-        trainer.reference = None
+        trainer.caption_reference = None
         if img_dev_loader is not None:
-            trainer.reference = []
+            trainer.caption_reference = []
             generator = (
                 trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
             )
@@ -254,7 +254,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
                     for caption in captions:
                         refs = get_outputs_until_eos(text_processor.sep_token_id(), caption, remove_first_token=True)
                         ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
-                        trainer.reference += ref
+                        trainer.caption_reference += ref
 
         mt_dev_loader = None
         if options.mt_dev_path is not None:

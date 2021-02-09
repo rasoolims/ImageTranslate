@@ -174,7 +174,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
         bleu = sacrebleu.corpus_bleu(mt_output, all_refs, lowercase=True, tokenize="intl")
 
         output = "\n".join(["\nOutput:\n" + o + "\n\nReferences:\n" + "\n".join(
-            self.caption_reference[img_ids[i]]) + "\n\n***************\n" for i, o in enumerate(mt_output)])
+            self.caption_reference[mt_ids[i]]) + "\n\n***************\n" for i, o in enumerate(mt_output)])
         with open(os.path.join(saving_path, "bleu.caption.output"), "w") as writer:
             writer.write(output)
 

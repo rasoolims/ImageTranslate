@@ -87,7 +87,8 @@ class BeamDecoder(nn.Module):
             images = images.to(device)
             if self.seq2seq_model.encoder.embeddings.word_embeddings.weight.dtype == torch.float16:
                 images = images.half()
-            max_len = 512
+            if max_len is None:
+                max_len = 512
 
         obj_feat_fc = None
         if src_inputs is not None and images is None:

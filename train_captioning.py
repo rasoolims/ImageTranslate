@@ -3,6 +3,7 @@ import os
 import pickle
 import sys
 import time
+from collections import defaultdict
 
 import sacrebleu
 import torch.utils.data as data_utils
@@ -140,7 +141,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
 
     def eval_bleu(self, dev_data_iter, saving_path):
         mt_output = []
-        src_text = []
+        mt_ids = []
         model = (
             self.model.module if hasattr(self.model, "module") else self.model
         )
@@ -151,12 +152,11 @@ class ImageCaptionTrainer(ImageMTTrainer):
                 for batch in iter:
                     proposals = [b["proposal"] for b in batch]
                     dst_langs = [b["langs"] for b in batch]
-                    captions = [b["captions"] for b in batch]
-                    max_len = max([c.size(1) * 2 for c in captions])
+                    img_ids = [b["img_ids"] for b in batch][0]
+                    first_tokens = [b["first_tokens"] for b in batch]
                     images = [b["images"] for b in batch]
-                    outputs = self.generator(images=images,
-                                             first_tokens=[c[:, 0] for c in captions],
-                                             tgt_langs=dst_langs,
+                    max_len = [b["max_len"] for b in batch][0]
+                    outputs = self.generator(images=images, first_tokens=first_tokens, tgt_langs=dst_langs,
                                              pad_idx=model.text_processor.pad_token_id(), proposals=proposals,
                                              max_len=max_len)
                     if self.num_gpu > 1:
@@ -166,14 +166,17 @@ class ImageCaptionTrainer(ImageMTTrainer):
                         outputs = new_outputs
 
                     mt_output += list(map(lambda x: model.text_processor.tokenizer.decode(x[1:].numpy()), outputs))
-
+                    mt_ids += img_ids
             model.train()
-        bleu = sacrebleu.corpus_bleu(mt_output, [self.caption_reference[:len(mt_output)]], lowercase=True,
-                                     tokenize="intl")
+        references = list(map(lambda id: self.caption_reference[id], mt_ids))
+        max_reflen = max(map(lambda x: len(x), references))
+        all_refs = list(map(lambda l: list(map(lambda r: r[l] if l < len(r) else None, references)), range(max_reflen)))
+        bleu = sacrebleu.corpus_bleu(mt_output, all_refs, lowercase=True, tokenize="intl")
 
+        output = "\n".join(["\nOutput:\n" + o + "\n\nReferences:\n" + "\n".join(
+            self.caption_reference[img_ids[i]]) + "\n\n***************\n" for i, o in enumerate(mt_output)])
         with open(os.path.join(saving_path, "bleu.caption.output"), "w") as writer:
-            writer.write("\n".join([o + "\n" + ref + "\n\n***************\n" for o, ref in
-                                    zip(mt_output, self.caption_reference[:len(mt_output)])]))
+            writer.write(output)
 
         if bleu.score > self.best_bleu:
             self.best_bleu = bleu.score
@@ -183,8 +186,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
                 pickle.dump(self.optimizer, fp)
 
             with open(os.path.join(saving_path, "bleu.caption.best.output"), "w") as writer:
-                writer.write("\n".join([o + "\n" + ref + "\n\n***************\n" for o, ref in
-                                        zip(mt_output, self.caption_reference[:len(mt_output)])]))
+                writer.write(output)
 
         return bleu.score
 
@@ -241,24 +243,28 @@ class ImageCaptionTrainer(ImageMTTrainer):
             mt_train_loader = ImageMTTrainer.get_mt_train_data(caption_model, num_processors, options, pin_memory,
                                                                lex_dict=lex_dict)
 
-        img_dev_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, options.dev_path,
+        img_dev_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionTestDataset, options.dev_path,
                                                        caption_model, num_batches, options, pin_memory,
                                                        lex_dict=lex_dict,
                                                        shuffle=False, denom=2)
 
         trainer.caption_reference = None
         if img_dev_loader is not None:
-            trainer.caption_reference = []
+            trainer.caption_reference = defaultdict(list)
             generator = (
                 trainer.generator.module if hasattr(trainer.generator, "module") else trainer.generator
             )
             for data in img_dev_loader:
                 for batch in data:
-                    captions = [b["captions"] for b in batch]
-                    for caption in captions:
-                        refs = get_outputs_until_eos(text_processor.sep_token_id(), caption, remove_first_token=True)
-                        ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in refs]
-                        trainer.caption_reference += ref
+                    for b in batch:
+                        captions = b["captions"]
+                        for id in captions:
+                            for caption in captions[id]:
+                                refs = get_outputs_until_eos(text_processor.sep_token_id(), caption,
+                                                             remove_first_token=True)
+                                ref = [generator.seq2seq_model.text_processor.tokenizer.decode(ref.numpy()) for ref in
+                                       refs]
+                                trainer.caption_reference[id] += ref
             print("Number of dev image/captions", len(trainer.caption_reference))
 
         mt_dev_loader = None

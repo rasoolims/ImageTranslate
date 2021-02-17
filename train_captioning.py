@@ -26,7 +26,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
     def train_epoch(self, img_data_iter: List[data_utils.DataLoader], step: int, saving_path: str = None,
                     img_dev_data_iter: List[data_utils.DataLoader] = None, max_step: int = 300000,
                     lex_dict=None, accum=1, mt_train_iter: List[data_utils.DataLoader] = None,
-                    mt_dev_iter: List[data_utils.DataLoader] = None, **kwargs):
+                    mt_dev_iter: List[data_utils.DataLoader] = None, mtl_weight=0.1, **kwargs):
         "Standard Training and Logging Function"
         start = time.time()
         total_tokens, total_loss, tokens, cur_loss = 0, 0, 0, 0
@@ -80,6 +80,8 @@ class ImageCaptionTrainer(ImageMTTrainer):
                             targets = targets.to(predictions.device)
 
                         loss = self.criterion(predictions, targets).mean()
+                        if not is_img_batch:
+                            loss = loss * mtl_weight
                         backward(loss, self.optimizer, self.fp16)
 
                         loss = float(loss.data) * ntokens
@@ -279,7 +281,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
             step = trainer.train_epoch(img_data_iter=img_train_loader, img_dev_data_iter=img_dev_loader,
                                        max_step=options.step, lex_dict=lex_dict, mt_train_iter=mt_train_loader,
                                        saving_path=options.model_path, step=step, accum=options.accum,
-                                       mt_dev_iter=mt_dev_loader)
+                                       mt_dev_iter=mt_dev_loader, mtl_weight=options.mtl_weight)
             train_epoch += 1
 
 

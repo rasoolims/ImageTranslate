@@ -80,9 +80,8 @@ class ImageCaptionTrainer(ImageMTTrainer):
                             targets = targets.to(predictions.device)
 
                         loss = self.criterion(predictions, targets).mean()
-                        if not is_img_batch:
-                            loss = loss * mtl_weight
-                        backward(loss, self.optimizer, self.fp16)
+                        weight = 1 if is_img_batch else mtl_weight
+                        backward(loss * weight, self.optimizer, self.fp16)
 
                         loss = float(loss.data) * ntokens
                         tokens += ntokens

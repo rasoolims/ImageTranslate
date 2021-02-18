@@ -209,7 +209,7 @@ class ImageCaptionTrainer(ImageMTTrainer):
                                             text_processor=text_processor, resnet_depth=options.resnet_depth,
                                             lang_dec=options.lang_decoder, enc_layer=options.encoder_layer,
                                             dec_layer=options.decoder_layer, embed_dim=options.embed_dim,
-                                            intermediate_dim=options.intermediate_layer_dim, use_obj=not options.no_obj)
+                                            intermediate_dim=options.intermediate_layer_dim, use_obj=not options.no_obj,num_img_encode_layers=options.img_enc)
 
         if options.lm_path is not None:  # In our case, this is an MT model.
             mt_pret_model = Seq2Seq.load(ImageMassSeq2Seq, options.lm_path, tok_dir=options.tokenizer_path)

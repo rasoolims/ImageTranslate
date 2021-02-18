@@ -84,5 +84,6 @@ def get_img_options_parser():
     parser.add_option("--save-opt", action="store_true", dest="save_opt", default=False)
     parser.add_option("--no-obj", action="store_true", dest="no_obj", default=False)
     parser.add_option("--acc", dest="accum", help="Gradient accumulation", type="int", default=1)
-    parser.add_option("--mtlw", dest="mtl_weight", help="Update weight for MT in MTL", type="float", default=0.1)
+    parser.add_option("--img-enc", dest="img_enc", help="Bert Layers over Resnet Input", type="int", default=2)
+    parser.add_option("--mtlw", dest="mtl_weight", help="Update weight for MT in MTL", type="float", default=1.0)
     return parser

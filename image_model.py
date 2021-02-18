@@ -73,11 +73,6 @@ class ModifiedResnet(models.ResNet):
             object_feats[object_labels == 0] = 0
             object_feat_fc = F.relu(self.object_feat_fc(object_feats))
 
-        if self.dropout > 0 and self.training:
-            out = F.dropout(out, p=self.dropout)
-            if object_feat_fc is not None:
-                object_feat_fc = F.dropout(object_feat_fc, p=self.dropout)
-
         return out, object_feat_fc
 
 

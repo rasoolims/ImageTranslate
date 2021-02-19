@@ -93,6 +93,8 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
         model = models.resnet101(pretrained=True)
     elif depth == 5:
         model = models.resnet152(pretrained=True)
+    elif depth == 6:
+        model = models.resnext101_32x8d(pretrained=True)
 
     model.__class__ = ModifiedResnet
     model.dropout = dropout

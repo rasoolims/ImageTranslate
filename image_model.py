@@ -37,7 +37,8 @@ class ModifiedResnet(models.ResNet):
         if self.dropout > 0:
             grid_hidden = F.dropout(grid_hidden, p=self.dropout)
         grid_outputs = self.fc(grid_hidden)
-        out = self.bert_encoder(inputs_embeds=grid_outputs)
+        location_embedding = self.location_embedding.weight.unsqueeze(0)
+        out = grid_outputs + location_embedding
         object_feat_fc = None
 
         # Getting object features from faster RCNN
@@ -53,9 +54,9 @@ class ModifiedResnet(models.ResNet):
             with torch.no_grad():
                 feat_dim = fcnn_results[0]["features"].size(-1)
                 features = torch.zeros((len(fcnn_results), max_feature_nums, feat_dim + 7),
-                                       dtype=out.dtype).fill_(1e-4).to(out.device)
+                                       dtype=location_embedding.dtype).fill_(1e-4).to(location_embedding.device)
                 object_labels = torch.zeros((len(fcnn_results), max_feature_nums), dtype=torch.long).to(
-                    out.device)
+                    location_embedding.device)
                 for i in range(len(fcnn_results)):
                     x1 = fcnn_results[i]["boxes"][:, 0] / 800
                     x2 = fcnn_results[i]["boxes"][:, 2] / 800
@@ -81,8 +82,7 @@ class ModifiedResnet(models.ResNet):
         return out, object_feat_fc
 
 
-def init_net(config: BertConfig, dropout: float = 0.1, freeze: bool = False, depth: int = 1, use_obj: bool = True,
-             num_img_encode_layers: int = 2):
+def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: int = 1, use_obj: bool = True):
     if depth == 1:
         model = models.resnet18(pretrained=True)
     elif depth == 2:
@@ -96,27 +96,23 @@ def init_net(config: BertConfig, dropout: float = 0.1, freeze: bool = False, dep
 
     model.__class__ = ModifiedResnet
     model.dropout = dropout
-    model.layer_norm = torch.nn.LayerNorm(config.hidden_size, eps=1e-12)
+    model.layer_norm = torch.nn.LayerNorm(embed_dim, eps=1e-12)
 
     if freeze:
         for param in model.parameters():
             param.requires_grad = False
 
     current_weight = model.state_dict()["fc.weight"]
-    model.fc = torch.nn.Linear(in_features=current_weight.size()[1], out_features=config.hidden_size, bias=False)
+    model.fc = torch.nn.Linear(in_features=current_weight.size()[1], out_features=embed_dim, bias=False)
     model.fc.train()
 
-    model.object_feat_fc = torch.nn.Linear(in_features=1024 + 7 + config.hidden_size, out_features=config.hidden_size,
-                                           bias=False)
+    model.object_feat_fc = torch.nn.Linear(in_features=1024 + 7 + embed_dim, out_features=embed_dim, bias=False)
     model.object_feat_fc.train()
 
     # Learning embedding of each CNN region.
-    model.location_embedding = nn.Embedding(49, config.hidden_size)
+    model.location_embedding = nn.Embedding(49, embed_dim)
     model.location_embedding.train(True)
-    img_config = copy.deepcopy(config)
-    img_config.num_hidden_layers = num_img_encode_layers
-    model.bert_encoder = BertEncoderModel(img_config)
-    model.object_embedding = nn.Embedding(91, config.hidden_size)
+    model.object_embedding = nn.Embedding(91, embed_dim)
     model.object_embedding.train(True)
     model.fcnn = None
     if use_obj:
@@ -129,15 +125,15 @@ def init_net(config: BertConfig, dropout: float = 0.1, freeze: bool = False, dep
 class ImageMassSeq2Seq(MassSeq2Seq):
     def __init__(self, text_processor: TextProcessor, freeze_image: bool = False, resnet_depth: int = 1,
                  lang_dec: bool = False, use_proposals: bool = False, tie_embed: bool = False, enc_layer: int = 6,
-                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072, use_obj: bool = True,
-                 num_img_encode_layers: int = 2):
+                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072, use_obj: bool = True):
         super(ImageMassSeq2Seq, self).__init__(text_processor=text_processor, tie_embed=tie_embed,
                                                lang_dec=lang_dec, use_proposals=use_proposals, enc_layer=enc_layer,
                                                dec_layer=dec_layer, embed_dim=embed_dim,
                                                intermediate_dim=intermediate_dim, freeze_image=freeze_image,
                                                resnet_depth=resnet_depth)
-        self.image_model: ModifiedResnet = init_net(config=self.config, freeze=freeze_image, depth=resnet_depth,
-                                                    use_obj=use_obj, num_img_encode_layers=num_img_encode_layers)
+        self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
+                                                    dropout=self.config.hidden_dropout_prob,
+                                                    freeze=freeze_image, depth=resnet_depth, use_obj=use_obj)
         self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, self.config.hidden_size).fill_(0.1),
                                                       requires_grad=True)
 
@@ -269,15 +265,15 @@ class ImageMassSeq2Seq(MassSeq2Seq):
 class ImageCaptioning(ImageMassSeq2Seq):
     def __init__(self, text_processor: TextProcessor, freeze_image: bool = False, resnet_depth: int = 1,
                  lang_dec: bool = False, use_proposals: bool = False, tie_embed: bool = False, enc_layer: int = 6,
-                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072, use_obj: bool = True,
-                 num_img_encode_layers: int = 2):
+                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072, use_obj: bool = True):
         super(ImageCaptioning, self).__init__(text_processor=text_processor, tie_embed=tie_embed,
                                               lang_dec=lang_dec, use_proposals=use_proposals, enc_layer=enc_layer,
                                               dec_layer=dec_layer, embed_dim=embed_dim,
                                               intermediate_dim=intermediate_dim, freeze_image=freeze_image,
                                               resnet_depth=resnet_depth)
-        self.image_model: ModifiedResnet = init_net(config=self.config, freeze=freeze_image, depth=resnet_depth,
-                                                    use_obj=use_obj, num_img_encode_layers=num_img_encode_layers)
+        self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
+                                                    dropout=self.config.hidden_dropout_prob,
+                                                    freeze=freeze_image, depth=resnet_depth, use_obj=use_obj)
         if use_obj:
             if not lang_dec:
                 self.obj_decoder = BertDecoderModel(self.config)

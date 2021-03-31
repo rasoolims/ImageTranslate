@@ -28,7 +28,7 @@ def get_lm_option_parser():
     return parser
 
 
-def translate_batch(batch, generator, text_processor):
+def caption_batch(batch, generator, text_processor):
     tgt_langs = batch["tgt_langs"].squeeze(0)
     first_tokens = batch["first_tokens"].squeeze(0)
     images = batch["images"].squeeze(0)
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     with open(options.output_path, "w") as writer:
         with torch.no_grad():
             for batch in test_loader:
-                mt_output, paths = translate_batch(batch, generator, text_processor)
+                mt_output, paths = caption_batch(batch, generator, text_processor)
                 sen_count += len(mt_output)
                 print(datetime.datetime.now(), "Captioned", sen_count, "images!", end="\r")
                 writer.write("\n".join([x[0] + "\t" + y for x, y in zip(paths, mt_output)]))

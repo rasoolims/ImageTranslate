@@ -84,7 +84,7 @@ if __name__ == "__main__":
             for batch in test_loader:
                 mt_output, paths = translate_batch(batch, generator, text_processor)
                 sen_count += len(mt_output)
-                print(datetime.datetime.now(), "Translated", sen_count, "sentences", end="\r")
+                print(datetime.datetime.now(), "Captioned", sen_count, "images!", end="\r")
                 writer.write("\n".join([x[0] + "\t" + y for x, y in zip(paths, mt_output)]))
                 writer.write("\n")
 

@@ -51,7 +51,7 @@ def build_data_loader(options, text_processor):
     dst_lang = "<" + options.target_lang + ">"
     target_lang = text_processor.languages[dst_lang]
     first_token = text_processor.token_id(dst_lang)
-    image_data = dataset.ImageCaptionTestDataset(options.input_path, options.batch, first_token=first_token,
+    image_data = dataset.ImageDataset(options.input_path, options.batch, first_token=first_token,
                                       target_lang=target_lang)
 
     pin_memory = torch.cuda.is_available()

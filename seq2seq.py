@@ -10,7 +10,6 @@ import lm_config
 from bert_seq2seq import BertEncoderModel, BertDecoderModel, BertOutputLayer, BertConfig
 from lm import LM
 from textprocessor import TextProcessor
-from image_model import ImageCaptioning
 
 def future_mask(tgt_mask):
     attn_shape = (tgt_mask.size(0), tgt_mask.size(1), tgt_mask.size(1))
@@ -21,7 +20,7 @@ def future_mask(tgt_mask):
 class Seq2Seq(nn.Module):
     def __init__(self, text_processor: TextProcessor, lang_dec: bool = True, use_proposals=False, tie_embed=False,
                  enc_layer: int = 6, dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072,
-                 freeze_image: bool = False, resnet_depth: int = 1):
+                 freeze_image: bool = False, resnet_depth: int = 1, use_obj: bool=False):
         super(Seq2Seq, self).__init__()
         self.text_processor: TextProcessor = text_processor
         self.config = lm_config.get_config(vocab_size=text_processor.tokenizer.get_vocab_size(),
@@ -204,15 +203,11 @@ class Seq2Seq(nn.Module):
             lang_dec, use_proposals, enc_layer, dec_layer, embed_dim, intermediate_dim, tie_embed, resnet_depth, freeze_image = pickle.load(
                 fp)
 
-            if cls in ImageCaptioning:
-                mt_model = cls(text_processor=text_processor, lang_dec=lang_dec, use_proposals=use_proposals,
+            mt_model = cls(text_processor=text_processor, lang_dec=lang_dec, use_proposals=use_proposals,
                                tie_embed=tie_embed, enc_layer=enc_layer, dec_layer=dec_layer, embed_dim=embed_dim,
                                intermediate_dim=intermediate_dim, freeze_image=freeze_image, resnet_depth=resnet_depth,
                                use_obj=use_obj)
-            else:
-                mt_model = cls(text_processor=text_processor, lang_dec=lang_dec, use_proposals=use_proposals,
-                               tie_embed=tie_embed, enc_layer=enc_layer, dec_layer=dec_layer, embed_dim=embed_dim,
-                               intermediate_dim=intermediate_dim, freeze_image=freeze_image, resnet_depth=resnet_depth)
+
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
                                      strict=False)
             return mt_model

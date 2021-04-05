@@ -53,9 +53,9 @@ def build_data_loader(options, text_processor):
     print(datetime.datetime.now(), "Binarizing test data")
     image_data = dataset.ImageCaptionTestDataset(root_img_dir="", data_bin_file=options.input_path, max_capacity=10000,
                                                  text_processor=text_processor, max_img_per_batch=options.batch)
-
+    collator = dataset.ImageTextCollator()
     pin_memory = torch.cuda.is_available()
-    return data_utils.DataLoader(image_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
+    return data_utils.DataLoader(image_data, batch_size=1, shuffle=False, pin_memory=pin_memory, collate_fn=collator)
 
 
 def build_model(options):

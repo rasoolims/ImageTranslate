@@ -29,20 +29,23 @@ def get_lm_option_parser():
 
 
 def caption_batch(batch, generator, text_processor):
-    tgt_langs = batch["tgt_langs"].squeeze(0)
-    first_tokens = batch["first_tokens"].squeeze(0)
-    images = batch["images"].squeeze(0)
-    paths = batch["paths"]
 
-    outputs = generator(first_tokens=first_tokens, images=images,
-                        tgt_langs=tgt_langs, pad_idx=text_processor.pad_token_id(), max_len=256)
+    proposals = [b["proposal"] for b in batch]
+    dst_langs = [b["langs"] for b in batch]
+    first_tokens = [b["first_tokens"] for b in batch]
+    images = [b["images"] for b in batch]
+    max_len = [b["max_len"] for b in batch][0]
+    outputs = generator(images=images, first_tokens=first_tokens, tgt_langs=dst_langs,
+                                         pad_idx=text_processor.pad_token_id(), proposals=proposals,
+                                         max_len=max_len)
     if torch.cuda.device_count() > 1:
         new_outputs = []
         for output in outputs:
             new_outputs += output
         outputs = new_outputs
+
     mt_output = list(map(lambda x: text_processor.tokenizer.decode(x[1:].numpy()), outputs))
-    return mt_output, paths
+    return mt_output
 
 
 def build_data_loader(options, text_processor):

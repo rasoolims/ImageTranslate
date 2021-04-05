@@ -59,8 +59,6 @@ def build_model(options):
     model = Seq2Seq.load(ImageCaptioning, options.model_path, tok_dir=options.tokenizer_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
-    if options.fp16:
-        model = amp.initialize(model, opt_level="O2")
     num_gpu = torch.cuda.device_count()
     generator = BeamDecoder(model, beam_width=options.beam_width, max_len_a=options.max_len_a,
                             max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio)

@@ -10,7 +10,7 @@ import lm_config
 from bert_seq2seq import BertEncoderModel, BertDecoderModel, BertOutputLayer, BertConfig
 from lm import LM
 from textprocessor import TextProcessor
-
+from image_model import ImageCaptioning
 
 def future_mask(tgt_mask):
     attn_shape = (tgt_mask.size(0), tgt_mask.size(1), tgt_mask.size(1))
@@ -197,16 +197,22 @@ class Seq2Seq(nn.Module):
             torch.cuda.empty_cache()
 
     @staticmethod
-    def load(cls, out_dir: str, tok_dir: str):
+    def load(cls, out_dir: str, tok_dir: str, use_obj: bool = False):
         text_processor = TextProcessor(tok_model_path=tok_dir)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         with open(os.path.join(out_dir, "mt_config"), "rb") as fp:
             lang_dec, use_proposals, enc_layer, dec_layer, embed_dim, intermediate_dim, tie_embed, resnet_depth, freeze_image = pickle.load(
                 fp)
 
-            mt_model = cls(text_processor=text_processor, lang_dec=lang_dec, use_proposals=use_proposals,
-                           tie_embed=tie_embed, enc_layer=enc_layer, dec_layer=dec_layer, embed_dim=embed_dim,
-                           intermediate_dim=intermediate_dim, freeze_image=freeze_image, resnet_depth=resnet_depth)
+            if cls in ImageCaptioning:
+                mt_model = cls(text_processor=text_processor, lang_dec=lang_dec, use_proposals=use_proposals,
+                               tie_embed=tie_embed, enc_layer=enc_layer, dec_layer=dec_layer, embed_dim=embed_dim,
+                               intermediate_dim=intermediate_dim, freeze_image=freeze_image, resnet_depth=resnet_depth,
+                               use_obj=use_obj)
+            else:
+                mt_model = cls(text_processor=text_processor, lang_dec=lang_dec, use_proposals=use_proposals,
+                               tie_embed=tie_embed, enc_layer=enc_layer, dec_layer=dec_layer, embed_dim=embed_dim,
+                               intermediate_dim=intermediate_dim, freeze_image=freeze_image, resnet_depth=resnet_depth)
             mt_model.load_state_dict(torch.load(os.path.join(out_dir, "mt_model.state_dict"), map_location=device),
                                      strict=False)
             return mt_model

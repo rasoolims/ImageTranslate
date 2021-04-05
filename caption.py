@@ -25,6 +25,7 @@ def get_lm_option_parser():
     parser.add_option("--max_len_b", dest="max_len_b", help="b for beam search (a*l+b)", type="int", default=5)
     parser.add_option("--len-penalty", dest="len_penalty_ratio", help="Length penalty", type="float", default=0.8)
     parser.add_option("--fp16", action="store_true", dest="fp16", default=False)
+    parser.add_option("--obj", action="store_true", dest="obj", default=False)
     return parser
 
 
@@ -59,7 +60,7 @@ def build_data_loader(options, text_processor):
 
 
 def build_model(options):
-    model = Seq2Seq.load(ImageCaptioning, options.model_path, tok_dir=options.tokenizer_path)
+    model = Seq2Seq.load(ImageCaptioning, options.model_path, tok_dir=options.tokenizer_path, use_obj=options.obj)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     num_gpu = torch.cuda.device_count()

@@ -213,6 +213,8 @@ class ImageCaptionTrainer(ImageMTTrainer):
 
         if options.lm_path is not None:  # In our case, this is an MT model.
             mt_pret_model = Seq2Seq.load(ImageMassSeq2Seq, options.lm_path, tok_dir=options.tokenizer_path)
+            assert len(caption_model.encoder.encoder.layer) == len(mt_pret_model.encoder.encoder.layer)
+            assert len(caption_model.decoder.decoder.layer) == len(mt_pret_model.decoder.decoder.layer)
             caption_model.encoder = mt_pret_model.encoder
             caption_model.decoder = mt_pret_model.decoder
             caption_model.output_layer = mt_pret_model.output_layer

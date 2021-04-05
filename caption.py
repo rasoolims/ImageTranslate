@@ -48,11 +48,8 @@ def caption_batch(batch, generator, text_processor):
 def build_data_loader(options, text_processor):
     print(datetime.datetime.now(), "Binarizing test data")
     assert options.target_lang is not None
-    dst_lang = "<" + options.target_lang + ">"
-    target_lang = text_processor.languages[dst_lang]
-    first_token = text_processor.token_id(dst_lang)
-    image_data = dataset.ImageDataset(options.input_path, options.batch, first_token=first_token,
-                                      target_lang=target_lang)
+    image_data = dataset.ImageCaptionTestDataset(root_img_dir="", data_bin_file=options.input_path, max_capacity=10000,
+                                                 text_processor=text_processor, max_img_per_batch=options.batch)
 
     pin_memory = torch.cuda.is_available()
     return data_utils.DataLoader(image_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
@@ -62,6 +59,8 @@ def build_model(options):
     model = Seq2Seq.load(ImageCaptioning, options.model_path, tok_dir=options.tokenizer_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
+    if options.fp16:
+        model = amp.initialize(model, opt_level="O2")
     num_gpu = torch.cuda.device_count()
     generator = BeamDecoder(model, beam_width=options.beam_width, max_len_a=options.max_len_a,
                             max_len_b=options.max_len_b, len_penalty_ratio=options.len_penalty_ratio)

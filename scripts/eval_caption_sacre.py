@@ -11,6 +11,8 @@ with open(os.path.abspath(sys.argv[1]), "r") as ref_reader:
         spl = line.strip().split("\t")
         if len(spl) < 2: continue
         path = spl[0].strip()
+        if "/" in path:
+            path = path[path.rfind("/")+1:]
         ref[path].append(spl[1].strip())
         max_ref = max(max_ref, len(ref[path]))
 
@@ -21,6 +23,8 @@ with open(os.path.abspath(sys.argv[2]), "r") as output_reader:
         spl = line.strip().split("\t")
         if len(spl) < 2: continue
         path = spl[0].strip()
+        if "/" in path:
+            path = path[path.rfind("/")+1:]
         output = spl[1].strip()
         ref_values = ref[path]
         for i in range(max_ref):

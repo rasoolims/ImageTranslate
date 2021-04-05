@@ -29,32 +29,33 @@ def get_lm_option_parser():
 
 
 def caption_batch(batch, generator, text_processor):
-    proposals = [b["proposal"] for b in batch]
-    dst_langs = [b["langs"] for b in batch]
-    first_tokens = [b["first_tokens"] for b in batch]
-    images = [b["images"] for b in batch]
-    max_len = [b["max_len"] for b in batch][0]
-    outputs = generator(images=images, first_tokens=first_tokens, tgt_langs=dst_langs,
-                                         pad_idx=text_processor.pad_token_id(), proposals=proposals,
-                                         max_len=max_len)
+    tgt_langs = batch["tgt_langs"].squeeze(0)
+    first_tokens = batch["first_tokens"].squeeze(0)
+    images = batch["images"].squeeze(0)
+    paths = batch["paths"]
+
+    outputs = generator(first_tokens=first_tokens, images=images,
+                        tgt_langs=tgt_langs, pad_idx=text_processor.pad_token_id(), max_len=256)
     if torch.cuda.device_count() > 1:
         new_outputs = []
         for output in outputs:
             new_outputs += output
         outputs = new_outputs
-
     mt_output = list(map(lambda x: text_processor.tokenizer.decode(x[1:].numpy()), outputs))
-    img_ids = [b["img_ids"] for b in batch][0]
-    return mt_output, img_ids
+    return mt_output, paths
 
 
 def build_data_loader(options, text_processor):
     print(datetime.datetime.now(), "Binarizing test data")
-    image_data = dataset.ImageCaptionTestDataset(root_img_dir="", data_bin_file=options.input_path, max_capacity=10000,
-                                                 text_processor=text_processor, max_img_per_batch=options.batch)
-    collator = dataset.ImageTextCollator()
+    assert options.target_lang is not None
+    dst_lang = "<" + options.target_lang + ">"
+    target_lang = text_processor.languages[dst_lang]
+    first_token = text_processor.token_id(dst_lang)
+    image_data = dataset.ImageDataset(options.input_path, options.batch, first_token=first_token,
+                                      target_lang=target_lang)
+
     pin_memory = torch.cuda.is_available()
-    return data_utils.DataLoader(image_data, batch_size=1, shuffle=False, pin_memory=pin_memory, collate_fn=collator)
+    return data_utils.DataLoader(image_data, batch_size=1, shuffle=False, pin_memory=pin_memory)
 
 
 def build_model(options):

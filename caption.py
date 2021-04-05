@@ -47,7 +47,6 @@ def caption_batch(batch, generator, text_processor):
 
 def build_data_loader(options, text_processor):
     print(datetime.datetime.now(), "Binarizing test data")
-    assert options.target_lang is not None
     image_data = dataset.ImageCaptionTestDataset(root_img_dir="", data_bin_file=options.input_path, max_capacity=10000,
                                                  text_processor=text_processor, max_img_per_batch=options.batch)
 

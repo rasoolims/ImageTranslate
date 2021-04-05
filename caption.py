@@ -45,7 +45,8 @@ def caption_batch(batch, generator, text_processor):
         outputs = new_outputs
 
     mt_output = list(map(lambda x: text_processor.tokenizer.decode(x[1:].numpy()), outputs))
-    return mt_output
+    img_ids = [b["img_ids"] for b in batch][0]
+    return mt_output, img_ids
 
 
 def build_data_loader(options, text_processor):
@@ -80,12 +81,13 @@ if __name__ == "__main__":
     sen_count = 0
     with open(options.output_path, "w") as writer:
         with torch.no_grad():
-            for batch in test_loader:
-                mt_output, paths = caption_batch(batch, generator, text_processor)
-                sen_count += len(mt_output)
-                print(datetime.datetime.now(), "Captioned", sen_count, "images!", end="\r")
-                writer.write("\n".join([x[0] + "\t" + y for x, y in zip(paths, mt_output)]))
-                writer.write("\n")
+            for iter in test_loader:
+                for batch in iter:
+                    mt_output, paths = caption_batch(batch, generator, text_processor)
+                    sen_count += len(mt_output)
+                    print(datetime.datetime.now(), "Captioned", sen_count, "images!", end="\r")
+                    writer.write("\n".join([x[0] + "\t" + y for x, y in zip(paths, mt_output)]))
+                    writer.write("\n")
 
     print(datetime.datetime.now(), "Translated", sen_count, "sentences")
     print(datetime.datetime.now(), "Done!")

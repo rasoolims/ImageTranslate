@@ -416,7 +416,7 @@ class ImageCaptionTestDataset(ImageCaptionDataset):
             caption_dict[im].append(batch[i])
             max_len = max(len(batch[i]), max_len)
 
-        first_tokens = torch.LongTensor(list(map(lambda x: int(caption_dict[x][0][0]), caption_dict.keys())))
+        first_tokens = torch.LongTensor(list(map(lambda x: int(caption_dict[x][1][0]), caption_dict.keys())))
         img_tensors = torch.stack(list(map(lambda im: self.img_normalize(self.to_tensor(im)), image_batch)))
         return {"images": img_tensors, "img_ids": image_ids, "captions": caption_dict, "first_tokens": first_tokens,
                 "langs": torch.LongTensor([self.lang] * len(caption_dict)), "max_len": max_len + 10,

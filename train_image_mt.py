@@ -184,12 +184,12 @@ class ImageMTTrainer:
                             langs = torch.cat([b["langs"] for b in batch])
                         # Now use it for back-translation loss.
                         predictions = model(src_inputs=translations,
-                                                 tgt_inputs=src_inputs,
-                                                 src_pads=translation_pad_mask,
-                                                 pad_idx=model.text_processor.pad_token_id(),
-                                                 src_langs=dst_langs,
-                                                 tgt_langs=langs, proposals=translation_proposals,
-                                                 log_softmax=True)
+                                            tgt_inputs=src_inputs,
+                                            src_pads=translation_pad_mask,
+                                            pad_idx=model.text_processor.pad_token_id(),
+                                            src_langs=dst_langs,
+                                            tgt_langs=langs, proposals=translation_proposals,
+                                            log_softmax=True)
                         if is_mass_batch:
                             src_targets = src_inputs[:, 1:].contiguous().view(-1)
                             src_mask_flat = src_pad_mask[:, 1:].contiguous().view(-1)
@@ -305,7 +305,7 @@ class ImageMTTrainer:
                               "Epoch Step: %d Loss: %f Tokens per Sec: %f " % (
                                   step, cur_loss / tokens, tokens / elapsed))
 
-                        if mt_dev_iter is not None and step % 5000 == 0 and self.rank<=0:
+                        if mt_dev_iter is not None and step % 5000 == 0 and self.rank <= 0:
                             bleu = self.eval_bleu(mt_dev_iter, saving_path)
                             print("BLEU:", bleu)
 
@@ -390,7 +390,7 @@ class ImageMTTrainer:
                                              first_tokens=tgt_inputs[:, 0],
                                              src_mask=src_mask, src_langs=src_langs, tgt_langs=dst_langs,
                                              pad_idx=model.text_processor.pad_token_id(), proposals=proposal)
-                    if self.num_gpu > 1 and self.rank<0:
+                    if self.num_gpu > 1 and self.rank < 0:
                         new_outputs = []
                         for output in outputs:
                             new_outputs += output

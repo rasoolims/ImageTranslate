@@ -1,17 +1,26 @@
+import copy
 import pickle
 
-import torch.nn.functional as F
 from torchvision import models
 from transformers.modeling_albert import *
 
 import lm_config
-from bert_seq2seq import BertEncoderModel, BertConfig
+from bert_seq2seq import BertEncoderModel, BertConfig, BertDecoderModel
+from faster_rcnn_feats import *
 from mass_seq2seq import MassSeq2Seq, future_mask
-from seq2seq import Seq2Seq
 from textprocessor import TextProcessor
 
 
 class ModifiedResnet(models.ResNet):
+    def __init__(self, block, layers, num_classes=1000, zero_init_residual=False, groups=1, width_per_group=64,
+                 replace_stride_with_dilation=None, norm_layer=None):
+
+        super().__init__(block, layers, num_classes, zero_init_residual, groups, width_per_group,
+                         replace_stride_with_dilation, norm_layer)
+
+    def forward(self, x):
+        return self._forward_impl(x)
+
     def _forward_impl(self, x):
         input = x
         x1 = self.conv1(input)
@@ -27,16 +36,53 @@ class ModifiedResnet(models.ResNet):
         grid_hidden = grid_hidden.permute((0, 2, 1))
         if self.dropout > 0:
             grid_hidden = F.dropout(grid_hidden, p=self.dropout)
-        grid_outputs = F.relu(self.fc(grid_hidden))
+        grid_outputs = self.fc(grid_hidden)
         location_embedding = self.location_embedding.weight.unsqueeze(0)
         out = grid_outputs + location_embedding
-        out_norm = self.layer_norm(out)
-        if self.dropout > 0:
-            out_norm = F.dropout(out_norm, p=self.dropout)
-        return out_norm
+        object_feat_fc = None
+
+        # Getting object features from faster RCNN
+        if self.fcnn is not None:
+            self.fcnn.eval()  # Make sure other components have not converted it in training mode.
+            with torch.no_grad():
+                fcnn_results = self.fcnn(x)
+                max_feature_nums = max(map(lambda x: x["boxes"].size(0), fcnn_results))
+        else:
+            max_feature_nums = 0
+
+        if max_feature_nums > 0:  # Found objects
+            with torch.no_grad():
+                feat_dim = fcnn_results[0]["features"].size(-1)
+                features = torch.zeros((len(fcnn_results), max_feature_nums, feat_dim + 7),
+                                       dtype=location_embedding.dtype).fill_(1e-4).to(location_embedding.device)
+                object_labels = torch.zeros((len(fcnn_results), max_feature_nums), dtype=torch.long).to(
+                    location_embedding.device)
+                for i in range(len(fcnn_results)):
+                    x1 = fcnn_results[i]["boxes"][:, 0] / 800
+                    x2 = fcnn_results[i]["boxes"][:, 2] / 800
+                    y1 = fcnn_results[i]["boxes"][:, 1] / 800
+                    y2 = fcnn_results[i]["boxes"][:, 3] / 800
+                    w = x2 - x1
+                    h = y2 - y1
+                    wh = h * w
+                    locs = torch.stack([x1, x2, y1, y2, w, h, wh], dim=-1)
+                    features[i, :fcnn_results[i]["features"].size(0)] = torch.cat([fcnn_results[i]["features"], locs],
+                                                                                  dim=-1)
+                    object_labels[i, :fcnn_results[i]["labels"].size(0)] = fcnn_results[i]["labels"]
+            object_embed = self.object_embedding(object_labels)
+            object_feats = torch.cat([object_embed, features], dim=-1)
+            object_feats[object_labels == 0] = 0
+            object_feat_fc = F.relu(self.object_feat_fc(object_feats))
+
+        if self.dropout > 0 and self.training:
+            out = F.dropout(out, p=self.dropout)
+            if object_feat_fc is not None:
+                object_feat_fc = F.dropout(object_feat_fc, p=self.dropout)
+
+        return out, object_feat_fc
 
 
-def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: int = 1):
+def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: int = 1, use_obj: bool = True):
     if depth == 1:
         model = models.resnet18(pretrained=True)
     elif depth == 2:
@@ -47,6 +93,8 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
         model = models.resnet101(pretrained=True)
     elif depth == 5:
         model = models.resnet152(pretrained=True)
+    elif depth == 6:
+        model = models.resnext101_32x8d(pretrained=True)
 
     model.__class__ = ModifiedResnet
     model.dropout = dropout
@@ -60,9 +108,18 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
     model.fc = torch.nn.Linear(in_features=current_weight.size()[1], out_features=embed_dim, bias=False)
     model.fc.train()
 
+    model.object_feat_fc = torch.nn.Linear(in_features=1024 + 7 + embed_dim, out_features=embed_dim, bias=False)
+    model.object_feat_fc.train()
+
     # Learning embedding of each CNN region.
     model.location_embedding = nn.Embedding(49, embed_dim)
     model.location_embedding.train(True)
+    model.object_embedding = nn.Embedding(91, embed_dim)
+    model.object_embedding.train(True)
+    model.fcnn = None
+    if use_obj:
+        model.fcnn = fasterrcnn_resnet50_fpn(pretrained=True)
+        model.fcnn.eval()
 
     return model
 
@@ -70,7 +127,7 @@ def init_net(embed_dim: int, dropout: float = 0.1, freeze: bool = False, depth: 
 class ImageMassSeq2Seq(MassSeq2Seq):
     def __init__(self, text_processor: TextProcessor, freeze_image: bool = False, resnet_depth: int = 1,
                  lang_dec: bool = False, use_proposals: bool = False, tie_embed: bool = False, enc_layer: int = 6,
-                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072):
+                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072, use_obj: bool = True):
         super(ImageMassSeq2Seq, self).__init__(text_processor=text_processor, tie_embed=tie_embed,
                                                lang_dec=lang_dec, use_proposals=use_proposals, enc_layer=enc_layer,
                                                dec_layer=dec_layer, embed_dim=embed_dim,
@@ -78,7 +135,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
                                                resnet_depth=resnet_depth)
         self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
                                                     dropout=self.config.hidden_dropout_prob,
-                                                    freeze=freeze_image, depth=resnet_depth)
+                                                    freeze=freeze_image, depth=resnet_depth, use_obj=use_obj)
         self.multimodal_attention_gate = nn.Parameter(torch.zeros(1, self.config.hidden_size).fill_(0.1),
                                                       requires_grad=True)
 
@@ -106,6 +163,8 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             batch = batch[0]
         if isinstance(src_langs, list):
             src_langs = src_langs[0]
+        if isinstance(tgt_langs, list):
+            tgt_langs = tgt_langs[0]
         if isinstance(src_pads, list):
             src_pads = src_pads[0]
         if isinstance(src_inputs, list):
@@ -135,12 +194,12 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             tgt_inputs = tgt_inputs.to(device)
             tgt_mask = tgt_inputs != pad_idx
 
-            batch_lang = int(src_langs[0])
+            batch_lang = int(tgt_langs[0])
 
             decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
             output_layer = self.output_layer if (not self.lang_dec) and self.tie_embed else self.output_layer[
                 batch_lang]
-            tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
+            tgt_langs = tgt_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
             if tgt_positions is not None:
                 tgt_positions = tgt_positions[:, :-1].to(device)
 
@@ -173,7 +232,7 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             if isinstance(neg_samples, list):
                 neg_samples = neg_samples[0]
                 neg_mask = neg_mask[0]
-            neg_langs = src_langs[0].squeeze().unsqueeze(-1).expand(len(neg_samples), neg_samples.size(-1)).to(device)
+            neg_langs = tgt_langs[0].squeeze().unsqueeze(-1).expand(len(neg_samples), neg_samples.size(-1)).to(device)
 
             neg_samples = neg_samples.to(device)
             neg_mask = neg_mask.to(device)
@@ -205,10 +264,10 @@ class ImageMassSeq2Seq(MassSeq2Seq):
             return log_neg
 
 
-class ImageCaptioning(Seq2Seq):
+class ImageCaptioning(ImageMassSeq2Seq):
     def __init__(self, text_processor: TextProcessor, freeze_image: bool = False, resnet_depth: int = 1,
                  lang_dec: bool = False, use_proposals: bool = False, tie_embed: bool = False, enc_layer: int = 6,
-                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072):
+                 dec_layer: int = 3, embed_dim: int = 768, intermediate_dim: int = 3072, use_obj: bool = True):
         super(ImageCaptioning, self).__init__(text_processor=text_processor, tie_embed=tie_embed,
                                               lang_dec=lang_dec, use_proposals=use_proposals, enc_layer=enc_layer,
                                               dec_layer=dec_layer, embed_dim=embed_dim,
@@ -216,7 +275,25 @@ class ImageCaptioning(Seq2Seq):
                                               resnet_depth=resnet_depth)
         self.image_model: ModifiedResnet = init_net(embed_dim=self.config.hidden_size,
                                                     dropout=self.config.hidden_dropout_prob,
-                                                    freeze=freeze_image, depth=resnet_depth)
+                                                    freeze=freeze_image, depth=resnet_depth, use_obj=use_obj)
+        if use_obj:
+            if not lang_dec:
+                self.obj_decoder = BertDecoderModel(self.config)
+
+                if tie_embed:
+                    self.obj_decoder._tie_or_clone_weights(self.output_layer, self.decoder.embeddings.word_embeddings)
+
+            else:
+                dec = BertDecoderModel(self.config)
+                self.obj_decoder = nn.ModuleList([copy.deepcopy(dec) for _ in text_processor.languages])
+                for i, dec in enumerate(self.obj_decoder):
+                    if tie_embed:
+                        dec.embeddings.position_embeddings = self.encoder.embeddings.position_embeddings
+                    dec._tie_or_clone_weights(self.output_layer[i], dec.embeddings.word_embeddings)
+                    dec._tie_or_clone_weights(self.encoder.embeddings.token_type_embeddings,
+                                              dec.embeddings.token_type_embeddings)
+            self.multistream_attention_gate = nn.Parameter(torch.zeros(1, self.config.hidden_size).fill_(0.1),
+                                                           requires_grad=True)
 
     def encode(self, src_inputs=None, src_mask=None, src_langs=None, images=None):
         if images is not None:
@@ -225,8 +302,8 @@ class ImageCaptioning(Seq2Seq):
                 images = images[0]
             if images.device != device:
                 images = images.to(device)
-            image_embeddings = self.image_model(images)
-            return image_embeddings
+            image_embeddings, object_fc = self.image_model(images)
+            return image_embeddings, object_fc
         else:
             encoder_states = super().encode(src_inputs, src_mask, src_langs)
             return encoder_states
@@ -234,31 +311,27 @@ class ImageCaptioning(Seq2Seq):
     def forward(self, src_inputs=None, src_pads=None, tgt_inputs=None, src_langs=None, tgt_langs=None, tgt_mask=None,
                 pad_idx: int = 0, tgt_positions=None, batch=None, proposals=None, log_softmax: bool = False,
                 encode_only: bool = False, **kwargs):
-        device = self.encoder.embeddings.word_embeddings.weight.device
         if isinstance(batch, list):
             assert len(batch) == 1
             batch = batch[0]
-        if isinstance(src_langs, list):
-            src_langs = src_langs[0]
-        if isinstance(src_pads, list):
-            src_pads = src_pads[0]
-        if isinstance(src_inputs, list):
-            src_inputs = src_inputs[0]
+
+        if batch is None or src_inputs is not None:  # Text-based input
+            return super().forward(src_inputs=src_inputs, src_mask=src_pads, tgt_inputs=tgt_inputs, src_langs=src_langs,
+                                   tgt_langs=tgt_langs, proposals=proposals, log_softmax=log_softmax)
+
+        device = self.encoder.embeddings.word_embeddings.weight.device
+
         if isinstance(tgt_positions, list):
             tgt_positions = tgt_positions[0]
         if isinstance(tgt_inputs, list):
             tgt_inputs = tgt_inputs[0]
-        if isinstance(proposals, list):
-            proposals = proposals[0]
         if isinstance(tgt_mask, list):
             tgt_mask = tgt_mask[0]
-
-        if batch is None:
-            return super().forward(src_inputs=src_inputs, src_mask=src_pads, tgt_inputs=tgt_inputs, src_langs=src_langs,
-                                   tgt_langs=tgt_langs, proposals=proposals, log_softmax=log_softmax)
+        if isinstance(tgt_langs, list):
+            tgt_langs = tgt_langs[0]
 
         images = batch["images"].to(device)
-        image_embeddings = self.encode(images=images)
+        image_embeddings, object_fc = self.encode(images=images)
         if encode_only:
             return image_embeddings
 
@@ -266,11 +339,11 @@ class ImageCaptioning(Seq2Seq):
         tgt_inputs = tgt_inputs.to(device)
         tgt_mask = tgt_mask.to(device)
 
-        batch_lang = int(src_langs[0])
+        batch_lang = int(tgt_langs[0])
 
         decoder = self.decoder if not self.lang_dec else self.decoder[batch_lang]
-        output_layer = self.output_layer if not self.lang_dec else self.output_layer[batch_lang]
-        tgt_langs = src_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
+        output_layer = self.output_layer if (not self.lang_dec) and self.tie_embed else self.output_layer[batch_lang]
+        tgt_langs = tgt_langs.unsqueeze(-1).expand(-1, tgt_inputs.size(-1)).to(device)
         if tgt_positions is not None:
             tgt_positions = tgt_positions[:, :-1].to(device)
 
@@ -281,6 +354,16 @@ class ImageCaptioning(Seq2Seq):
                                  tgt_attention_mask=subseq_mask,
                                  position_ids=tgt_positions,
                                  token_type_ids=tgt_langs[:, :-1])
+        if object_fc is not None:
+            obj_decoder = self.obj_decoder if not self.lang_dec else self.obj_decoder[batch_lang]
+            object_decoder_output = obj_decoder(encoder_states=object_fc, input_ids=tgt_inputs[:, :-1],
+                                                encoder_attention_mask=src_pads,
+                                                tgt_attention_mask=subseq_mask,
+                                                position_ids=tgt_positions,
+                                                token_type_ids=tgt_langs[:, :-1])
+            eps = 1e-7
+            sig_gate = torch.sigmoid(self.multistream_attention_gate + eps)
+            decoder_output = sig_gate * decoder_output + (1 - sig_gate) * object_decoder_output
 
         if self.use_proposals:
             decoder_output = self.attend_proposal(decoder_output, proposals, pad_idx)

@@ -87,13 +87,16 @@ class BeamDecoder(nn.Module):
             images = images.to(device)
             if self.seq2seq_model.encoder.embeddings.word_embeddings.weight.dtype == torch.float16:
                 images = images.half()
+            if max_len is None:
+                max_len = 512
 
+        obj_feat_fc = None
         if src_inputs is not None and images is None:
             src_langs = src_langs.unsqueeze(-1).expand(-1, src_inputs.size(-1))
             encoder_states = self.seq2seq_model.encode(src_inputs, src_mask, src_langs)[0]
         elif src_inputs is None:
             if image_embed is None:
-                encoder_states = self.seq2seq_model.encode(images=images)  # = image embeddings
+                encoder_states, obj_feat_fc = self.seq2seq_model.encode(images=images)  # = image embeddings
             else:
                 encoder_states = image_embed
                 if image_embed.device != device:
@@ -141,6 +144,7 @@ class BeamDecoder(nn.Module):
             cur_scores = top_beam_scores.view(-1).unsqueeze(-1)
             output_mask = torch.ones(cur_outputs.size()).to(cur_outputs.device)
             enc_states = encoder_states if i == 1 else torch.repeat_interleave(encoder_states, beam_width, 0)
+
             dst_langs = tgt_langs.unsqueeze(-1).expand(-1, cur_outputs.size(1)).to(device)
             if i > 1:
                 dst_langs = torch.repeat_interleave(dst_langs, beam_width, 0)
@@ -153,13 +157,26 @@ class BeamDecoder(nn.Module):
                 batch_lang]
             output_layer = self.seq2seq_model.output_layer if (
                                                                   not self.seq2seq_model.lang_dec) and self.seq2seq_model.tie_embed else \
-            self.seq2seq_model.output_layer[
-                batch_lang]
+                self.seq2seq_model.output_layer[
+                    batch_lang]
 
             if images is None or src_inputs is None:
                 decoder_states = decoder(encoder_states=enc_states, input_ids=cur_outputs,
                                          encoder_attention_mask=cur_src_mask,
                                          tgt_attention_mask=output_mask, token_type_ids=dst_langs)
+                if obj_feat_fc is not None:
+                    obj_decoder = self.seq2seq_model.obj_decoder if not self.seq2seq_model.lang_dec else \
+                        self.seq2seq_model.obj_decoder[batch_lang]
+
+                    # We only repeat objects once when it is in the second token of beam search and then use it multiple
+                    # times.
+                    obj_feat_fc = obj_feat_fc if i != 2 else torch.repeat_interleave(obj_feat_fc, beam_width, 0)
+                    object_decoder_output = obj_decoder(encoder_states=obj_feat_fc, input_ids=cur_outputs,
+                                                        encoder_attention_mask=cur_src_mask,
+                                                        tgt_attention_mask=output_mask, token_type_ids=dst_langs)
+                    eps = 1e-7
+                    sig_gate = torch.sigmoid(self.seq2seq_model.multistream_attention_gate + eps)
+                    decoder_states = sig_gate * decoder_states + (1 - sig_gate) * object_decoder_output
             else:
                 text_decoder_output = decoder(encoder_states=enc_states, input_ids=cur_outputs,
                                               encoder_attention_mask=cur_src_mask, tgt_attention_mask=output_mask,

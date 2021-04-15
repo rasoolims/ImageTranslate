@@ -5,6 +5,7 @@ import marshal
 import math
 import os
 import random
+from collections import defaultdict
 from itertools import chain
 from typing import Dict, List, Tuple
 
@@ -72,7 +73,8 @@ class TextDataset(Dataset):
 class MTDataset(Dataset):
     def __init__(self, max_batch_capacity: int, max_batch: int,
                  pad_idx: int, max_seq_len: int = 175, batch_pickle_dir: str = None,
-                 examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = None, lex_dict=None, keep_pad_idx=True, ngpu=1):
+                 examples: List[Tuple[torch.tensor, torch.tensor, int, int]] = None, lex_dict=None, keep_pad_idx=True,
+                 ngpu=1):
         self.lex_dict = lex_dict
         self.keep_pad_idx = keep_pad_idx
         self.ngpu = ngpu
@@ -275,7 +277,7 @@ class MassDataset(Dataset):
 
 class ImageCaptionDataset(Dataset):
     def __init__(self, root_img_dir: str, data_bin_file: str, max_capacity: int, text_processor: TextProcessor,
-                 max_img_per_batch: int, lex_dict=None, ngpu=1):
+                 max_img_per_batch: int, lex_dict=None, ngpu=1, use_neg_samples: bool = False):
         self.ngpu = ngpu
         self.lex_dict = lex_dict
         self.size_transform = transforms.Resize(256)
@@ -292,6 +294,7 @@ class ImageCaptionDataset(Dataset):
         self.image_batches = []
         self.lang_ids = set()
         self.all_captions = []
+        self.use_neg_samples = use_neg_samples
 
         print("Start", datetime.datetime.now())
         cur_batch, cur_imgs, cur_lex_cand_batch = [], [], []
@@ -373,6 +376,16 @@ class ImageCaptionDataset(Dataset):
     def __getitem__(self, item):
         batch, caption_mask, pad_indices, lex_cand_batch = self.batches[item]
         image_batch = list(map(lambda image_id: self.get_img(self.unique_images[image_id]), self.image_batches[item]))
+        img_tensors = torch.stack(list(map(lambda im: self.img_normalize(self.to_tensor(im)), image_batch)))
+        return {"images": img_tensors, "captions": batch, "pad_idx": pad_indices,
+                "langs": torch.LongTensor([self.lang] * len(batch)), "caption_mask": caption_mask,
+                "proposal": lex_cand_batch}
+
+
+class ImageCaptionDatasetwNegSamples(ImageCaptionDataset):
+    def __getitem__(self, item):
+        batch, caption_mask, pad_indices, lex_cand_batch = self.batches[item]
+        image_batch = list(map(lambda image_id: self.get_img(self.unique_images[image_id]), self.image_batches[item]))
 
         # We choose fixed negative samples for all batch items.
         img_tensors = torch.stack(list(map(lambda im: self.img_normalize(self.to_tensor(im)), image_batch)))
@@ -382,6 +395,31 @@ class ImageCaptionDataset(Dataset):
         neg_mask = (neg_samples != self.pad_idx)
         return {"images": img_tensors, "captions": batch, "pad_idx": pad_indices, "neg": neg_samples,
                 "langs": torch.LongTensor([self.lang] * len(batch)), "caption_mask": caption_mask, "neg_mask": neg_mask,
+                "proposal": lex_cand_batch}
+
+
+class ImageCaptionTestDataset(ImageCaptionDataset):
+    """
+    The difference here is that we do not iterate over the same image if it has multiple captions.
+    """
+
+    def __getitem__(self, item):
+        # We currently do not use lex_cand_batch. Just keep it for backward compatibility.
+        batch, _, _, lex_cand_batch = self.batches[item]
+        image_set = set(self.image_batches[item])
+        image_ids = list(image_set)
+        image_batch = list(map(lambda image_id: self.get_img(self.unique_images[image_id]), image_set))
+        caption_dict = defaultdict(list)
+
+        max_len = 0
+        for i, im in enumerate(self.image_batches[item]):
+            caption_dict[im].append(batch[i])
+            max_len = max(len(batch[i]), max_len)
+
+        first_tokens = torch.LongTensor(list(map(lambda x: int(caption_dict[x][0][0]), caption_dict.keys())))
+        img_tensors = torch.stack(list(map(lambda im: self.img_normalize(self.to_tensor(im)), image_batch)))
+        return {"images": img_tensors, "img_ids": image_ids, "captions": caption_dict, "first_tokens": first_tokens,
+                "langs": torch.LongTensor([self.lang] * len(caption_dict)), "max_len": max_len + 10,
                 "proposal": lex_cand_batch}
 
 

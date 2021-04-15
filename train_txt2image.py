@@ -174,11 +174,13 @@ class Caption2ImageTrainer(ImageMTTrainer):
                                        fp16=options.fp16, mm_mode=options.mm_mode)
 
         pin_memory = torch.cuda.is_available()
-        img_train_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, options.train_path,
+        img_train_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDatasetwNegSamples,
+                                                         options.train_path,
                                                          txt2ImageModel, num_batches, options, pin_memory,
                                                          lex_dict=lex_dict)
 
-        img_dev_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDataset, options.dev_path,
+        img_dev_loader = ImageMTTrainer.get_img_loader(collator, dataset.ImageCaptionDatasetwNegSamples,
+                                                       options.dev_path,
                                                        txt2ImageModel, num_batches, options, pin_memory,
                                                        lex_dict=lex_dict,
                                                        shuffle=False, denom=2)

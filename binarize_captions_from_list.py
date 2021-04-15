@@ -1,4 +1,5 @@
 import marshal
+import os
 from optparse import OptionParser
 
 from textprocessor import TextProcessor
@@ -28,7 +29,17 @@ def write(text_processor: TextProcessor, output_file: str, input_file: str, max_
                 if len(tok_sen) > max_len:
                     skipped_long_sens += 1
                     continue
-
+                if "." not in path:  # Does not have extension; will add jpg.
+                    if os.path.exists(path + ".jpg"):
+                        path = path + ".jpg"
+                    elif os.path.exists(path + ".jpeg"):
+                        path = path + ".jpeg"
+                    elif os.path.exists(path + ".JPG"):
+                        path = path + ".JPG"
+                    elif os.path.exists(path + ".png"):
+                        path = path + ".png"
+                    elif os.path.exists(path + ".PNG"):
+                        path = path + ".PNG"
                 if path not in image_path_dict:
                     image_id = len(unique_images)
                     unique_images[image_id] = path

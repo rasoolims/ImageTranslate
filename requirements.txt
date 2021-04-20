@@ -1,0 +1,12 @@
+torch==1.4.0
+numpy==1.18.2
+sacrebleu
+future==0.18.2
+pillow
+torchvision==0.5.0
+ipython
+transformers==2.9.0
+pandas
+pyarrow
+fire
+boto3

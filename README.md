@@ -36,5 +36,19 @@ In my case, my __nvcc__ was unrecognized by the machine and I had to update my p
 ```bash
 export CUDA_HOME=[PATH TO CUDA; e.g. /usr/local/cuda-10.1]
 pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" pytorch-extension```
+```
+## Using Pretrained Translation and Captioning Models
 
+## Translation
+* Downaload the model zip files for Arabic-English, Romanian-English, Gujarati-English, and Kazakh-English from [this link](https://drive.google.com/drive/u/2/folders/10aojSCqlYCunTv9swDCgkcrVkJ6xP4xE).
+* Unzip the files and use the models for translation.
+    
+```
+unzip ar.zip
+CUDA_VISIBLE_DEVICES=0 python3 -u translate.py --tok ar/tok/ --output [output English file] --input [input Arabic file] --src en --target ar --beam 4 --model ar/model --capacity 600 --batch 4000     
+```
 
+Here I assumed that I want to translate from Arabic to English.
+Note that you can change the gpu id (e.g. CUDA_VISIBLE_DEVICES=1), and change batch and capacity for the best fit of your machine. 
+
+## Image Captioning

@@ -161,7 +161,7 @@ Following steps in [the previous section](#Training-MASS-from-Scratch), load the
 Assuming that here we are interested in English-Persian, can run the following command to run it.
 
 ```bash
- CUDA_VISIBLE_DEVICES=0 python3 -u train_image_mt.py --tok sample/tok/ --model sample/mass_model --mass_train sample/en.mass.0,sample/fa.mass^C,sample/ar.mass.0 --capacity 2800 --batch 16000 --step 300000 --warmup 100000   --fp16
+CUDA_VISIBLE_DEVICES=0 python3 -u train_image_mt.py --tok sample/tok/ --model sample/mass_model --mass_train sample/en.mass.0,sample/fa.mass^C,sample/ar.mass.0 --capacity 2800 --batch 16000 --step 300000 --warmup 100000   --fp16
 ```
 
 Similar to previous step, this step also takes a long time on large datasets. You can change the ``--bt-beam `` option for beam size in back-translation but note that this might affect memory, and you should decrease ``--batch`` and ``--capacity`` options.
@@ -169,7 +169,7 @@ Similar to previous step, this step also takes a long time on large datasets. Yo
 Parallel data could be gold-standard or mined. You should load pre-trained MASS models for the best performace.
 
 ### Training from pre-trained MASS model
-This is essentially 
+This is essentially ...
 
 
 ## Train Image Captioning

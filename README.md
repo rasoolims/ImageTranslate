@@ -115,7 +115,13 @@ Currently, this code only works with one gpu. For working with multiple gpus, th
 Throughout this guideline, I use the small files in the _sample_ folder. Here the Persian and English files are parallel but the Arabic text is not!
 
 ### Training MASS from Scratch
-1. Collect raw text for languages.
+__1. Collect raw text for languages.__:
+We first add language identifiers to each individual text in order to distinguish different languages.
+```bash
+python scripts/add_lang_id.py sample/ar.txt ar sample/ar.id.txt
+python scripts/add_lang_id.py sample/fa.txt fa sample/fa.id.txt
+python scripts/add_lang_id.py sample/en.txt fa sample/en.id.txt
+```
 2. Train a tokenizer on concatenation of all raw text.
 3. Create binarized files on each raw text (each file should consist of content in one language only).
 4. Train MASS on binarized files.

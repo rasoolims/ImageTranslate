@@ -35,9 +35,31 @@ In my case, my __nvcc__ was unrecognized by the machine and I had to update my p
 
 ```bash
 export CUDA_HOME=[PATH TO CUDA; e.g. /usr/local/cuda-10.1]
-pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" pytorch-extension```
+pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" pytorch-extension
 ```
-## Using Pretrained Translation and Captioning Models
+
+## Installation using dockers
+__Asuuming that Docker and NVIDIA docker is installed.__, follow the following steps:
+
+1. Download the repository and pretrained models
+```
+git clone https://github.com/rasoolims/ImageTranslate```
+
+
+2. Build the docker in command line:
+```bash
+docker build dockers/gpu/ -t [docker-name] --no-cache
+```
+
+3. Start running the docker:
+
+* Run this with screen since training might take a long time.
+```bash
+docker run --gpus all -it  [docker-name]
+```
+
+
+# Using Pretrained Translation and Captioning Models
 
 ## Translation
 * Downaload the model zip files for Arabic-English, Romanian-English, Gujarati-English, and Kazakh-English from [this link](https://drive.google.com/drive/folders/10aojSCqlYCunTv9swDCgkcrVkJ6xP4xE?usp=sharing).

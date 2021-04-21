@@ -21,22 +21,22 @@ This repository contains a collection of _experimental_ neural machine translati
   * [Image Captioning](#image-captioning)
 - [Training a Model](#training-a-model)
   * [Train Machine Translation](#train-machine-translation)
-    + [Training MASS Pretraining from Scratch](#training-mass-Pretraining-from-scratch)
+    + [Training MASS Pretraining from Scratch](#training-mass-pretraining-from-scratch)
     + [Train Unsupervised MT](#train-unsupervised-mt)
     + [Train MT of Parallel Data](#train-mt-of-parallel-data)
     + [Training from pre-trained MASS model](#training-from-pre-trained-mass-model)
   * [Train Image Captioning](#train-image-captioning)
-
+ش
 # Installing Dependencies 
 
 ## Installation using virtualenv
-Here, I use virtual environment but Conda should be very similar.
+Here, I use a virtual environment but Conda should be very similar.
 
-1. Create virtual environment with Python-3
+1. Create a virtual environment with Python-3
 ```bash
 python3 -m venv [PATH]
 ```
-2. Activate the enviorment
+2. Activate the environment
 ```
 source [PATH]/bin/activate
 ```
@@ -55,7 +55,7 @@ python3 -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Note that in some machines, [__apex__](https://github.com/NVIDIA/apex) (library for using FP16 in Nvidia) does not install properly. You should try to install in manually throughtout apex its source.
+Note that in some machines, [__apex__](https://github.com/NVIDIA/apex) (library for using FP16 in Nvidia) does not install properly. You should try to install it manually throughout its source.
 In my case, my __nvcc__ was unrecognized by the machine and I had to update my paths. Take a look at [this](https://askubuntu.com/questions/885610/nvcc-version-command-says-nvcc-is-not-installed). Also, you need to set __CUDA_HOME__.
 
 ```bash
@@ -96,10 +96,10 @@ CUDA_VISIBLE_DEVICES=0 python3 -u translate.py --tok ar/tok/ --output [output En
 ```
 
 Here I assumed that I want to translate from Arabic to English. Language abbreviations are ar,en, kk, gu, and ro.
-Note that you can change the gpu id (e.g. CUDA_VISIBLE_DEVICES=1), and change batch and capacity for the best fit of your machine. 
+Note that you can change the GPU id (e.g. CUDA_VISIBLE_DEVICES=1), and change batch and capacity for the best fit of your machine. 
 
 ## Image Captioning
-There are two Wikily models for image captioning for Arabic in which both have similar qualities. One is multi-taksed with translation and English captioning, and the other only with translation. The zipped model folders are available at [this link](https://drive.google.com/drive/folders/1lH3sp3OFerHQ60gsjOPHHBu-wCjGKGjC?usp=sharing). There are two model folders there. You can try either of them.
+There are two Wikily models for image captioning for Arabic in which both have similar qualities. One is multi-tasked with translation and English captioning, and the other only with translation. The zipped model folders are available at [this link](https://drive.google.com/drive/folders/1lH3sp3OFerHQ60gsjOPHHBu-wCjGKGjC?usp=sharing). There are two model folders there. You can try either of them.
 
 ```bash
 unzip caption.py
@@ -109,12 +109,12 @@ __[image-folder]__ is a folder containing a collection of __jpg__ of __jpeg__ fi
 
 
 # Training a Model
-Currently, this code only works with one gpu. For working with multiple gpus, there are some known issues. Please do not use more gpus until further notice.
+Currently, this code only works with one GPU. For working with multiple GPUs, there are some known issues. Please do not use more GPUs until further notice.
 
 ## Train Machine Translation
 Throughout this guideline, I use the small files in the _sample_ folder. Here the Persian and English files are parallel but the Arabic text is not!
 
-__WARNING__: Depending on data, best parameters might significantly differ. It is good to try some parameter tuning for finding the best setting.
+__WARNING__: Depending on data, the best parameters might significantly differ. It is good to try some parameter tuning for finding the best setting.
 
 ### Training MASS Pretraining from Scratch
 __1. Collect raw text for languages:__
@@ -130,13 +130,13 @@ Then, we concatenate the three files. Note that this could be any number of file
 cat sample/*.id.txt > sample/all.id.txt
 ```
 
-__2. Train a tokenizer on concatenation of all raw text:__
+__2. Train a tokenizer on the concatenation of all raw text:__
 
 Now we are ready to train a tokenizer:
 ```bash
 python train_tokenizer.py --data sample/all.id.txt --vocab_size [vocab-size] --model sample/tok
 ```
-The vocab size could be any value but in our paper we used 60000 since the data was big. For this sample file, try 1000.
+The vocab size could be any value but in our paper, we used 60000 since the data was big. For this sample file, try 1000.
 
 __3. Create binarized files on each raw text:__
 
@@ -166,9 +166,9 @@ Assuming that here we are interested in English-Persian, can run the following c
 CUDA_VISIBLE_DEVICES=0 python3 -u train_image_mt.py --tok sample/tok/ --model sample/mass_model --mass_train sample/en.mass.0,sample/fa.mass^C,sample/ar.mass.0 --capacity 2800 --batch 16000 --step 300000 --warmup 100000   --fp16
 ```
 
-Similar to previous step, this step also takes a long time on large datasets. You can change the ``--bt-beam `` option for beam size in back-translation but note that this might affect memory, and you should decrease ``--batch`` and ``--capacity`` options.
+Similar to the previous step, this step also takes a long time on large datasets. You can change the ``--bt-beam `` option for beam size in back-translation but note that this might affect memory, and you should decrease ``--batch`` and ``--capacity`` options.
 ### Train MT of Parallel Data
-Parallel data could be gold-standard or mined. You should load pre-trained MASS models for the best performace.
+Parallel data could be gold-standard or mined. You should load pre-trained MASS models for the best performance.
 
 ### Training from pre-trained MASS model
 This is essentially ...

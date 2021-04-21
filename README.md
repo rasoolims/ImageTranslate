@@ -12,6 +12,7 @@ This repository contains a collection of _experimental_ neural machine translati
 }
 ```
 
+# Installing Dependencies 
 
 ## Installation using virtualenv
 Here, I use virtual environment but Conda should be very similar.

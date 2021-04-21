@@ -4,15 +4,33 @@ This code is used for learning translation and captioning models. More informati
 
 
 
-# Installation
-## Install requirments
+## Installation using virtualenv
+Here, I use virtual environment but Conda should be very similar.
+
+### Create virtual environment with Python-3
 ```bash
+python3 -m venv [PATH]
+```
+### Activate the enviorment
+```
+source [PATH]/bin/activate
+```
+
+### Clone the code
+```bash 
+git clone https://github.com/rasoolims/ImageTranslate
+cd ImageTranslate
+```
+
+### Install requirements
+In my experiments, I used cuda 10.1 and cudnn 7. To replicate the results, please use the mentioned versions.
+
+```bash
+python3 -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-## Install Apex
-```bash
-git clone https://github.com/NVIDIA/apex.git
-cd apex
-python3 -m pip install --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .
-```
+Note that in some machines, __apex__ does not install properly. You should try to install in manually throughtout apex its source.
+
+
+

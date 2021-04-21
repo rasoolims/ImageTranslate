@@ -10,3 +10,4 @@ pandas
 pyarrow
 fire
 boto3
+apex

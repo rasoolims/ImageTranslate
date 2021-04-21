@@ -12,6 +12,15 @@ This repository contains a collection of _experimental_ neural machine translati
 }
 ```
 
+# Contents
+- [Installing Dependencies](#installing-dependencies)
+  * [Installation using virtualenv](#installation-using-virtualenv)
+  * [Installation using dockers](#installation-using-dockers)
+- [Using Pretrained Translation and Captioning Models](#using-pretrained-translation-and-captioning-models)
+  * [Translation](#translation)
+  * [Image Captioning](#image-captioning)
+- [Training a Model](#training-a-model)
+
 # Installing Dependencies 
 
 ## Installation using virtualenv
@@ -91,3 +100,6 @@ unzip caption.py
 CUDA_VISIBLE_DEVICES=2 python -u caption.py --input [image-folder] --output [output-file] --target ar --tok caption/tok   --model  caption/caption+mt/   --fp16
 ```
 __[image-folder]__ is a folder containing a collection of __jpg__ of __jpeg__ files. Note that you have to specify the target language __ar__ to do proper captioning. The [output-file] will be a tab-separated file with image path as first and caption as second columns.
+
+
+# Training a Model

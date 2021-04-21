@@ -23,7 +23,7 @@ This repository contains a collection of _experimental_ neural machine translati
   * [Train Machine Translation](#train-machine-translation)
     + [Training MASS Pretraining from Scratch](#training-mass-pretraining-from-scratch)
     + [Train Unsupervised MT](#train-unsupervised-mt)
-    + [Train MT of Parallel Data](#train-mt-of-parallel-data)
+    + [Train MT on Parallel Data](#train-mt-on-parallel-data)
     + [Training from pre-trained MASS model](#training-from-pre-trained-mass-model)
   * [Train Image Captioning](#train-image-captioning)
 ش
@@ -44,7 +44,7 @@ source [PATH]/bin/activate
 3. Clone the code
 ```bash 
 git clone https://github.com/rasoolims/ImageTranslate
-cd ImageTranslate
+cd ImageTranslate/src
 ```
 
 4. Install requirements
@@ -68,8 +68,9 @@ __Asuuming that Docker and NVIDIA docker is installed.__, follow the following s
 
 1. Download the repository and pretrained models
 ```
-git clone https://github.com/rasoolims/ImageTranslate```
-
+git clone https://github.com/rasoolims/ImageTranslate
+cd ImageTranslate/
+```
 
 2. Build the docker in command line:
 ```bash
@@ -167,7 +168,7 @@ CUDA_VISIBLE_DEVICES=0 python3 -u train_image_mt.py --tok sample/tok/ --model sa
 ```
 
 Similar to the previous step, this step also takes a long time on large datasets. You can change the ``--bt-beam `` option for beam size in back-translation but note that this might affect memory, and you should decrease ``--batch`` and ``--capacity`` options.
-### Train MT of Parallel Data
+### Train MT on Parallel Data
 Parallel data could be gold-standard or mined. You should load pre-trained MASS models for the best performance.
 
 ### Training from pre-trained MASS model

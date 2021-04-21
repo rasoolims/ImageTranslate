@@ -5,5 +5,5 @@
 *.0
 .DS_Store
 pytorch_lamb
-tests/images
+src/tests/images
 *.npz

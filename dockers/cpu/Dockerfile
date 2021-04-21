@@ -41,7 +41,7 @@ ENV LANG C.UTF-8
 RUN echo 'alias python="python3"' >> ~/.bashrc
 
 RUN cd /root
-RUN git clone https://github.com/AdityaKashyap423/ImageTranslate
+RUN git clone https://github.com/rasoolims/ImageTranslate
 
 WORKDIR /root/ImageTranslate/
 

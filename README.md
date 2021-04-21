@@ -1,7 +1,16 @@
 # ImageTranslate
 
-This code is used for learning translation and captioning models. More information about how to run this code will be written very soon.
-
+This repository contains a collection of _experimental_ neural machine translation and computer vision codes based on Pytorch. Part of this code is used for the the paper ["Wikily" Neural Machine Translation Tailored to Cross-Lingual Tasks](https://arxiv.org/abs/2104.08384). If you use the models or the code, please cite as following:
+```text
+@misc{rasooli2021wikily,
+      title={"Wikily" Neural Machine Translation Tailored to Cross-Lingual Tasks}, 
+      author={Mohammad Sadegh Rasooli and Chris Callison-Burch and Derry Tanti Wijaya},
+      year={2021},
+      eprint={2104.08384},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
+```
 
 
 ## Installation using virtualenv

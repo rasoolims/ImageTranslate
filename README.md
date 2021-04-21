@@ -20,6 +20,12 @@ This repository contains a collection of _experimental_ neural machine translati
   * [Translation](#translation)
   * [Image Captioning](#image-captioning)
 - [Training a Model](#training-a-model)
+  * [Train Machine Translation](#train-machine-translation)
+    + [Training MASS from Scratch](#training-mass-from-scratch)
+    + [Train Unsupervised MT](#train-unsupervised-mt)
+    + [Train MT of Parallel Data](#train-mt-of-parallel-data)
+    + [Training from pre-trained MASS model](#training-from-pre-trained-mass-model)
+  * [Train Image Captioning](#train-image-captioning)
 
 # Installing Dependencies 
 
@@ -103,3 +109,24 @@ __[image-folder]__ is a folder containing a collection of __jpg__ of __jpeg__ fi
 
 
 # Training a Model
+Currently, this code only works with one gpu. For working with multiple gpus, there are some known issues. Please do not use more gpus until further notice.
+
+## Train Machine Translation
+
+### Training MASS from Scratch
+1. Collect raw text for languages.
+2. Train a tokenizer on concatenation of all raw text.
+3. Create binarized files on each raw text (each file should consist of content in one language only).
+4. Train MASS on binarized files.
+
+### Train Unsupervised MT
+Following steps in [the previous section](#Training-MASS-from-Scratch), load the MASS model and train iterative back-translation. 
+
+### Train MT of Parallel Data
+Parallel data could be gold-standard or mined. You should load pre-trained MASS models for the best performace.
+
+### Training from pre-trained MASS model
+This is essentially 
+
+
+## Train Image Captioning

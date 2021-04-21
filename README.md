@@ -21,7 +21,7 @@ This repository contains a collection of _experimental_ neural machine translati
   * [Image Captioning](#image-captioning)
 - [Training a Model](#training-a-model)
   * [Train Machine Translation](#train-machine-translation)
-    + [Training MASS from Scratch](#training-mass-from-scratch)
+    + [Training MASS Pretraining from Scratch](#training-mass-Pretraining-from-scratch)
     + [Train Unsupervised MT](#train-unsupervised-mt)
     + [Train MT of Parallel Data](#train-mt-of-parallel-data)
     + [Training from pre-trained MASS model](#training-from-pre-trained-mass-model)
@@ -114,7 +114,7 @@ Currently, this code only works with one gpu. For working with multiple gpus, th
 ## Train Machine Translation
 Throughout this guideline, I use the small files in the _sample_ folder. Here the Persian and English files are parallel but the Arabic text is not!
 
-### Training MASS from Scratch
+### Training MASS Pretraining from Scratch
 __1. Collect raw text for languages:__
 
 We first add language identifiers to each individual text in order to distinguish different languages.
@@ -144,11 +144,27 @@ python create_mt_batches.py --tok sample/tok/ --src sample/en.txt --src-lang en 
 python create_mt_batches.py --tok sample/tok/ --src sample/ar.txt --src-lang ar --output sample/ar.mass
 python create_mt_batches.py --tok sample/tok/ --src sample/fa.txt --src-lang fa --output sample/fa.mass
 ```
-4. Train MASS on binarized files.
+4. Train MASS on binarized files
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python3 -u train_ --tok sample/tok/ --model sample/mass_model --mass_train sample/en.mass.0,sample/fa.mass.0,sample/ar.mass.0 --capacity 2800 --batch 16000 --step 300000 --warmup 100000 --acc 8  --fp16 
+```
+
+You can kill the process whenever you want. This process takes a long time to train on large data files. You can use __scree__ and put the standard outputs into a log file in order to run it in the background mode.
+
+The latest model will be saved in [model-path].latest; e.g. sample/mass_model.latest.
 
 ### Train Unsupervised MT
+
 Following steps in [the previous section](#Training-MASS-from-Scratch), load the MASS model and train iterative back-translation. 
 
+Assuming that here we are interested in English-Persian, can run the following command to run it.
+
+```bash
+ CUDA_VISIBLE_DEVICES=0 python3 -u train_image_mt.py --tok sample/tok/ --model sample/mass_model --mass_train sample/en.mass.0,sample/fa.mass^C,sample/ar.mass.0 --capacity 2800 --batch 16000 --step 300000 --warmup 100000   --fp16
+```
+
+Similar to previous step, this step also takes a long time on large datasets. You can change the ``--bt-beam `` option for beam size in back-translation but note that this might affect memory, and you should decrease ``--batch`` and ``--capacity`` options.
 ### Train MT of Parallel Data
 Parallel data could be gold-standard or mined. You should load pre-trained MASS models for the best performace.
 

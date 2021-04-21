@@ -112,6 +112,7 @@ __[image-folder]__ is a folder containing a collection of __jpg__ of __jpeg__ fi
 Currently, this code only works with one gpu. For working with multiple gpus, there are some known issues. Please do not use more gpus until further notice.
 
 ## Train Machine Translation
+Throughout this guideline, I use the small files in the _sample_ folder. Here the Persian and English files are parallel but the Arabic text is not!
 
 ### Training MASS from Scratch
 1. Collect raw text for languages.

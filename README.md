@@ -40,7 +40,7 @@ pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cud
 ## Using Pretrained Translation and Captioning Models
 
 ## Translation
-* Downaload the model zip files for Arabic-English, Romanian-English, Gujarati-English, and Kazakh-English from [this link](https://drive.google.com/drive/u/2/folders/10aojSCqlYCunTv9swDCgkcrVkJ6xP4xE).
+* Downaload the model zip files for Arabic-English, Romanian-English, Gujarati-English, and Kazakh-English from [this link](https://drive.google.com/drive/folders/10aojSCqlYCunTv9swDCgkcrVkJ6xP4xE?usp=sharing).
 * Unzip the files and use the models for translation.
     
 ```
@@ -48,7 +48,14 @@ unzip ar.zip
 CUDA_VISIBLE_DEVICES=0 python3 -u translate.py --tok ar/tok/ --output [output English file] --input [input Arabic file] --src en --target ar --beam 4 --model ar/model --capacity 600 --batch 4000     
 ```
 
-Here I assumed that I want to translate from Arabic to English.
+Here I assumed that I want to translate from Arabic to English. Language abbreviations are ar,en, kk, gu, and ro.
 Note that you can change the gpu id (e.g. CUDA_VISIBLE_DEVICES=1), and change batch and capacity for the best fit of your machine. 
 
 ## Image Captioning
+There are two Wikily models for image captioning for Arabic in which both have similar qualities. One is multi-taksed with translation and English captioning, and the other only with translation. The zipped model folders are available at [this link](https://drive.google.com/drive/folders/1lH3sp3OFerHQ60gsjOPHHBu-wCjGKGjC?usp=sharing). There are two model folders there. You can try either of them.
+
+```bash
+unzip caption.py
+CUDA_VISIBLE_DEVICES=2 python -u caption.py --input [image-folder] --output [output-file] --target ar --tok caption/tok   --model  caption/caption+mt/   --fp16
+```
+__[image-folder]__ is a folder containing a collection of __jpg__ of __jpeg__ files. Note that you have to specify the target language __ar__ to do proper captioning.

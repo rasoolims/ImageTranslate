@@ -80,4 +80,4 @@ There are two Wikily models for image captioning for Arabic in which both have s
 unzip caption.py
 CUDA_VISIBLE_DEVICES=2 python -u caption.py --input [image-folder] --output [output-file] --target ar --tok caption/tok   --model  caption/caption+mt/   --fp16
 ```
-__[image-folder]__ is a folder containing a collection of __jpg__ of __jpeg__ files. Note that you have to specify the target language __ar__ to do proper captioning.
+__[image-folder]__ is a folder containing a collection of __jpg__ of __jpeg__ files. Note that you have to specify the target language __ar__ to do proper captioning. The [output-file] will be a tab-separated file with image path as first and caption as second columns.

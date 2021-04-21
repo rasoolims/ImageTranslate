@@ -116,11 +116,12 @@ Throughout this guideline, I use the small files in the _sample_ folder. Here th
 
 ### Training MASS from Scratch
 __1. Collect raw text for languages:__
+
 We first add language identifiers to each individual text in order to distinguish different languages.
 ```bash
 python scripts/add_lang_id.py sample/ar.txt ar sample/ar.id.txt
 python scripts/add_lang_id.py sample/fa.txt fa sample/fa.id.txt
-python scripts/add_lang_id.py sample/en.txt fa sample/en.id.txt
+python scripts/add_lang_id.py sample/en.txt en sample/en.id.txt
 ```
 Then, we concatenate the three files. Note that this could be any number of files or languages more than or equal to two.
 ```bash
@@ -128,13 +129,21 @@ cat sample/*.id.txt > sample/all.id.txt
 ```
 
 __2. Train a tokenizer on concatenation of all raw text:__
+
 Now we are ready to train a tokenizer:
 ```bash
-python train_tokenizer.py --data sample/all.id.txt --vocab_size [vocab-size] --model [tokenizer-path]
+python train_tokenizer.py --data sample/all.id.txt --vocab_size [vocab-size] --model sample/tok
 ```
 The vocab size could be any value but in our paper we used 60000 since the data was big. For this sample file, try 1000.
 
-3. Create binarized files on each raw text (each file should consist of content in one language only).
+__3. Create binarized files on each raw text:__
+
+Each file should consist of content in one language only.
+```bash
+python create_mt_batches.py --tok sample/tok/ --src sample/en.txt --src-lang en --output sample/en.mass
+python create_mt_batches.py --tok sample/tok/ --src sample/ar.txt --src-lang ar --output sample/ar.mass
+python create_mt_batches.py --tok sample/tok/ --src sample/fa.txt --src-lang fa --output sample/fa.mass
+```
 4. Train MASS on binarized files.
 
 ### Train Unsupervised MT

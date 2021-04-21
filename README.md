@@ -7,22 +7,22 @@ This code is used for learning translation and captioning models. More informati
 ## Installation using virtualenv
 Here, I use virtual environment but Conda should be very similar.
 
-### Create virtual environment with Python-3
+1. Create virtual environment with Python-3
 ```bash
 python3 -m venv [PATH]
 ```
-### Activate the enviorment
+2. Activate the enviorment
 ```
 source [PATH]/bin/activate
 ```
 
-### Clone the code
+3. Clone the code
 ```bash 
 git clone https://github.com/rasoolims/ImageTranslate
 cd ImageTranslate
 ```
 
-### Install requirements
+4. Install requirements
 In my experiments, I used cuda 10.1 and cudnn 7. To replicate the results, please use the mentioned versions. If things do not work as expected, please use the Docker installation.
 
 ```bash
@@ -62,7 +62,7 @@ docker run --gpus all -it  [docker-name]
 # Using Pretrained Translation and Captioning Models
 
 ## Translation
-* Downaload the model zip files for Arabic-English, Romanian-English, Gujarati-English, and Kazakh-English from [this link](https://drive.google.com/drive/folders/10aojSCqlYCunTv9swDCgkcrVkJ6xP4xE?usp=sharing).
+* Download the model zip files for Arabic-English, Romanian-English, Gujarati-English, and Kazakh-English from [this link](https://drive.google.com/drive/folders/10aojSCqlYCunTv9swDCgkcrVkJ6xP4xE?usp=sharing).
 * Unzip the files and use the models for translation.
     
 ```

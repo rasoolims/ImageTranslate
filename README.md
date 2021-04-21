@@ -114,6 +114,8 @@ Currently, this code only works with one gpu. For working with multiple gpus, th
 ## Train Machine Translation
 Throughout this guideline, I use the small files in the _sample_ folder. Here the Persian and English files are parallel but the Arabic text is not!
 
+__WARNING__: Depending on data, best parameters might significantly differ. It is good to try some parameter tuning for finding the best setting.
+
 ### Training MASS Pretraining from Scratch
 __1. Collect raw text for languages:__
 

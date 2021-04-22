@@ -4,7 +4,7 @@ import pickle
 from torchvision import models
 from transformers.modeling_albert import *
 
-from src import lm_config
+import lm_config
 from bert_seq2seq import BertEncoderModel, BertConfig, BertDecoderModel
 from faster_rcnn_feats import *
 from mass_seq2seq import MassSeq2Seq, future_mask

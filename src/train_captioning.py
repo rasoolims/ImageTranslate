@@ -9,7 +9,7 @@ import sacrebleu
 import torch.utils.data as data_utils
 from IPython.core import ultratb
 
-from src import dataset
+import dataset
 from faster_rcnn_feats import *
 from image_model import ImageCaptioning, ImageMassSeq2Seq
 from option_parser import get_img_options_parser

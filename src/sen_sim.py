@@ -4,7 +4,7 @@ import pickle
 import torch
 import torch.nn as nn
 
-from src import lm_config
+import lm_config
 from bert_seq2seq import BertEncoderModel, BertConfig
 from lm import LM
 from textprocessor import TextProcessor

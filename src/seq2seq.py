@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src import lm_config
+import lm_config
 from bert_seq2seq import BertEncoderModel, BertDecoderModel, BertOutputLayer, BertConfig
 from lm import LM
 from textprocessor import TextProcessor

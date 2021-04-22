@@ -10,7 +10,7 @@ import torch.utils.data as data_utils
 from IPython.core import ultratb
 from apex import amp
 
-from src import dataset
+import dataset
 from image_model import ImageCaptioning, Caption2Image
 from option_parser import get_img_options_parser
 from parallel import DataParallelModel

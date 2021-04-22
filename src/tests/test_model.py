@@ -4,7 +4,7 @@ import unittest
 
 import torch
 
-from src import create_batches
+import create_batches
 from dataset import TextDataset
 from lm import LM
 from seq2seq import Seq2Seq

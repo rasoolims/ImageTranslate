@@ -4,7 +4,7 @@ import torch
 import torch.utils.data as data_utils
 from IPython.core import ultratb
 
-from src import dataset
+import dataset
 from option_parser import get_img_options_parser
 from sen_sim import SenSim
 from seq_gen import get_outputs_until_eos

@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.utils.data as data_utils
 from IPython.core import ultratb
 
-from src import dataset
+import dataset
 from lm import LM
 from option_parser import get_lm_option_parser
 from parallel import DataParallelModel, DataParallelCriterion

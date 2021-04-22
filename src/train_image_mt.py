@@ -13,7 +13,7 @@ from IPython.core import ultratb
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data.distributed import DistributedSampler
 
-from src import dataset
+import dataset
 from image_model import ImageMassSeq2Seq
 from lm import LM
 from loss import SmoothedNLLLoss

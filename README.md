@@ -174,8 +174,9 @@ Assuming that here we are interested in English-Persian, can run the following c
 CUDA_VISIBLE_DEVICES=0 python3 -u train_image_mt.py --tok sample/tok/ \
 --model sample/umt_model \
 --pretrained sample/mass_model.latest \
---mass_train sample/en.mass.0,sample/fa.mass.0,sample/ar.mass.0 \
---capacity 2800 --batch 16000 --step 0 --fstep 300000 --warmup 100000   --fp16
+--mass_train sample/en.mass.0,sample/fa.mass.0 \
+--capacity 2800 --batch 16000 --step 0 --fstep 300000 --warmup 100000   --fp16 \
+--langs fa,en
 ```
 
 Similar to the previous step, this step also takes a long time on large datasets. You can change the ``--bt-beam `` option for beam size in back-translation but note that this might affect memory, and you should decrease ``--batch`` and ``--capacity`` options. __In principle, you could merge this step with the previous step by choosing non-zero ``--step`` and ``--fstep--`` options, but it is preferred to do this seperately in order to reuse the pre-trained MASS model in other places.__
@@ -184,6 +185,29 @@ If you are interested in observing how the model makes progress in BLEU score on
 
 ### Train MT on Parallel Data
 Parallel data could be gold-standard or mined. You should load pre-trained MASS models for the best performance.
+
+__1. Create binary files for training and dev dataset:__ For simplicity, we use the Persian and English text files as both training and development datasets (this is definitely against standard machine learning principles!) 
+```bash
+ python create_mt_batches.py --tok sample/tok/ --src sample/fa.txt\
+ --dst sample/en.txt --src-lang fa --dst-lang en  \
+ --output sample/fa2en.train.mt
+  
+  python create_mt_batches.py --tok sample/tok/ --src sample/fa.txt\
+ --dst sample/en.txt --src-lang fa --dst-lang en  \
+ --output sample/fa2en.dev.mt
+
+```
+
+If you create translation data in multiple direction, you can train multilingual translation for which we learn translation from multiple directions. Multiple data files can be separated by ``,`` in the arguments both for ``--train_mt`` and ``--dev_mt`` options.
+
+__2. Train by loading the pretrained MASS model:__
+```
+ CUDA_VISIBLE_DEVICES=0 python3 -u train_image_mt.py --tok  sample/tok/ \
+ --model sample/mt_model  --train_mt sample/fa2en.train.mt \
+ --capacity 600 --batch 4000   --beam 4 --step 500000 --warmup 4000 --fstep 0 \
+ --lr 0.0001  --dev_mt sample/fa2en.dev.mt \
+ --dropout 0.1 --fp16 --pretrained  sample/mass_model.latest
+```
 
 ### Training from pre-trained MASS model
 This is essentially ...

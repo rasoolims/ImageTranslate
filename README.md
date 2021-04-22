@@ -168,6 +168,9 @@ CUDA_VISIBLE_DEVICES=0 python3 -u train_image_mt.py --tok sample/tok/ --model sa
 ```
 
 Similar to the previous step, this step also takes a long time on large datasets. You can change the ``--bt-beam `` option for beam size in back-translation but note that this might affect memory, and you should decrease ``--batch`` and ``--capacity`` options.
+
+If you are interested in observing how the model makes progress in BLEU score on some held-out data, you could also build binaries for development translation data and use the ``--dev_mt`` option for giving the binary files separated by ``,``.
+
 ### Train MT on Parallel Data
 Parallel data could be gold-standard or mined. You should load pre-trained MASS models for the best performance.
 

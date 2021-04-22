@@ -93,7 +93,9 @@ docker run --gpus all -it  [docker-name]
     
 ```
 unzip ar.zip
-CUDA_VISIBLE_DEVICES=0 python3 -u translate.py --tok ar/tok/ --output [output English file] --input [input Arabic file] --src en --target ar --beam 4 --model ar/model --capacity 600 --batch 4000     
+CUDA_VISIBLE_DEVICES=0 python3 -u translate.py --tok ar/tok/ \
+--output [output English file] --input [input Arabic file] \
+--src en --target ar --beam 4 --model ar/model --capacity 600 --batch 4000     
 ```
 
 Here I assumed that I want to translate from Arabic to English. Language abbreviations are ar,en, kk, gu, and ro.
@@ -104,7 +106,9 @@ There are two Wikily models for image captioning for Arabic in which both have s
 
 ```bash
 unzip caption.py
-CUDA_VISIBLE_DEVICES=2 python -u caption.py --input [image-folder] --output [output-file] --target ar --tok caption/tok   --model  caption/caption+mt/   --fp16
+CUDA_VISIBLE_DEVICES=0 python -u caption.py --input [image-folder] \
+--output [output-file] --target ar --tok caption/tok \
+--model  caption/caption+mt/   --fp16
 ```
 __[image-folder]__ is a folder containing a collection of __jpg__ of __jpeg__ files. Note that you have to specify the target language __ar__ to do proper captioning. The [output-file] will be a tab-separated file with image path as first and caption as second columns.
 
@@ -150,7 +154,9 @@ python create_mt_batches.py --tok sample/tok/ --src sample/fa.txt --src-lang fa 
 4. Train MASS on binarized files
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python3 -u train_image_mt.py --tok sample/tok/ --model sample/mass_model --mass_train sample/en.mass.0,sample/fa.mass.0,sample/ar.mass.0 --capacity 2800 --batch 16000 --step 300000 --warmup 100000 --acc 8  --fp16 
+CUDA_VISIBLE_DEVICES=0 python3 -u  train_image_mt.py --tok sample/tok/ \
+--model sample/mass_model --mass_train sample/en.mass.0,sample/fa.mass.0,sample/ar.mass.0 \
+--capacity 2800 --batch 16000 --step 300000 --warmup 100000 --acc 8  --fp16 
 ```
 
 You can kill the process whenever you want. This process takes a long time to train on large data files. You can use __scree__ and put the standard outputs into a log file in order to run it in the background mode.
@@ -164,7 +170,10 @@ Following steps in [the previous section](#Training-MASS-from-Scratch), load the
 Assuming that here we are interested in English-Persian, can run the following command to run it.
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python3 -u train_image_mt.py --tok sample/tok/ --model sample/mass_model --mass_train sample/en.mass.0,sample/fa.mass^C,sample/ar.mass.0 --capacity 2800 --batch 16000 --step 300000 --warmup 100000   --fp16
+CUDA_VISIBLE_DEVICES=0 python3 -u train_image_mt.py --tok sample/tok/ \
+--model sample/mass_model \
+--mass_train sample/en.mass.0,sample/fa.mass.0,sample/ar.mass.0 \
+--capacity 2800 --batch 16000 --step 300000 --warmup 100000   --fp16
 ```
 
 Similar to the previous step, this step also takes a long time on large datasets. You can change the ``--bt-beam `` option for beam size in back-translation but note that this might affect memory, and you should decrease ``--batch`` and ``--capacity`` options.

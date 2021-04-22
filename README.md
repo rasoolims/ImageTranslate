@@ -186,14 +186,19 @@ If you are interested in observing how the model makes progress in BLEU score on
 ### Train MT on Parallel Data
 Parallel data could be gold-standard or mined. You should load pre-trained MASS models for the best performance.
 
-__1. Create binary files for training and dev dataset:__ For simplicity, we use the Persian and English text files as both training and development datasets (this is definitely against standard machine learning principles!) 
+__1. Create binary files for training and dev dataset:__ For simplicity, we use the Persian and English text files as both training and development datasets by using their last 100 sentences as development data. 
 ```bash
- python create_mt_batches.py --tok sample/tok/ --src sample/fa.txt\
- --dst sample/en.txt --src-lang fa --dst-lang en  \
+head -900 sample/fa.txt > sample/train.fa
+head -900 sample/en.txt > sample/train.en
+tail  -100 sample/en.txt > sample/dev.en
+tail  -100 sample/fa.txt > sample/dev.fa
+
+ python create_mt_batches.py --tok sample/tok/ --src sample/train.fa \
+ --dst sample/train.en --src-lang fa --dst-lang en  \
  --output sample/fa2en.train.mt
   
-  python create_mt_batches.py --tok sample/tok/ --src sample/fa.txt\
- --dst sample/en.txt --src-lang fa --dst-lang en  \
+ python create_mt_batches.py --tok sample/tok/ --src sample/dev.fa \
+ --dst sample/train.en --src-lang fa --dst-lang en  \
  --output sample/fa2en.dev.mt
 
 ```

@@ -240,3 +240,24 @@ You could you the model along with the tokenizers inside them to fine-tune or tr
 
 
 ## Train Image Captioning
+Assuming that you have a text file that contains a list of image file paths and their captions separated by the tab (``\t``) character, in which if an image has ``n`` captions, it will show up in ``n`` lines in the text file where each line belongs to one of its captions, you should be able to train a captioning model. Note that the development data should have a similar format. After training is done, you can caption all images in a folder (the images could also by soft links).
+
+__1. Convert list text files into binaries__
+```bash
+python binarize_captions_from_list.py --file [list-file] \
+--tok [tokenizer-folder] --lang [language-id] \
+--output [output-binary-file]
+```
+Note that the tokenizer folder has the same format as what we described in the translation section.
+
+__2. Train__: Note that the training can be multi-tasked with different captioning data from multiple languages as well as translation data. Moreover, the captioning model could be initialized by a pre-trained translation model.
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python -u train_captioning.py --train [caption train binary files separated by ,]  \
+--dev [caption dev binary files separated by ,]  --tok [tokenizer-folder]  \
+--model [model-folder] --fp16 --no-obj  --img-depth 5  \
+--img_capacity 300 --max-image 20 --acc 32  --step 450000 \
+--lm [Optional: pretrained translation model folder] \
+--train_mt [Optional: translation train binary files separated by ,] \
+--dev_mt [Optional: translation development binary files separated by ,] 
+```

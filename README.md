@@ -228,7 +228,15 @@ Note that there is a ``--verbose`` option where it puts the input and output lin
 
 
 ### Training from pre-trained MASS model
-This is essentially ...
+In case you need to use our pretrained MASS models, all of those could be downloaded from [this link](https://drive.google.com/drive/folders/18LYZz55Z7YbZCQvLPqBHRqDdMjIhBrRk?usp=sharing)
+
+Note that each package has the following languages:
+* ar: ar, fa, en
+* gu: gu, hi, en (Note that Hindi (hi) is converted to Gujarati script)
+* kk: kk, ru, en
+* ro: ro, it, en
+
+You could you the model along with the tokenizers inside them to fine-tune or train new models.
 
 
 ## Train Image Captioning

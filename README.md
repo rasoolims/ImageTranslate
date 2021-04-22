@@ -236,7 +236,7 @@ Note that each package has the following languages:
 * kk: kk, ru, en
 * ro: ro, it, en
 
-You could you the model along with the tokenizers inside them to fine-tune or train new models.
+You could you the model along with the tokenizers inside them to fine-tune or train new models. Their tokenizer folders are inside the pre-trained translation packages ([this link](https://drive.google.com/drive/u/2/folders/10aojSCqlYCunTv9swDCgkcrVkJ6xP4xE)).
 
 
 ## Train Image Captioning

@@ -26,7 +26,7 @@ This repository contains a collection of _experimental_ neural machine translati
     + [Train MT on Parallel Data](#train-mt-on-parallel-data)
     + [Training from pre-trained MASS model](#training-from-pre-trained-mass-model)
   * [Train Image Captioning](#train-image-captioning)
-ش
+
 # Installing Dependencies 
 
 ## Installation using virtualenv

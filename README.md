@@ -253,7 +253,8 @@ Note that the tokenizer folder has the same format as what we described in the t
 __2. Train__: Note that the training can be multi-tasked with different captioning data from multiple languages as well as translation data. Moreover, the captioning model could be initialized by a pre-trained translation model.
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python -u train_captioning.py --train [caption train binary files separated by ,]  \
+CUDA_VISIBLE_DEVICES=0 python -u train_captioning.py \
+--train [caption train binary files separated by ,]  \
 --dev [caption dev binary files separated by ,]  --tok [tokenizer-folder]  \
 --model [model-folder] --fp16 --no-obj  --img-depth 5  \
 --img_capacity 300 --max-image 20 --acc 32  --step 450000 \

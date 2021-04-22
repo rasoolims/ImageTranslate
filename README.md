@@ -102,6 +102,8 @@ CUDA_VISIBLE_DEVICES=0 python3 -u translate.py --tok ar/tok/ \
 Here I assumed that I want to translate from Arabic to English. Language abbreviations are ar,en, kk, gu, and ro.
 Note that you can change the GPU id (e.g. CUDA_VISIBLE_DEVICES=1), and change batch and capacity for the best fit of your machine. 
 
+Note that there is a ``--verbose`` option where it puts the input and output lines separated by ``|||``. This is useful especially if you want to use it for back-translation (to make sure that sentence alignments are completely guaranteed), or for annotation projection in which you might need it for word alignment.
+
 ## Image Captioning
 There are two Wikily models for image captioning for Arabic in which both have similar qualities. One is multi-tasked with translation and English captioning, and the other only with translation. The zipped model folders are available at [this link](https://drive.google.com/drive/folders/1lH3sp3OFerHQ60gsjOPHHBu-wCjGKGjC?usp=sharing). There are two model folders there. You can try either of them.
 
@@ -213,6 +215,17 @@ __2. Train by loading the pretrained MASS model:__
  --lr 0.0001  --dev_mt sample/fa2en.dev.mt \
  --dropout 0.1 --fp16 --pretrained  sample/mass_model.latest
 ```
+Depending on how much you pretrained the MASS model, you might different BLEU scores throughout different epochs. In general, since the training data is super-small the BLEU scores are usually low (less than 1.0) on this sample data.
+
+After you are done, you can use the model path ``sample/mt_model`` for translating text to English (similar to [the section on using the pretrained models in our paper](#translation).
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python -u translate.py --tok sample/tok/ \
+--model sample/mt_model --input sample/dev.fa \
+--output sample/dev.output.en --src fa --target en
+```
+Note that there is a ``--verbose`` option where it puts the input and output lines separated by ``|||``. This is useful especially if you want to use it for back-translation (to make sure that sentence alignments are completely guaranteed), or for annotation projection in which you might need it for word alignment.
+
 
 ### Training from pre-trained MASS model
 This is essentially ...

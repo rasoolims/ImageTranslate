@@ -15,7 +15,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-from src.textprocessor import TextProcessor
+from textprocessor import TextProcessor
 
 logger = logging.getLogger(__name__)
 

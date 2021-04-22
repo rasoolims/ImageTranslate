@@ -10,12 +10,12 @@ import torch.utils.data as data_utils
 from IPython.core import ultratb
 
 from src import dataset
-from src.lm import LM
-from src.option_parser import get_lm_option_parser
-from src.parallel import DataParallelModel, DataParallelCriterion
-from src.reformer_lm import ReformerLM
-from src.textprocessor import TextProcessor
-from src.utils import build_optimizer, mask_text, unmask_text
+from lm import LM
+from option_parser import get_lm_option_parser
+from parallel import DataParallelModel, DataParallelCriterion
+from reformer_lm import ReformerLM
+from textprocessor import TextProcessor
+from utils import build_optimizer, mask_text, unmask_text
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 

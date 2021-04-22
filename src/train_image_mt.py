@@ -14,14 +14,14 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data.distributed import DistributedSampler
 
 from src import dataset
-from src.image_model import ImageMassSeq2Seq
-from src.lm import LM
-from src.loss import SmoothedNLLLoss
-from src.option_parser import get_img_options_parser
-from src.parallel import DataParallelModel, DataParallelCriterion
-from src.seq2seq import Seq2Seq
-from src.seq_gen import BeamDecoder, get_outputs_until_eos
-from src.utils import *
+from image_model import ImageMassSeq2Seq
+from lm import LM
+from loss import SmoothedNLLLoss
+from option_parser import get_img_options_parser
+from parallel import DataParallelModel, DataParallelCriterion
+from seq2seq import Seq2Seq
+from seq_gen import BeamDecoder, get_outputs_until_eos
+from utils import *
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 

@@ -8,8 +8,8 @@ import torch.nn.functional as F
 from apex import amp
 from torch.nn.utils.rnn import pad_sequence
 
-from src.seq2seq import Seq2Seq, future_mask
-from src.textprocessor import TextProcessor
+from seq2seq import Seq2Seq, future_mask
+from textprocessor import TextProcessor
 
 
 def get_option_parser():

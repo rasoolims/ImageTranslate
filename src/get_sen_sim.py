@@ -5,11 +5,11 @@ import torch.utils.data as data_utils
 from IPython.core import ultratb
 
 from src import dataset
-from src.option_parser import get_img_options_parser
-from src.sen_sim import SenSim
-from src.seq_gen import get_outputs_until_eos
-from src.train_image_mt import ImageMTTrainer
-from src.utils import build_optimizer
+from option_parser import get_img_options_parser
+from sen_sim import SenSim
+from seq_gen import get_outputs_until_eos
+from train_image_mt import ImageMTTrainer
+from utils import build_optimizer
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 

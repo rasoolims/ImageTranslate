@@ -8,8 +8,8 @@ import torch.nn.functional as F
 from transformers import BertModel, BertConfig
 
 from src import lm_config
-from src.bert_seq2seq import BertOutputLayer
-from src.textprocessor import TextProcessor
+from bert_seq2seq import BertOutputLayer
+from textprocessor import TextProcessor
 
 
 class LM(nn.Module):

@@ -5,10 +5,10 @@ from torchvision import models
 from transformers.modeling_albert import *
 
 from src import lm_config
-from src.bert_seq2seq import BertEncoderModel, BertConfig, BertDecoderModel
-from src.faster_rcnn_feats import *
-from src.mass_seq2seq import MassSeq2Seq, future_mask
-from src.textprocessor import TextProcessor
+from bert_seq2seq import BertEncoderModel, BertConfig, BertDecoderModel
+from faster_rcnn_feats import *
+from mass_seq2seq import MassSeq2Seq, future_mask
+from textprocessor import TextProcessor
 
 
 class ModifiedResnet(models.ResNet):

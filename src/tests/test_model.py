@@ -5,10 +5,10 @@ import unittest
 import torch
 
 from src import create_batches
-from src.dataset import TextDataset
-from src.lm import LM
-from src.seq2seq import Seq2Seq
-from src.textprocessor import TextProcessor
+from dataset import TextDataset
+from lm import LM
+from seq2seq import Seq2Seq
+from textprocessor import TextProcessor
 
 
 class TestModel(unittest.TestCase):

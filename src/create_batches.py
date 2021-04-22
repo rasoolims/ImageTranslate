@@ -3,7 +3,7 @@ import os
 from optparse import OptionParser
 from typing import Optional
 
-from src.textprocessor import TextProcessor
+from textprocessor import TextProcessor
 
 
 def write(text_processor: TextProcessor, cache_dir: str,

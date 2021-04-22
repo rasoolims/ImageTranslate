@@ -1,6 +1,6 @@
 import torch.nn.functional as F
 
-from src.seq2seq import Seq2Seq, future_mask
+from seq2seq import Seq2Seq, future_mask
 
 
 class MassSeq2Seq(Seq2Seq):

@@ -8,7 +8,7 @@ import torch.optim as optim
 from apex import amp
 from torch.nn.utils.rnn import pad_sequence
 
-from src.textprocessor import TextProcessor
+from textprocessor import TextProcessor
 
 
 def build_optimizer(model, learning_rate, warump_steps):

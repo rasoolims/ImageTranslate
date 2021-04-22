@@ -2,7 +2,7 @@ import json
 import marshal
 from optparse import OptionParser
 
-from src.textprocessor import TextProcessor
+from textprocessor import TextProcessor
 
 id2path = lambda path: "".join(["".join((12 - len(path)) * ["0"]), path, ".jpg"])
 caption_format = lambda caption: " ".join(["<en>", caption, "</s>"])

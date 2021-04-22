@@ -7,7 +7,7 @@ from optparse import OptionParser
 from PIL import Image
 from torchvision import transforms
 
-from src.textprocessor import TextProcessor
+from textprocessor import TextProcessor
 
 """
 Extracts all images with all sentences (longer than 5 words).

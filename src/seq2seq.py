@@ -7,9 +7,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from src import lm_config
-from src.bert_seq2seq import BertEncoderModel, BertDecoderModel, BertOutputLayer, BertConfig
-from src.lm import LM
-from src.textprocessor import TextProcessor
+from bert_seq2seq import BertEncoderModel, BertDecoderModel, BertOutputLayer, BertConfig
+from lm import LM
+from textprocessor import TextProcessor
 
 def future_mask(tgt_mask):
     attn_shape = (tgt_mask.size(0), tgt_mask.size(1), tgt_mask.size(1))

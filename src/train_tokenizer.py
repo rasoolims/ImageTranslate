@@ -2,7 +2,7 @@ import os
 from optparse import OptionParser
 from typing import Optional
 
-from src.textprocessor import TextProcessor
+from textprocessor import TextProcessor
 
 
 def get_tokenizer(train_path: Optional[str] = None,

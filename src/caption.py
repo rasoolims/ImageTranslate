@@ -6,10 +6,10 @@ import torch.utils.data as data_utils
 from apex import amp
 
 from src import dataset
-from src.image_model import ImageCaptioning
-from src.parallel import DataParallelModel
-from src.seq2seq import Seq2Seq
-from src.seq_gen import BeamDecoder
+from image_model import ImageCaptioning
+from parallel import DataParallelModel
+from seq2seq import Seq2Seq
+from seq_gen import BeamDecoder
 
 
 def get_lm_option_parser():

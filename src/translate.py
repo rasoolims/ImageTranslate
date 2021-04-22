@@ -6,9 +6,9 @@ import torch.utils.data as data_utils
 from apex import amp
 
 from src import dataset
-from src.parallel import DataParallelModel
-from src.seq2seq import Seq2Seq
-from src.seq_gen import BeamDecoder, get_outputs_until_eos
+from parallel import DataParallelModel
+from seq2seq import Seq2Seq
+from seq_gen import BeamDecoder, get_outputs_until_eos
 
 
 def get_lm_option_parser():

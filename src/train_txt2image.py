@@ -11,13 +11,13 @@ from IPython.core import ultratb
 from apex import amp
 
 from src import dataset
-from src.image_model import ImageCaptioning, Caption2Image
-from src.option_parser import get_img_options_parser
-from src.parallel import DataParallelModel
-from src.seq2seq import Seq2Seq
-from src.textprocessor import TextProcessor
-from src.train_image_mt import ImageMTTrainer, get_lex_dict
-from src.utils import build_optimizer, backward
+from image_model import ImageCaptioning, Caption2Image
+from option_parser import get_img_options_parser
+from parallel import DataParallelModel
+from seq2seq import Seq2Seq
+from textprocessor import TextProcessor
+from train_image_mt import ImageMTTrainer, get_lex_dict
+from utils import build_optimizer, backward
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 

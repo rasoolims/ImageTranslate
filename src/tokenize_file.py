@@ -1,6 +1,6 @@
 from optparse import OptionParser
 
-from src.textprocessor import TextProcessor
+from textprocessor import TextProcessor
 
 
 def write(text_processor: TextProcessor, output_file: str, txt_file: str, output_txt: bool = False):

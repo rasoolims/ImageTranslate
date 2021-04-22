@@ -10,14 +10,14 @@ import torch.utils.data as data_utils
 from IPython.core import ultratb
 
 from src import dataset
-from src.faster_rcnn_feats import *
-from src.image_model import ImageCaptioning, ImageMassSeq2Seq
-from src.option_parser import get_img_options_parser
-from src.seq2seq import Seq2Seq
-from src.seq_gen import get_outputs_until_eos
-from src.textprocessor import TextProcessor
-from src.train_image_mt import ImageMTTrainer, get_lex_dict
-from src.utils import build_optimizer, backward
+from faster_rcnn_feats import *
+from image_model import ImageCaptioning, ImageMassSeq2Seq
+from option_parser import get_img_options_parser
+from seq2seq import Seq2Seq
+from seq_gen import get_outputs_until_eos
+from textprocessor import TextProcessor
+from train_image_mt import ImageMTTrainer, get_lex_dict
+from utils import build_optimizer, backward
 
 sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_pdb=False)
 

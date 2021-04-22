@@ -5,9 +5,9 @@ import torch
 import torch.nn as nn
 
 from src import lm_config
-from src.bert_seq2seq import BertEncoderModel, BertConfig
-from src.lm import LM
-from src.textprocessor import TextProcessor
+from bert_seq2seq import BertEncoderModel, BertConfig
+from lm import LM
+from textprocessor import TextProcessor
 
 
 class SenSim(nn.Module):

@@ -162,7 +162,7 @@ CUDA_VISIBLE_DEVICES=0 python3 -u  train_image_mt.py --tok sample/tok/ \
 
 You can kill the process whenever you want. This process takes a long time to train on large data files. You can use __screen__ and put the standard outputs into a log file in order to run it in the background mode. __Usually training with more steps with bigger batches on larger GPU memories reaches a better model quality.__
 
-The latest model will be saved in [model-path].latest; e.g. sample/mass_model.latest.
+The latest model will be saved in [model-path].latest; e.g. sample/mass_model.latest. __If you are using the sample data, you can kill the process after seeing a few epochs being done! We just need to make sure the code works.__
 
 ### Train Unsupervised MT
 

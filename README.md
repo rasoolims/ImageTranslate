@@ -188,16 +188,16 @@ Parallel data could be gold-standard or mined. You should load pre-trained MASS 
 
 __1. Create binary files for training and dev dataset:__ For simplicity, we use the Persian and English text files as both training and development datasets by using their last 100 sentences as development data. 
 ```bash
-head -900 sample/fa.txt > sample/train.fa
-head -900 sample/en.txt > sample/train.en
-tail  -100 sample/en.txt > sample/dev.en
-tail  -100 sample/fa.txt > sample/dev.fa
+head -9900 sample/fa.txt > sample/train.fa
+head -9900 sample/en.txt > sample/train.en
+tail -100 sample/en.txt > sample/dev.en
+tail -100 sample/fa.txt > sample/dev.fa
 
- python create_mt_batches.py --tok sample/tok/ --src sample/train.fa \
+python create_mt_batches.py --tok sample/tok/ --src sample/train.fa \
  --dst sample/train.en --src-lang fa --dst-lang en  \
  --output sample/fa2en.train.mt
   
- python create_mt_batches.py --tok sample/tok/ --src sample/dev.fa \
+python create_mt_batches.py --tok sample/tok/ --src sample/dev.fa \
  --dst sample/train.en --src-lang fa --dst-lang en  \
  --output sample/fa2en.dev.mt
 

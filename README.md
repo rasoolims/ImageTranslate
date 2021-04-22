@@ -11,6 +11,7 @@ This repository contains a collection of _experimental_ neural machine translati
       primaryClass={cs.CL}
 }
 ```
+We should emphasize that a big portion of this code is still in experimental mode, and any functionality other than what we describe in this README file might not work properly.
 
 # Contents
 - [Installing Dependencies](#installing-dependencies)

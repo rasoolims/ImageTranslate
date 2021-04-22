@@ -160,7 +160,7 @@ CUDA_VISIBLE_DEVICES=0 python3 -u  train_image_mt.py --tok sample/tok/ \
 --capacity 2800 --batch 16000 --step 300000 --warmup 100000 --acc 8  --fp16 
 ```
 
-You can kill the process whenever you want. This process takes a long time to train on large data files. You can use __scree__ and put the standard outputs into a log file in order to run it in the background mode.
+You can kill the process whenever you want. This process takes a long time to train on large data files. You can use __screen__ and put the standard outputs into a log file in order to run it in the background mode. __Usually training with more steps with bigger batches on larger GPU memories reaches a better model quality.__
 
 The latest model will be saved in [model-path].latest; e.g. sample/mass_model.latest.
 
@@ -172,12 +172,13 @@ Assuming that here we are interested in English-Persian, can run the following c
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python3 -u train_image_mt.py --tok sample/tok/ \
---model sample/mass_model \
+--model sample/umt_model \
+--pretrained sample/mass_model.latest \
 --mass_train sample/en.mass.0,sample/fa.mass.0,sample/ar.mass.0 \
---capacity 2800 --batch 16000 --step 300000 --warmup 100000   --fp16
+--capacity 2800 --batch 16000 --step --fstep 300000 --warmup 100000   --fp16
 ```
 
-Similar to the previous step, this step also takes a long time on large datasets. You can change the ``--bt-beam `` option for beam size in back-translation but note that this might affect memory, and you should decrease ``--batch`` and ``--capacity`` options.
+Similar to the previous step, this step also takes a long time on large datasets. You can change the ``--bt-beam `` option for beam size in back-translation but note that this might affect memory, and you should decrease ``--batch`` and ``--capacity`` options. __In principle, you could merge this step with the previous step by choosing non-zero ``--step`` and ``--fstep--`` options, but it is preferred to do this seperately in order to reuse the pre-trained MASS model in other places.__
 
 If you are interested in observing how the model makes progress in BLEU score on some held-out data, you could also build binaries for development translation data and use the ``--dev_mt`` option for giving the binary files separated by ``,``. Take a look at [the next section](#train-mt-on-parallel-data) for more details on how to built binary files for translation data.
 

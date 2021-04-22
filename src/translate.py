@@ -5,7 +5,7 @@ import torch
 import torch.utils.data as data_utils
 from apex import amp
 
-from src import dataset
+import dataset
 from parallel import DataParallelModel
 from seq2seq import Seq2Seq
 from seq_gen import BeamDecoder, get_outputs_until_eos

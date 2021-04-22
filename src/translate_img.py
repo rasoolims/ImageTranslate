@@ -6,7 +6,7 @@ import torch.utils.data as data_utils
 from apex import amp
 from torch.nn.utils.rnn import pad_sequence
 
-from src import dataset
+import dataset
 from image_model import ImageCaptioning, Caption2Image
 from parallel import DataParallelModel
 from seq2seq import Seq2Seq

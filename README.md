@@ -150,7 +150,7 @@ python create_mt_batches.py --tok sample/tok/ --src sample/fa.txt --src-lang fa 
 4. Train MASS on binarized files
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python3 -u train_ --tok sample/tok/ --model sample/mass_model --mass_train sample/en.mass.0,sample/fa.mass.0,sample/ar.mass.0 --capacity 2800 --batch 16000 --step 300000 --warmup 100000 --acc 8  --fp16 
+CUDA_VISIBLE_DEVICES=0 python3 -u train_image_mt.py --tok sample/tok/ --model sample/mass_model --mass_train sample/en.mass.0,sample/fa.mass.0,sample/ar.mass.0 --capacity 2800 --batch 16000 --step 300000 --warmup 100000 --acc 8  --fp16 
 ```
 
 You can kill the process whenever you want. This process takes a long time to train on large data files. You can use __scree__ and put the standard outputs into a log file in order to run it in the background mode.

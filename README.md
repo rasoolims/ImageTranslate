@@ -1,7 +1,7 @@
 # "Wikily" Neural Machine Translation Tailored to Cross-Lingual Tasks
 
 This repository contains a collection of _experimental_ neural machine translation and computer vision codes based on Pytorch. Part of this code is used for the the paper ["Wikily" Neural Machine Translation Tailored to Cross-Lingual Tasks](https://arxiv.org/abs/2104.08384). If you use the models or the code, please cite the paper with the following details:
-```text
+```bibtex
 @misc{rasooli2021wikily,
       title={"Wikily" Neural Machine Translation Tailored to Cross-Lingual Tasks}, 
       author={Mohammad Sadegh Rasooli and Chris Callison-Burch and Derry Tanti Wijaya},

@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 import numpy as np
 from tokenizers import Encoding
 from tokenizers import SentencePieceBPETokenizer
+from tokenizers.normalizers import BertNormalizer
 
 
 class TextProcessor:
@@ -32,6 +33,8 @@ class TextProcessor:
 
     def train_tokenizer(self, paths: List[str], vocab_size: int, to_save_dir: str, languages: Dict[str, int]):
         self.tokenizer = SentencePieceBPETokenizer()
+        bert_normalizer = BertNormalizer(clean_text=True, handle_chinese_chars=False, lowercase=False)
+        self.tokenizer._tokenizer.normalizer = bert_normalizer
         self.init_properties(languages)
         self.tokenizer.train(files=paths, vocab_size=vocab_size, min_frequency=5, special_tokens=self.special_tokens)
         self.save(directory=to_save_dir)
@@ -40,7 +43,7 @@ class TextProcessor:
         return self.tokenizer.encode(line)
 
     def save(self, directory):
-        self.tokenizer.save(directory)
+        self.tokenizer.save_model(directory)
         with open(os.path.join(directory, "langs"), "wb") as fp:
             pickle.dump(self.languages, fp)
 

@@ -1,5 +1,5 @@
 torch==1.4.0
-numpy==1.18.2
+numpy==1.22.0
 sacrebleu
 future==0.18.2
 pillow
